@@ -26,7 +26,7 @@ import {
 import { Product, Order } from "../types";
 import { productService } from "../services";
 import { formatRefId, formatProductPriceLabel } from "../lib/utils";
-import { useFlyToCart } from "../context/FlyToCartContext";
+import { useCartFeedback } from "../context/FlyToCartContext";
 import ProductCardSkeleton from "./ProductCardSkeleton";
 
 interface SearchSystemProps {
@@ -264,7 +264,7 @@ export default function SearchSystem({
     }));
   };
 
-  const { triggerFlyToCart } = useFlyToCart();
+  const { triggerCartFeedback, triggerButtonFeedback } = useCartFeedback();
 
   const handleAddToCartClick = async (
     productId: string,
@@ -277,9 +277,9 @@ export default function SearchSystem({
     if (e) {
       e.stopPropagation();
     }
-    if (e && e.currentTarget) {
-      triggerFlyToCart(e.currentTarget, imageSrc);
-    }
+
+    triggerCartFeedback();
+    triggerButtonFeedback(productId);
 
     const qty = quantities[productId] || 1; // Default bulk size (e.g. 1 box)
 

@@ -15,7 +15,8 @@ import {
   Package
 } from "lucide-react";
 import { Product } from "../types";
-import { useFlyToCart } from "../context/FlyToCartContext";
+import { useCartFeedback } from "../context/FlyToCartContext";
+import CartBurst from "./CartBurst";
 
 interface FloatingCartBarProps {
   cartData: {
@@ -46,11 +47,11 @@ export default function FloatingCartBar({
 }: FloatingCartBarProps) {
   const {
     registerCartTarget,
-    isCartBarPulsing,
-    isBadgeSpringing,
+    isCartPulsing,
+    isBadgePopping,
     isCartDrawerOpen,
     setIsCartDrawerOpen
-  } = useFlyToCart();
+  } = useCartFeedback();
 
   const barRef = useRef<HTMLDivElement | null>(null);
 
@@ -74,6 +75,7 @@ export default function FloatingCartBar({
 
   return (
     <>
+      <CartBurst />
       {/* 1. FLOATING BOTTOM CART BAR (STICKY FOOTER) */}
       <div className="fixed bottom-[calc(max(12px,env(safe-area-inset-bottom))+68px)] left-0 right-0 z-30 px-3 pointer-events-none flex justify-center">
         <motion.div
@@ -82,7 +84,7 @@ export default function FloatingCartBar({
           animate={{
             y: 0,
             opacity: 1,
-            scale: isCartBarPulsing ? [1, 1.05, 0.98, 1] : 1
+            scale: isCartPulsing ? [1, 1.04, 0.98, 1] : 1
           }}
           exit={{ y: 80, opacity: 0, scale: 0.95 }}
           transition={{
@@ -101,8 +103,8 @@ export default function FloatingCartBar({
               {/* Cart Item Badge with Spring Transition */}
               <motion.span
                 animate={
-                  isBadgeSpringing
-                    ? { scale: [1, 1.5, 0.85, 1], rotate: [0, -10, 10, 0] }
+                  isBadgePopping
+                    ? { scale: [1, 1.4, 0.85, 1], rotate: [0, -8, 8, 0] }
                     : { scale: 1 }
                 }
                 transition={{ duration: 0.4 }}

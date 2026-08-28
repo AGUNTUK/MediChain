@@ -161,7 +161,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 - `FloatingCartBar.tsx`: Sticky mobile footer for cart summary.
 - `ProductCard.tsx`: Reusable UI for displaying a medicine.
-- `FlyToCartOverlay.tsx`: Global animation layer for cart interactions.
+- `CartBurst.tsx`: Lightweight particle burst animation from cart icon on add-to-cart.
 - `AIEnrichmentPanel.tsx`: Admin UI for monitoring the background AI data crawler.
 - `PWAInstallBanner.tsx`: Prompts users to install the web app locally.
 
@@ -170,7 +170,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 ## 13. Hooks
 
 - Primarily inline React Hooks (`useState`, `useEffect`).
-- FlyToCartContext provides `useFlyToCart`.
+- `CartFeedbackContext` provides `useCartFeedback` for add-to-cart micro-interactions.
 
 ----------------------------------------
 

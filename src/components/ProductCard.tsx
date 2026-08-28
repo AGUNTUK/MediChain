@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Plus, Minus, ShoppingCart, Check, Tag, Building2, Pill, AlertTriangle } from "lucide-react";
 import { Product } from "../types";
 import { formatProductPriceLabel } from "../lib/utils";
-import { useFlyToCart } from "../context/FlyToCartContext";
+import { useCartFeedback } from "../context/FlyToCartContext";
 
 interface ProductCardProps {
   product: Product;
@@ -23,7 +23,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
   className = "",
   layout = "grid",
 }) => {
-  const { triggerFlyToCart } = useFlyToCart();
+  const { triggerCartFeedback, triggerButtonFeedback, isButtonAdded } = useCartFeedback();
   const [orderQty, setOrderQty] = useState(1);
   const [isAdded, setIsAdded] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
@@ -52,9 +52,8 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
         await onUpdateCartQty(product.id, cartQuantity, orderQty);
       }
 
-      if (e.currentTarget) {
-        triggerFlyToCart(e.currentTarget, imageUrl);
-      }
+      triggerCartFeedback();
+      triggerButtonFeedback(product.id);
 
       setIsAdded(true);
       setTimeout(() => {

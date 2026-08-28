@@ -1,36 +1,23 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useMemo, ReactNode } from "react";
 
-export interface FlyingItem {
-  id: string;
-  imageSrc?: string;
-  startX: number;
-  startY: number;
-  targetX: number;
-  targetY: number;
-}
-
-interface FlyToCartContextType {
+interface CartFeedbackContextType {
   registerCartTarget: (node: HTMLElement | null) => void;
-  triggerFlyToCart: (
-    source: HTMLElement | DOMRect | { x: number; y: number } | null,
-    imageSrc?: string
-  ) => void;
-  flyingItems: FlyingItem[];
-  removeFlyingItem: (id: string) => void;
-  isCartBarPulsing: boolean;
-  isBadgeSpringing: boolean;
-  isCartDrawerOpen: boolean;
-  setIsCartDrawerOpen: (open: boolean) => void;
-  triggerLandingFeedback: () => void;
+  triggerCartFeedback: () => void;
+  isCartPulsing: boolean;
+  isBadgePopping: boolean;
+  triggerButtonFeedback: (productId: string) => void;
+  isButtonAdded: (productId: string) => boolean;
+  burstOrigin: { x: number; y: number } | null;
+  setBurstOrigin: (origin: { x: number; y: number } | null) => void;
 }
 
-const FlyToCartContext = createContext<FlyToCartContextType | undefined>(undefined);
+const CartFeedbackContext = createContext<CartFeedbackContextType | undefined>(undefined);
 
-export function FlyToCartProvider({ children }: { children: ReactNode }) {
-  const [flyingItems, setFlyingItems] = useState<FlyingItem[]>([]);
-  const [isCartBarPulsing, setIsCartBarPulsing] = useState(false);
-  const [isBadgeSpringing, setIsBadgeSpringing] = useState(false);
-  const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
+export function CartFeedbackProvider({ children }: { children: ReactNode }) {
+  const [isCartPulsing, setIsCartPulsing] = useState(false);
+  const [isBadgePopping, setIsBadgePopping] = useState(false);
+  const [addedButtons, setAddedButtons] = useState<Record<string, boolean>>({});
+  const [burstOrigin, setBurstOrigin] = useState<{ x: number; y: number } | null>(null);
 
   const cartTargetRef = useRef<HTMLElement | null>(null);
 
@@ -38,99 +25,67 @@ export function FlyToCartProvider({ children }: { children: ReactNode }) {
     cartTargetRef.current = node;
   }, []);
 
-  const triggerLandingFeedback = useCallback(() => {
-    setIsCartBarPulsing(true);
-    setIsBadgeSpringing(true);
-    setTimeout(() => {
-      setIsCartBarPulsing(false);
-    }, 400);
-    setTimeout(() => {
-      setIsBadgeSpringing(false);
-    }, 500);
+  const triggerCartFeedback = useCallback(() => {
+    setIsCartPulsing(true);
+    setIsBadgePopping(true);
+
+    if (cartTargetRef.current) {
+      const rect = cartTargetRef.current.getBoundingClientRect();
+      setBurstOrigin({
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2
+      });
+      setTimeout(() => setBurstOrigin(null), 600);
+    }
+
+    setTimeout(() => setIsCartPulsing(false), 400);
+    setTimeout(() => setIsBadgePopping(false), 500);
   }, []);
 
-  const removeFlyingItem = useCallback((id: string) => {
-    setFlyingItems((prev) => prev.filter((item) => item.id !== id));
+  const triggerButtonFeedback = useCallback((productId: string) => {
+    setAddedButtons(prev => ({ ...prev, [productId]: true }));
+    setTimeout(() => {
+      setAddedButtons(prev => ({ ...prev, [productId]: false }));
+    }, 1200);
   }, []);
 
-  const triggerFlyToCart = useCallback(
-    (
-      source: HTMLElement | DOMRect | { x: number; y: number } | null,
-      imageSrc?: string
-    ) => {
-      let startX = window.innerWidth / 2;
-      let startY = window.innerHeight / 2;
-
-      if (source) {
-        if ("getBoundingClientRect" in source && typeof source.getBoundingClientRect === "function") {
-          const rect = source.getBoundingClientRect();
-          startX = rect.left + rect.width / 2;
-          startY = rect.top + rect.height / 2;
-        } else if ("x" in source && "y" in source) {
-          startX = source.x;
-          startY = source.y;
-        }
-      }
-
-      let targetX = window.innerWidth / 2;
-      let targetY = window.innerHeight - 80;
-
-      if (cartTargetRef.current) {
-        const rect = cartTargetRef.current.getBoundingClientRect();
-        targetX = rect.left + rect.width / 2;
-        targetY = rect.top + rect.height / 2;
-      }
-
-      const newItem: FlyingItem = {
-        id: `fly-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        imageSrc,
-        startX,
-        startY,
-        targetX,
-        targetY
-      };
-
-      setFlyingItems((prev) => [...prev, newItem]);
-    },
-    []
-  );
+  const isButtonAdded = useCallback((productId: string) => {
+    return !!addedButtons[productId];
+  }, [addedButtons]);
 
   const contextValue = useMemo(
     () => ({
       registerCartTarget,
-      triggerFlyToCart,
-      flyingItems,
-      removeFlyingItem,
-      isCartBarPulsing,
-      isBadgeSpringing,
-      isCartDrawerOpen,
-      setIsCartDrawerOpen,
-      triggerLandingFeedback
+      triggerCartFeedback,
+      isCartPulsing,
+      isBadgePopping,
+      triggerButtonFeedback,
+      isButtonAdded,
+      burstOrigin,
+      setBurstOrigin
     }),
     [
       registerCartTarget,
-      triggerFlyToCart,
-      flyingItems,
-      removeFlyingItem,
-      isCartBarPulsing,
-      isBadgeSpringing,
-      isCartDrawerOpen,
-      setIsCartDrawerOpen,
-      triggerLandingFeedback
+      triggerCartFeedback,
+      isCartPulsing,
+      isBadgePopping,
+      triggerButtonFeedback,
+      isButtonAdded,
+      burstOrigin
     ]
   );
 
   return (
-    <FlyToCartContext.Provider value={contextValue}>
+    <CartFeedbackContext.Provider value={contextValue}>
       {children}
-    </FlyToCartContext.Provider>
+    </CartFeedbackContext.Provider>
   );
 }
 
-export function useFlyToCart() {
-  const context = useContext(FlyToCartContext);
+export function useCartFeedback() {
+  const context = useContext(CartFeedbackContext);
   if (!context) {
-    throw new Error("useFlyToCart must be used within a FlyToCartProvider");
+    throw new Error("useCartFeedback must be used within a CartFeedbackProvider");
   }
   return context;
 }

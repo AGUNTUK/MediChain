@@ -5,9 +5,9 @@ import Splash from "./components/Splash";
 import Login from "./components/Login";
 import Home from "./components/Home";
 import FloatingCartBar from "./components/FloatingCartBar";
-import FlyToCartOverlay from "./components/FlyToCartOverlay";
 import { PWAInstallPrompt } from "./pwa/PWAInstallPrompt";
-import { FlyToCartProvider } from "./context/FlyToCartContext";
+import { CartFeedbackProvider } from "./context/FlyToCartContext";
+import CartBurst from "./components/CartBurst";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { Product, Pharmacy, Order, Notification, User } from "./types";
 import { Home as HomeIcon, Search as SearchIcon, Package as PackageIcon, FileText as FileIcon, ClipboardList as ListIcon, User as UserIcon, Shield, Smartphone } from "lucide-react";
@@ -593,7 +593,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <FlyToCartProvider>
+      <CartFeedbackProvider>
         <Analytics />
         <SpeedInsights />
         <div className="flex h-screen w-screen bg-slate-50 font-sans select-none overflow-hidden justify-center items-center">
@@ -645,8 +645,8 @@ export default function App() {
             isVisible={appStep === "main"}
           />
 
-          {/* Dynamic Fly-To-Cart Parabolic Overlay */}
-          <FlyToCartOverlay />
+          {/* Cart feedback burst */}
+          <CartBurst />
           <PWAInstallPrompt />
 
           {/* Bottom persistent Nav Bar */}
@@ -700,7 +700,7 @@ export default function App() {
           )}
         </div>
       </div>
-      </FlyToCartProvider>
+      </CartFeedbackProvider>
     </ErrorBoundary>
   );
 }

@@ -2,7 +2,7 @@ import React from "react";
 import { X, ShieldCheck, AlertCircle, Calendar, Truck, Layers, Coins } from "lucide-react";
 import { Product } from "../types";
 import { formatProductPriceLabel } from "../lib/utils";
-import { useFlyToCart } from "../context/FlyToCartContext";
+import { useCartFeedback } from "../context/FlyToCartContext";
 
 interface ProductDetailsProps {
   product: Product | null;
@@ -11,14 +11,13 @@ interface ProductDetailsProps {
 }
 
 export default function ProductDetails({ product, onClose, onAddToCart }: ProductDetailsProps) {
-  const { triggerFlyToCart } = useFlyToCart();
+  const { triggerCartFeedback, triggerButtonFeedback } = useCartFeedback();
 
   if (!product) return null;
 
   const handleQuickAdd = (qty: number, e?: React.MouseEvent<HTMLElement>) => {
-    if (e && e.currentTarget) {
-      triggerFlyToCart(e.currentTarget, product.imageUrl || product.image_url);
-    }
+    triggerCartFeedback();
+    triggerButtonFeedback(product.id);
     onAddToCart(product.id, qty);
     onClose();
   };

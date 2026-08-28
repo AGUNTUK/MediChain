@@ -24,7 +24,7 @@ import ProductCardSkeleton from "./ProductCardSkeleton";
 import ErrorState from "./ErrorState";
 import { formatProductPriceLabel } from "../lib/utils";
 import { apiCache } from "../lib/apiCache";
-import { useFlyToCart } from "../context/FlyToCartContext";
+import { useCartFeedback } from "../context/FlyToCartContext";
 import PrescriptionScanner from "./PrescriptionScanner";
 import HeroCarousel from "./HeroCarousel";
 
@@ -157,7 +157,7 @@ export default function Home({
     fetchHomeWidgets();
   }, []);
 
-  const { triggerFlyToCart } = useFlyToCart();
+  const { triggerCartFeedback, triggerButtonFeedback } = useCartFeedback();
 
   const handleQuickBuy = async (
     productId: string,
@@ -165,9 +165,8 @@ export default function Home({
     e?: React.MouseEvent<HTMLElement>,
     imageSrc?: string
   ) => {
-    if (e && e.currentTarget) {
-      triggerFlyToCart(e.currentTarget, imageSrc);
-    }
+    triggerCartFeedback();
+    triggerButtonFeedback(productId);
     setSuccessId(productId);
     const success = await onAddToCart(productId, defaultBulkSize);
     if (success) {
