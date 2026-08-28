@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { ShoppingBag, Trash2, Plus, Minus, Receipt, ArrowRight, ShieldCheck, ArrowLeft, Package } from "lucide-react";
 import { Product } from "../types";
 import { orderService } from "../services";
+import MediChainLogo from "./MediChainLogo";
 
 interface CartProps {
   onCheckoutTrigger: () => void;
@@ -64,12 +65,17 @@ export default function Cart({ onCheckoutTrigger, onRefreshCartCounter, onBack }
           </button>
           <h2 className="text-sm font-black text-brand-charcoal">Procurement Cart</h2>
         </div>
-        <div className="flex-1 flex flex-col items-center justify-center p-6 bg-white">
-          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center border border-slate-100 shadow-sm mb-4">
+        <div className="flex-1 flex flex-col items-center justify-center p-6 bg-white relative overflow-hidden">
+          {/* Subtle watermark */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.08]">
+            <MediChainLogo size="xl" withText={true} textColor="dark" />
+          </div>
+          
+          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center border border-slate-100 shadow-sm mb-4 relative z-10">
             <ShoppingBag className="w-6 h-6 text-slate-300" />
           </div>
-          <h3 className="text-xs font-black text-slate-700">Your Procurement Cart is Empty</h3>
-          <p className="text-[10px] text-slate-400 max-w-[200px] text-center mt-1.5 leading-relaxed">
+          <h3 className="text-xs font-black text-slate-700 relative z-10">Your Procurement Cart is Empty</h3>
+          <p className="text-[10px] text-slate-400 max-w-[200px] text-center mt-1.5 leading-relaxed relative z-10">
             Browse medicines, check today's bulk discounts, and add items to place wholesale orders.
           </p>
         </div>

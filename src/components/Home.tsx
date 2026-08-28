@@ -193,8 +193,7 @@ export default function Home({
       {/* Header Area */}
       <div className="bg-white px-4 py-3 border-b border-slate-100 flex items-center justify-between sticky top-0 z-10 shadow-sm flex-shrink-0">
         <div className="flex items-center gap-2">
-          <MediChainLogo size="sm" withText={false} />
-          
+          <MediChainLogo size="sm" withText={true} textColor="dark" />
         </div>
 
         {/* Notifications and status */}

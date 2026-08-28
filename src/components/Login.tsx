@@ -66,8 +66,8 @@ export default function Login({ onLoginSuccess }: LoginProps) {
   return (
     <div className="w-full h-full bg-brand-bg flex flex-col justify-between p-6 select-none relative overflow-y-auto">
       {/* Upper Logo Section */}
-      <div className="flex flex-col items-center mt-3">
-        <MediChainLogo size="sm" withText={true} textColor="dark" />
+      <div className="flex flex-col items-center mt-6">
+        <MediChainLogo size="lg" withText={true} textColor="dark" />
       </div>
 
       {/* Dynamic Form container */}

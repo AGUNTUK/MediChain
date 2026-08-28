@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, Suspense, lazy } from "react";
-import { MediChainIconOnly } from './MediChainLogo';
+import MediChainLogo from './MediChainLogo';
 const AdminCharts = lazy(() => import("./AdminCharts"));
 import { io } from "socket.io-client";
 import ProductEditModal from "./ProductEditModal";
@@ -1243,11 +1243,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
           <div className="flex items-center gap-2 select-none">
-            <MediChainIconOnly className="w-7 h-7 object-contain" />
-            <div>
-              <span className="text-xs font-black tracking-wider text-slate-900">MEDICHAIN</span>
-              <span className="text-[8px] text-indigo-400 font-extrabold uppercase block tracking-wider">Admin</span>
-            </div>
+            <MediChainLogo size="sm" withText={true} textColor="dark" />
           </div>
         </div>
 
@@ -1286,13 +1282,9 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
       `}>
         <div className="p-6 overflow-y-auto">
           <div className="flex items-center justify-between mb-8 select-none">
-            <div className="flex items-center gap-2">
-              <MediChainIconOnly className="w-8 h-8 object-contain" />
-              <div>
-                <h1 className="text-sm font-black tracking-wider text-slate-900">MEDICHAIN</h1>
-                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Admin Console</p>
-              </div>
-            </div>
+          <div className="flex items-center gap-2">
+            <MediChainLogo size="sm" withText={true} textColor="dark" />
+          </div>
             <button
               onClick={() => setMobileMenuOpen(false)}
               className="lg:hidden p-1.5 rounded-lg bg-slate-50 text-slate-500 hover:text-slate-900 cursor-pointer"

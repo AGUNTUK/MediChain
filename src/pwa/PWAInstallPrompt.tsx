@@ -22,7 +22,7 @@ export const PWAInstallPrompt: React.FC = () => {
         <div className="flex items-center gap-3 p-3">
           <div className="w-12 h-12 bg-white rounded-xl p-1 flex-shrink-0 shadow-inner">
             <img 
-              src="/icons/icon-192.png" 
+              src="/logo.png" 
               alt="MediChain" 
               className="w-full h-full object-contain"
             />

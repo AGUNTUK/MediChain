@@ -1,6 +1,7 @@
 import React from "react";
 import { CheckCircle2, ChevronRight, ShoppingBag, ArrowRight } from "lucide-react";
 import { motion } from "motion/react";
+import MediChainLogo from "./MediChainLogo";
 
 interface OrderSuccessProps {
   orderId: string;
@@ -19,6 +20,11 @@ export default function OrderSuccess({ orderId, onTrackOrder, onContinueShopping
         transition={{ duration: 0.5, ease: "easeOut" }}
         className="space-y-4 py-8"
       >
+        {/* Logo */}
+        <div className="flex justify-center">
+          <MediChainLogo size="sm" withText={true} textColor="dark" />
+        </div>
+
         {/* Animated Check badge */}
         <div className="flex justify-center">
           <CheckCircle2 className="w-16 h-16 text-brand-lime drop-shadow-md animate-bounce" />

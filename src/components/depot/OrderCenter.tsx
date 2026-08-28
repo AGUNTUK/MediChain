@@ -5,6 +5,7 @@ import {
   MapPin, ShoppingCart, User, MapPinned, FileText, Check, ArrowRight, X, Eye
 } from "lucide-react";
 import { getRackLocation } from "./depotUtils";
+import MediChainLogo from "../MediChainLogo";
 
 interface OrderCenterProps {
   orders: Order[];
@@ -321,13 +322,15 @@ export default function OrderCenter({ orders, onAccept, onProcess, onPack }: Ord
             </div>
 
             {/* Thermal Print Slip layout (styled like 80mm paper roll) */}
-            <div className="bg-white text-black font-mono p-5 text-xs border-2 border-slate-200 max-h-[60vh] overflow-y-auto shadow-inner rounded-md mx-auto" style={{ width: "320px" }}>
-              <div className="text-center space-y-1">
-                <h1 className="font-black text-sm tracking-widest">MEDICHAIN DEPOT</h1>
-                <p className="text-[9px] uppercase font-bold">Warehouse Management Slip</p>
-                <p className="text-[9px] text-slate-600">Dhaka Main Warehouse-01</p>
-                <p className="text-[9px] text-slate-500 font-bold">--------------------------------</p>
-              </div>
+              <div className="bg-white text-black font-mono p-5 text-xs border-2 border-slate-200 max-h-[60vh] overflow-y-auto shadow-inner rounded-md mx-auto" style={{ width: "320px" }}>
+                <div className="text-center space-y-1">
+                  <div className="flex justify-center">
+                    <MediChainLogo size="sm" withText={true} textColor="dark" />
+                  </div>
+                  <p className="text-[9px] uppercase font-bold">Warehouse Management Slip</p>
+                  <p className="text-[9px] text-slate-600">Dhaka Main Warehouse-01</p>
+                  <p className="text-[9px] text-slate-500 font-bold">--------------------------------</p>
+                </div>
 
               <div className="mt-3.5 space-y-1.5 text-[10px]">
                 <div><span className="font-bold">SLIP ID:</span> PK-{selectedOrder.id.substring(0, 8).toUpperCase()}</div>

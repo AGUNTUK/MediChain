@@ -3,6 +3,7 @@ import { ListFilter, Receipt, ArrowRight, CornerDownLeft, RefreshCw, Eye, Check,
 import { Order } from "../types";
 import { orderService } from "../services";
 import { formatRefId, generateOrderOTP } from "../lib/utils";
+import MediChainLogo from "./MediChainLogo";
 
 interface OrderHistoryProps {
   onTrackOrder: (orderId: string) => void;
@@ -303,7 +304,9 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
 
             {/* Invoice Design */}
             <div className="text-center pb-4 border-b border-dashed border-slate-200 mt-2">
-              <div className="text-sm font-extrabold text-brand-purple">MediChain Logistics Invoice</div>
+              <div className="flex justify-center mb-2">
+                <MediChainLogo size="sm" withText={true} textColor="dark" />
+              </div>
               <div className="text-[10px] text-slate-400 mt-1">Authorized Wholesaler & Depot Operations</div>
               <div className="text-[9px] font-mono text-slate-400 mt-0.5">INV-REF: {formatRefId(selectedInvoice.id, "INV")}</div>
             </div>

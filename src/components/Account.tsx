@@ -6,6 +6,7 @@ import { productService } from "../services/product";
 import { orderService } from "../services/order";
 import EditProfileScreen from "./EditProfileScreen";
 import KYCVerificationHub from "./KYCVerificationHub";
+import MediChainLogo from "./MediChainLogo";
 
 interface AccountProps {
   pharmacy: Pharmacy | null;
@@ -83,30 +84,26 @@ export default function Account({
     <div className="h-full bg-slate-50 px-4 pt-6 pb-28 space-y-4 max-w-md mx-auto w-full select-none overflow-y-auto">
       {/* Account Info Header */}
       <div className="p-4 sm:p-5 flex items-center justify-between gap-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
-        <div className="w-12 h-12 bg-brand-purple/10 border border-brand-purple/25 rounded-full flex items-center justify-center font-black text-brand-purple text-lg shadow-inner overflow-hidden flex-shrink-0">
-          {pharmacy?.logoUrl ? (
-            <img referrerPolicy="no-referrer" src={pharmacy.logoUrl} alt="Logo" className="w-full h-full object-cover" />
-          ) : (
-            pharmacy?.pharmacyName?.charAt(0) || "P"
-          )}
-        </div>
-        <div className="flex-1 min-w-0 flex flex-col justify-center">
-          <h2 className="text-base font-black text-brand-charcoal leading-tight truncate flex items-center gap-1.5">
-            {pharmacy?.pharmacyName || "Pharmacy Profile"}
-            {isVerified && (
-              <span className="bg-emerald-500/10 text-emerald-600 rounded-full p-0.5" title="Verified DGDA Account">
-                <Check className="w-3.5 h-3.5 stroke-[3]" />
+        <div className="flex items-center gap-3">
+          <MediChainLogo size="sm" withText={false} />
+          <div className="flex-1 min-w-0 flex flex-col justify-center">
+            <h2 className="text-base font-black text-brand-charcoal leading-tight truncate flex items-center gap-1.5">
+              {pharmacy?.pharmacyName || "Pharmacy Profile"}
+              {isVerified && (
+                <span className="bg-emerald-500/10 text-emerald-600 rounded-full p-0.5" title="Verified DGDA Account">
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                </span>
+              )}
+            </h2>
+            <p className="text-xs text-slate-500 mt-1 font-semibold flex items-center gap-1">
+              <UserIcon className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+              <span className="truncate">Proprietor: {pharmacy?.ownerName || currentUser?.name || "Zahid Hasan"}</span>
+            </p>
+            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+              <span className="bg-slate-100 border border-slate-200 text-slate-600 font-bold font-mono text-[9px] px-2 py-0.5 rounded-md">
+                Lic: {pharmacy?.licenseNo || "Pending"}
               </span>
-            )}
-          </h2>
-          <p className="text-xs text-slate-500 mt-1 font-semibold flex items-center gap-1">
-            <UserIcon className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-            <span className="truncate">Proprietor: {pharmacy?.ownerName || currentUser?.name || "Zahid Hasan"}</span>
-          </p>
-          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-            <span className="bg-slate-100 border border-slate-200 text-slate-600 font-bold font-mono text-[9px] px-2 py-0.5 rounded-md">
-              Lic: {pharmacy?.licenseNo || "Pending"}
-            </span>
+            </div>
           </div>
         </div>
         {/* Header interactive controls */}
