@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ShoppingBag,
@@ -48,10 +48,10 @@ export default function FloatingCartBar({
   const {
     registerCartTarget,
     isCartPulsing,
-    isBadgePopping,
-    isCartDrawerOpen,
-    setIsCartDrawerOpen
+    isBadgePopping
   } = useCartFeedback();
+
+  const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
 
   const barRef = useRef<HTMLDivElement | null>(null);
 

@@ -85,7 +85,8 @@ export const validateBody = (schema: z.ZodType<any>) => (req: Request, res: Resp
   } catch (error: any) {
     if (error instanceof z.ZodError) {
       const fieldErrors: Record<string, string> = {};
-      (error as any).errors.forEach((err: any) => {
+      const issues = (error as any).issues || (error as any).errors || [];
+      issues.forEach((err: any) => {
         if (err.path.length > 0) {
           fieldErrors[err.path[0]] = err.message;
         } else {

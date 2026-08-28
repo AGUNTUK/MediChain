@@ -47,18 +47,18 @@ async function runWithRetry(fn, maxAttempts = 3, timeoutMs = 15000) {
 const app = express();
 app.use(compression());
 app.use(helmet({
-  contentSecurityPolicy: {
+  contentSecurityPolicy: process.env.NODE_ENV === "production" ? {
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
-      connectSrc: ["'self'", "https:", "wss:"],
+      connectSrc: ["'self'", "https:", "wss:", "ws:"],
       fontSrc: ["'self'", "data:", "https:"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'", "data:", "https:"],
     },
-  },
+  } : false,
   crossOriginEmbedderPolicy: false,
 }));
 app.set("trust proxy", 1); // Trust first proxy (necessary for secure cookie-sessions on reverse proxies like Vercel/Cloud Run)
@@ -66,8 +66,8 @@ const PORT = 3000;
 const DEBUG = process.env.DEBUG === "true" || process.env.NODE_ENV !== "production";
 
 const log = {
-  info: (...args: any[]) => DEBUG && log.info(...args),
-  warn: (...args: any[]) => DEBUG && log.warn(...args),
+  info: (...args: any[]) => DEBUG && console.log(...args),
+  warn: (...args: any[]) => DEBUG && console.warn(...args),
   error: (...args: any[]) => console.error(...args),
 };
 

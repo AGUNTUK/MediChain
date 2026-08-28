@@ -237,6 +237,8 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - **Task 3 (Unified Notification Bell & Refactored Alert Center):** Resolved duplicate header rendering by enforcing responsive `hidden lg:flex` headers on desktop and converted `AdminNotificationCenter.tsx` into a dedicated workspace alert dashboard card layout on Screen 6, removing redundant trigger popovers.
   - **Task 4 (Optimistic Mark-as-Read & Bulk Read Endpoints):** Enabled individual item click-to-read and "Mark all as read" across `NotificationBell.tsx`, `NotificationsPanel.tsx`, and `AdminNotificationCenter.tsx` with instant optimistic UI badge count updates, backed by `POST`/`PATCH` endpoints `/api/notifications/read/:id` and `/api/notifications/read-all`.
   - **Task 5 (Automated Testing & Full Verification):** Expanded Playwright end-to-end test coverage to include `admin_and_notifications.spec.ts`, verified full compilation (`compile_applet`), zero linter errors (`lint_applet`), and verified seamless applet stability across all views.
+  - **Task 7 (Dev Server Stability & Helmet CSP Fix):** Eliminated recursive logger crash in `server.ts` and adjusted Helmet `contentSecurityPolicy` to be disabled in development mode and permissive in production, preventing Vite HMR/client script execution blockage that previously caused a blank screen. Also fixed Zod v4 `.issues` error mapping in `security.ts`.
+  - **Task 8 (Dynamic Time-Wise Hero Greeting & Modernized Hero Carousel Redesign):** Implemented dynamic local time-based greetings (`Good morning`, `Good afternoon`, `Good evening`, `Working late?` / `Good night`) with contextual badges (`Morning Dispatch`, `Afternoon Restock`, `Evening Restock`, `24/7 Digital Depot`), live DGDA verified compliance badges, dispatch schedule status, and upgraded the hero section to a modern card aesthetic with ambient mesh gradient, vector supply chain watermarks, micro-interactions, and quick action chips.
 
 ----------------------------------------
 
@@ -268,6 +270,8 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 - **Completed:** Task 4: Optimistic Notification Read / Read All Updates with Backend Endpoints.
 - **Completed:** Task 5: E2E Test Suite for Admin Catalog & Notifications (`tests/e2e/admin_and_notifications.spec.ts`).
 - **Completed:** Task 6: Payment Gateway Integration (bKash, Nagad, and SSLCommerz digital wallet authorization, transaction logging, invoice settlement, and backend verification via `/api/payments/process`).
+- **Completed:** Task 7: Dev Server Stability, Helmet CSP Development Bypass & Zod v4 Error Handling.
+- **Completed:** Task 8: Dynamic Time-Wise Hero Greeting & Modernized B2B Hero Section Redesign.
 - **Short Term:** Finish FCM Push Notifications.
 - **Long Term:** Implement multi-tenant capability.
 
