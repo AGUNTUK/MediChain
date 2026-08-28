@@ -6,6 +6,8 @@ import dotenv from "dotenv";
 import cookieSession from "cookie-session";
 import bcrypt from "bcryptjs";
 import PDFDocument from "pdfkit";
+import helmet from "helmet";
+import cors from "cors";
 
 declare global {
   namespace Express {
@@ -44,17 +46,67 @@ async function runWithRetry(fn, maxAttempts = 3, timeoutMs = 15000) {
 
 const app = express();
 app.use(compression());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:", "blob:"],
+      connectSrc: ["'self'", "https:", "wss:"],
+      fontSrc: ["'self'", "data:", "https:"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'", "data:", "https:"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
 app.set("trust proxy", 1); // Trust first proxy (necessary for secure cookie-sessions on reverse proxies like Vercel/Cloud Run)
 const PORT = 3000;
+const DEBUG = process.env.DEBUG === "true" || process.env.NODE_ENV !== "production";
+
+const log = {
+  info: (...args: any[]) => DEBUG && log.info(...args),
+  warn: (...args: any[]) => DEBUG && log.warn(...args),
+  error: (...args: any[]) => console.error(...args),
+};
+
+// Request logging
+app.use((req: any, res: any, next: any) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    if (DEBUG) {
+      const duration = Date.now() - start;
+      log.info(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms`);
+    }
+  });
+  next();
+});
+
+// CORS for API routes
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",").map(o => o.trim()).filter(Boolean) || [];
+if (allowedOrigins.length > 0) {
+  app.use(cors({ origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  }, credentials: true }));
+}
 
 // Body parsers
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ limit: "20mb", extended: true }));
 
 // Stateless concurrent cookie session with strict security guidelines
+const isProduction = process.env.NODE_ENV === "production";
 const sessionSecret = process.env.SESSION_SECRET || "medichain_secure_session_secret_fallback_key_2026";
-if (!process.env.SESSION_SECRET) {
-  console.warn("SESSION_SECRET environment variable is missing; utilizing default fallback secret.");
+if (!process.env.SESSION_SECRET && isProduction) {
+  console.error("SESSION_SECRET environment variable is missing. Server will not start in production without it.");
+  process.exit(1);
+} else if (!process.env.SESSION_SECRET) {
+  log.warn("SESSION_SECRET environment variable is missing; utilizing default fallback secret.");
 }
 
 app.use(cookieSession({
@@ -62,23 +114,25 @@ app.use(cookieSession({
   keys: [sessionSecret],
   maxAge: 24 * 60 * 60 * 1000, // 24 hours
   httpOnly: true,
-  secure: true,
-  sameSite: "none"
+  secure: isProduction,
+  sameSite: isProduction ? "none" : "lax"
 }));
 
-// Global fallback session middleware to support environments with blocked third-party cookies (e.g. iframes)
-app.use((req: any, res: any, next: any) => {
-  const headerUserId = req.headers["x-session-user-id"];
-  if (headerUserId) {
-    req.session = req.session || {};
-    req.session.userId = headerUserId;
-    req.session.email = req.headers["x-session-user-email"];
-    req.session.role = req.headers["x-session-user-role"];
-    req.session.name = req.headers["x-session-user-name"];
-    req.session.pharmacy_id = req.headers["x-session-pharmacy-id"] || null;
-  }
-  next();
-});
+// Optional iframe session fallback — only enabled when ALLOW_IFRAME_SESSION=true
+if (process.env.ALLOW_IFRAME_SESSION === "true") {
+  app.use((req: any, res: any, next: any) => {
+    const headerUserId = req.headers["x-session-user-id"];
+    if (headerUserId) {
+      req.session = req.session || {};
+      req.session.userId = headerUserId;
+      req.session.email = req.headers["x-session-user-email"];
+      req.session.role = req.headers["x-session-user-role"];
+      req.session.name = req.headers["x-session-user-name"];
+      req.session.pharmacy_id = req.headers["x-session-pharmacy-id"] || null;
+    }
+    next();
+  });
+}
 
 import { authLimiter, orderLimiter, publicLimiter, schemas, validateBody, sanitizeInput } from "./src/lib/security.js";
 
@@ -93,36 +147,38 @@ const importLimiter = authLimiter; // Reuse auth limiter for import for now
 const localUsersStore = new Map<string, any>();
 
 // Seed default accounts in-memory for secure local preview operations with bcrypt hashes
-(async () => {
-  const salt = await bcrypt.genSalt(10);
-  
-  localUsersStore.set("admin@medichain.com", {
-    id: "local-admin-111",
-    email: "admin@medichain.com",
-    name: "System Admin",
-    role: "Admin",
-    passwordHash: await bcrypt.hash("admin123", salt),
-    createdAt: new Date().toISOString()
-  });
+if (!isProduction) {
+  (async () => {
+    const salt = await bcrypt.genSalt(10);
+    
+    localUsersStore.set("admin@medichain.com", {
+      id: "local-admin-111",
+      email: "admin@medichain.com",
+      name: "System Admin",
+      role: "Admin",
+      passwordHash: await bcrypt.hash("admin123", salt),
+      createdAt: new Date().toISOString()
+    });
 
-  localUsersStore.set("depot@medichain.com", {
-    id: "local-depot-222",
-    email: "depot@medichain.com",
-    name: "Depot Manager",
-    role: "Depot Staff",
-    passwordHash: await bcrypt.hash("depot123", salt),
-    createdAt: new Date().toISOString()
-  });
+    localUsersStore.set("depot@medichain.com", {
+      id: "local-depot-222",
+      email: "depot@medichain.com",
+      name: "Depot Manager",
+      role: "Depot Staff",
+      passwordHash: await bcrypt.hash("depot123", salt),
+      createdAt: new Date().toISOString()
+    });
 
-  localUsersStore.set("delivery@medichain.com", {
-    id: "local-delivery-333",
-    email: "delivery@medichain.com",
-    name: "Delivery Rider",
-    role: "Delivery Staff",
-    passwordHash: await bcrypt.hash("delivery123", salt),
-    createdAt: new Date().toISOString()
-  });
-})();
+    localUsersStore.set("delivery@medichain.com", {
+      id: "local-delivery-333",
+      email: "delivery@medichain.com",
+      name: "Delivery Rider",
+      role: "Delivery Staff",
+      passwordHash: await bcrypt.hash("delivery123", salt),
+      createdAt: new Date().toISOString()
+    });
+  })();
+}
 
 // --- AUTHORIZATION MIDDLEWARE & HELPER FUNCTIONS ---
 
@@ -258,7 +314,7 @@ app.post("/api/auth/local-signup", loginLimiter, validateBody(schemas.signup), a
 
     // Sync database user profile in parallel to persist details in users table
     await dbService.syncSession(newUser.id, newUser.email, newUser.name, newUser.role).catch(err => {
-      console.warn("Could not insert user profile to Supabase users table:", err.message);
+      log.warn("Could not insert user profile to Supabase users table:", err.message);
     });
 
     req.session = {
@@ -352,7 +408,7 @@ app.post("/api/auth/sync-session", loginLimiter, async (req, res) => {
     }
 
     if (syncError || !user) {
-      console.warn("WARNING: Database sync-session failed, using fallback user profile:", syncError?.message || syncError);
+      log.warn("WARNING: Database sync-session failed, using fallback user profile:", syncError?.message || syncError);
       user = {
         id,
         email,
@@ -375,7 +431,7 @@ app.post("/api/auth/sync-session", loginLimiter, async (req, res) => {
     try {
       pharmacy = await dbService.getPharmacyProfile(user.id);
     } catch (e: any) {
-      console.warn("WARNING: Failed to fetch pharmacy profile for session:", e.message || e);
+      log.warn("WARNING: Failed to fetch pharmacy profile for session:", e.message || e);
     }
     const needsSetup = !pharmacy || !pharmacy.pharmacyName;
 
@@ -638,7 +694,7 @@ app.post("/api/prescription/scan", requireAuth, requireVerifiedPharmacy, async (
         const cleanJson = aiText.replace(/\x60\x60\x60json/g, "").replace(/\x60\x60\x60/g, "").trim();
         parsedItems = JSON.parse(cleanJson);
       } catch (parseErr) {
-        console.warn("Failed to parse Gemini output as JSON:", aiText);
+        log.warn("Failed to parse Gemini output as JSON:", aiText);
         return;
       }
 
@@ -665,7 +721,7 @@ app.post("/api/prescription/scan", requireAuth, requireVerifiedPharmacy, async (
         }
       }
       
-      console.log("Background prescription processing completed.", matchedProducts.length, "items found.");
+      log.info("Background prescription processing completed.", matchedProducts.length, "items found.");
       // Ideally we would send a websocket event or notification here.
     } catch (err) {
       console.error("Prescription Scan Background Error:", err);
@@ -2431,10 +2487,10 @@ let serverInstance: any;
 let io: SocketIOServer;
 
 async function startServer() {
-  console.log(`[${new Date().toISOString()}] [INFO] [System] Initializing MediChain platform startup diagnostics...`);
+  log.info(`[${new Date().toISOString()}] [INFO] [System] Initializing MediChain platform startup diagnostics...`);
   try {
     await dbService.getSystemSettings();
-    console.log(`[${new Date().toISOString()}] [INFO] [Database] Connection diagnostic: SUCCESS. Supabase database backend is responsive and synchronized.`);
+    log.info(`[${new Date().toISOString()}] [INFO] [Database] Connection diagnostic: SUCCESS. Supabase database backend is responsive and synchronized.`);
   } catch (err: any) {
     console.error(`[${new Date().toISOString()}] [CRITICAL] [Database] Connection diagnostic: FAILED! Supabase database is unreachable. Error:`, err.message || err);
   }
@@ -2531,30 +2587,31 @@ app.post("/api/admin/enrichment/tick", async (req, res) => {
   }
 
   serverInstance = app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[${new Date().toISOString()}] [INFO] [System] MediChain Server running on port ${PORT} in ${process.env.NODE_ENV || "development"} mode.`);
+    log.info(`[${new Date().toISOString()}] [INFO] [System] MediChain Server running on port ${PORT} in ${process.env.NODE_ENV || "development"} mode.`);
   });
 
   // Initialize Socket.io
+  const socketOrigins = allowedOrigins.length > 0 ? allowedOrigins : [process.env.APP_URL || `http://localhost:${PORT}`];
   io = new SocketIOServer(serverInstance, {
-    cors: { origin: "*", methods: ["GET", "POST"] }
+    cors: { origin: socketOrigins, methods: ["GET", "POST"] }
   });
   app.set("io", io);
 
   io.on("connection", (socket) => {
-    console.log(`[${new Date().toISOString()}] [INFO] [Socket] Client connected: ${socket.id}`);
+    log.info(`[${new Date().toISOString()}] [INFO] [Socket] Client connected: ${socket.id}`);
     
     socket.on("join_order_room", (orderId) => {
       socket.join(`order_${orderId}`);
-      console.log(`[Socket] Client ${socket.id} joined room: order_${orderId}`);
+      log.info(`[Socket] Client ${socket.id} joined room: order_${orderId}`);
     });
 
     socket.on("join_role_room", (role) => {
       socket.join(`role_${role}`);
-      console.log(`[Socket] Client ${socket.id} joined room: role_${role}`);
+      log.info(`[Socket] Client ${socket.id} joined room: role_${role}`);
     });
 
     socket.on("disconnect", () => {
-      console.log(`[${new Date().toISOString()}] [INFO] [Socket] Client disconnected: ${socket.id}`);
+      log.info(`[${new Date().toISOString()}] [INFO] [Socket] Client disconnected: ${socket.id}`);
     });
   });
 
@@ -2564,10 +2621,10 @@ app.post("/api/admin/enrichment/tick", async (req, res) => {
 
 
   const gracefulShutdown = (signal: string) => {
-    console.warn(`[${new Date().toISOString()}] [WARN] [System] Received ${signal} signal. Initiating graceful shutdown...`);
+    log.warn(`[${new Date().toISOString()}] [WARN] [System] Received ${signal} signal. Initiating graceful shutdown...`);
     if (serverInstance) {
       serverInstance.close(() => {
-        console.log(`[${new Date().toISOString()}] [INFO] [System] HTTP server closed gracefully. Releasing remaining handles.`);
+        log.info(`[${new Date().toISOString()}] [INFO] [System] HTTP server closed gracefully. Releasing remaining handles.`);
         process.exit(0);
       });
       

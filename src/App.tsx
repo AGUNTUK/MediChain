@@ -1,32 +1,44 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense, lazy } from "react";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import Splash from "./components/Splash";
 import Login from "./components/Login";
-import ProfileSetup from "./components/ProfileSetup";
 import Home from "./components/Home";
-import SearchSystem from "./components/SearchSystem";
-import ProductDetails from "./components/ProductDetails";
-import Cart from "./components/Cart";
-import Checkout from "./components/Checkout";
-import OrderSuccess from "./components/OrderSuccess";
-import OrderTracking from "./components/OrderTracking";
-import OrderHistory from "./components/OrderHistory";
-import Account from "./components/Account";
-import NotificationsPanel from "./components/NotificationsPanel";
-import AdminPanel from "./components/AdminPanel";
-import PharmacyPendingScreen from "./components/PharmacyPendingScreen";
-import DepotDashboard from "./components/DepotDashboard";
-import DeliveryDashboard from "./components/DeliveryDashboard";
 import FloatingCartBar from "./components/FloatingCartBar";
 import FlyToCartOverlay from "./components/FlyToCartOverlay";
 import { PWAInstallPrompt } from "./pwa/PWAInstallPrompt";
-import BulkDealsLanding from "./components/BulkDealsLanding";
 import { FlyToCartProvider } from "./context/FlyToCartContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { Product, Pharmacy, Order, Notification, User } from "./types";
 import { Home as HomeIcon, Search as SearchIcon, Package as PackageIcon, FileText as FileIcon, ClipboardList as ListIcon, User as UserIcon, Shield, Smartphone } from "lucide-react";
 import { authService, productService, orderService, profileService, notificationService } from "./services";
+
+const ProfileSetup = lazy(() => import("./components/ProfileSetup"));
+const SearchSystem = lazy(() => import("./components/SearchSystem"));
+const ProductDetails = lazy(() => import("./components/ProductDetails"));
+const Cart = lazy(() => import("./components/Cart"));
+const Checkout = lazy(() => import("./components/Checkout"));
+const OrderSuccess = lazy(() => import("./components/OrderSuccess"));
+const OrderTracking = lazy(() => import("./components/OrderTracking"));
+const OrderHistory = lazy(() => import("./components/OrderHistory"));
+const Account = lazy(() => import("./components/Account"));
+const NotificationsPanel = lazy(() => import("./components/NotificationsPanel"));
+const AdminPanel = lazy(() => import("./components/AdminPanel"));
+const PharmacyPendingScreen = lazy(() => import("./components/PharmacyPendingScreen"));
+const DepotDashboard = lazy(() => import("./components/DepotDashboard"));
+const DeliveryDashboard = lazy(() => import("./components/DeliveryDashboard"));
+const BulkDealsLanding = lazy(() => import("./components/BulkDealsLanding"));
+
+const LoadingScreen = () => (
+  <div className="flex flex-col items-center justify-center h-full w-full bg-slate-50">
+    <div className="relative mb-6">
+      <div className="w-16 h-16 border-[3px] border-brand-purple/20 rounded-full"></div>
+      <div className="w-16 h-16 border-[3px] border-transparent border-t-brand-purple rounded-full animate-spin absolute top-0 left-0"></div>
+      <div className="w-16 h-16 border-[3px] border-transparent border-b-brand-lime rounded-full animate-spin absolute top-0 left-0" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }}></div>
+    </div>
+    <p className="text-slate-600 text-sm font-semibold tracking-wide">Loading</p>
+  </div>
+);
 
 // Global fetch interceptor to inject session fallback headers for iframe environment
 try {
@@ -360,16 +372,22 @@ export default function App() {
     if (currentUser && !["Admin", "Depot Staff", "Delivery Staff"].includes(currentUser.role)) {
       if (appStep !== "splash" && appStep !== "login" && appStep !== "setup") {
         if (!pharmacy) {
-          return <ProfileSetup phone={phone} onSetupComplete={handleSetupComplete} onBack={() => setAppStep("login")} />;
+          return (
+            <Suspense fallback={<LoadingScreen />}>
+              <ProfileSetup phone={phone} onSetupComplete={handleSetupComplete} onBack={() => setAppStep("login")} />
+            </Suspense>
+          );
         }
         const isVerified = pharmacy.verificationStatus === "Approved" || pharmacy.verificationStatus === "Verified" || (pharmacy.verificationStatus as string) === "verified" || (pharmacy.verificationStatus as string) === "approved";
         if (!isVerified) {
           return (
-            <PharmacyPendingScreen
-              pharmacy={pharmacy}
-              onRefreshStatus={refreshPharmacyProfile}
-              onLogout={handleLogout}
-            />
+            <Suspense fallback={<LoadingScreen />}>
+              <PharmacyPendingScreen
+                pharmacy={pharmacy}
+                onRefreshStatus={refreshPharmacyProfile}
+                onLogout={handleLogout}
+              />
+            </Suspense>
           );
         }
       }
@@ -392,69 +410,83 @@ export default function App() {
       case "login":
         return <Login onLoginSuccess={handleLoginSuccess} />;
       case "setup":
-        return <ProfileSetup phone={phone} onSetupComplete={handleSetupComplete} onBack={() => setAppStep("login")} />;
+        return (
+          <Suspense fallback={<LoadingScreen />}>
+            <ProfileSetup phone={phone} onSetupComplete={handleSetupComplete} onBack={() => setAppStep("login")} />
+          </Suspense>
+        );
       case "cart":
         return (
-          <Cart
-            onBack={() => setAppStep("main")}
-            onCheckoutTrigger={() => setAppStep("checkout")}
-            onRefreshCartCounter={refreshCartCounter}
-          />
+          <Suspense fallback={<LoadingScreen />}>
+            <Cart
+              onBack={() => setAppStep("main")}
+              onCheckoutTrigger={() => setAppStep("checkout")}
+              onRefreshCartCounter={refreshCartCounter}
+            />
+          </Suspense>
         );
       case "bulk_deals":
         return (
-          <BulkDealsLanding
-            onBack={() => setAppStep("main")}
-            onAddToCart={handleAddToCart}
-            cartQuantities={cartQuantities}
-            onUpdateCartQty={handleUpdateCartQty}
-            campaignId={activeBulkCampaignId}
-          />
+          <Suspense fallback={<LoadingScreen />}>
+            <BulkDealsLanding
+              onBack={() => setAppStep("main")}
+              onAddToCart={handleAddToCart}
+              cartQuantities={cartQuantities}
+              onUpdateCartQty={handleUpdateCartQty}
+              campaignId={activeBulkCampaignId}
+            />
+          </Suspense>
         );
       case "checkout":
         return (
-          <Checkout
-            onBackToCart={() => setAppStep("cart")}
-            onOrderPlaced={(orderId) => {
-              refreshOrders();
-              refreshPharmacyProfile();
-              
-              refreshCartCounter();
-              setTrackingOrderId(orderId);
-              setAppStep("success");
-            }}
-            pharmacy={pharmacy}
-          />
+          <Suspense fallback={<LoadingScreen />}>
+            <Checkout
+              onBackToCart={() => setAppStep("cart")}
+              onOrderPlaced={(orderId) => {
+                refreshOrders();
+                refreshPharmacyProfile();
+                
+                refreshCartCounter();
+                setTrackingOrderId(orderId);
+                setAppStep("success");
+              }}
+              pharmacy={pharmacy}
+            />
+          </Suspense>
         );
       case "success":
         return (
-          <OrderSuccess
-            orderId={trackingOrderId}
-            onTrackOrder={(orderId) => {
-              setTrackingOrderId(orderId);
-              setAppStep("tracking");
-            }}
-            onContinueShopping={() => {
-              setAppStep("main");
-              setActiveTab("home");
-            }}
-          />
+          <Suspense fallback={<LoadingScreen />}>
+            <OrderSuccess
+              orderId={trackingOrderId}
+              onTrackOrder={(orderId) => {
+                setTrackingOrderId(orderId);
+                setAppStep("tracking");
+              }}
+              onContinueShopping={() => {
+                setAppStep("main");
+                setActiveTab("home");
+              }}
+            />
+          </Suspense>
         );
       case "tracking":
         return (
-          <OrderTracking
-            orderId={trackingOrderId}
-            userRole={currentUser?.role as any}
-            onBack={() => {
-              setAppStep("main");
-              setActiveTab("history");
-            }}
-            onRefreshStats={() => {
-              
-              refreshPharmacyProfile();
-              refreshOrders();
-            }}
-          />
+          <Suspense fallback={<LoadingScreen />}>
+            <OrderTracking
+              orderId={trackingOrderId}
+              userRole={currentUser?.role as any}
+              onBack={() => {
+                setAppStep("main");
+                setActiveTab("history");
+              }}
+              onRefreshStats={() => {
+                
+                refreshPharmacyProfile();
+                refreshOrders();
+              }}
+            />
+          </Suspense>
         );
       case "main":
       default:
@@ -462,42 +494,48 @@ export default function App() {
         switch (activeTab) {
           case "search":
             return (
-              <SearchSystem
-                onAddToCart={handleAddToCart}
-                onToggleFavourite={handleToggleFavourite}
-                favouriteIds={favouriteIds}
-                onOpenProductDetails={(p) => setSelectedProduct(p)}
-                orders={orders}
-                cartQuantities={cartQuantities}
-                onUpdateCartQty={handleUpdateCartQty}
-                onOpenCart={() => setAppStep("cart")}
-                cartCount={cartCount}
-              />
+              <Suspense fallback={<LoadingScreen />}>
+                <SearchSystem
+                  onAddToCart={handleAddToCart}
+                  onToggleFavourite={handleToggleFavourite}
+                  favouriteIds={favouriteIds}
+                  onOpenProductDetails={(p) => setSelectedProduct(p)}
+                  orders={orders}
+                  cartQuantities={cartQuantities}
+                  onUpdateCartQty={handleUpdateCartQty}
+                  onOpenCart={() => setAppStep("cart")}
+                  cartCount={cartCount}
+                />
+              </Suspense>
             );
           case "history":
             return (
-              <OrderHistory
-                onTrackOrder={(orderId) => {
-                  setTrackingOrderId(orderId);
-                  setAppStep("tracking");
-                }}
-                onRefreshCart={refreshCartCounter}
-                onTriggerTab={(tab) => {
-                  setActiveTab(tab as any);
-                }}
-              />
+              <Suspense fallback={<LoadingScreen />}>
+                <OrderHistory
+                  onTrackOrder={(orderId) => {
+                    setTrackingOrderId(orderId);
+                    setAppStep("tracking");
+                  }}
+                  onRefreshCart={refreshCartCounter}
+                  onTriggerTab={(tab) => {
+                    setActiveTab(tab as any);
+                  }}
+                />
+              </Suspense>
             );
           case "account":
             return (
-              <Account
-                pharmacy={pharmacy}
-                currentUser={currentUser}
-                onLogout={handleLogout}
-                onAddToCart={handleAddToCart}
-                favouriteIds={favouriteIds}
-                onRefreshProfile={refreshPharmacyProfile}
-                onTriggerTab={(tab) => setActiveTab(tab as any)}
-              />
+              <Suspense fallback={<LoadingScreen />}>
+                <Account
+                  pharmacy={pharmacy}
+                  currentUser={currentUser}
+                  onLogout={handleLogout}
+                  onAddToCart={handleAddToCart}
+                  favouriteIds={favouriteIds}
+                  onRefreshProfile={refreshPharmacyProfile}
+                  onTriggerTab={(tab) => setActiveTab(tab as any)}
+                />
+              </Suspense>
             );
           case "home":
           default:
@@ -525,31 +563,31 @@ export default function App() {
 
   if (currentUser?.role === "Admin") {
     return (
-      <>
+      <Suspense fallback={<LoadingScreen />}>
         <AdminPanel currentUser={currentUser} onLogout={handleLogout} />
         <Analytics />
         <SpeedInsights />
-      </>
+      </Suspense>
     );
   }
 
   if (currentUser?.role === "Depot Staff") {
     return (
-      <>
+      <Suspense fallback={<LoadingScreen />}>
         <DepotDashboard currentUser={currentUser} onLogout={handleLogout} />
         <Analytics />
         <SpeedInsights />
-      </>
+      </Suspense>
     );
   }
 
   if (currentUser?.role === "Delivery Staff") {
     return (
-      <>
+      <Suspense fallback={<LoadingScreen />}>
         <DeliveryDashboard currentUser={currentUser} onLogout={handleLogout} />
         <Analytics />
         <SpeedInsights />
-      </>
+      </Suspense>
     );
   }
 
@@ -561,29 +599,33 @@ export default function App() {
         <div className="flex h-screen w-screen bg-slate-50 font-sans select-none overflow-hidden justify-center items-center">
           <div className="w-full h-full lg:max-w-7xl lg:border-x lg:border-slate-200 bg-white shadow-2xl relative flex flex-col overflow-hidden">
           {/* Screen Content */}
-          <div className="flex-1 overflow-hidden relative">
+          <div className="flex-1 overflow-hidden relative page-enter">
             {renderMobileContent()}
             
             {/* Floating product details overlay */}
             {selectedProduct && (
-              <ProductDetails
-                product={selectedProduct}
-                onClose={() => setSelectedProduct(null)}
-                onAddToCart={(pid, qty) => handleAddToCart(pid, qty)}
-              />
+              <Suspense fallback={<LoadingScreen />}>
+                <ProductDetails
+                  product={selectedProduct}
+                  onClose={() => setSelectedProduct(null)}
+                  onAddToCart={(pid, qty) => handleAddToCart(pid, qty)}
+                />
+              </Suspense>
             )}
 
             {/* Broadcast notifications panel overlay */}
             {showNotifications && (
-              <NotificationsPanel
-                onClose={() => {
-                  setShowNotifications(false);
-                  refreshNotifications();
-                }}
-                onRefreshNotifications={() => {
-                  refreshNotifications();
-                }}
-              />
+              <Suspense fallback={<LoadingScreen />}>
+                <NotificationsPanel
+                  onClose={() => {
+                    setShowNotifications(false);
+                    refreshNotifications();
+                  }}
+                  onRefreshNotifications={() => {
+                    refreshNotifications();
+                  }}
+                />
+              </Suspense>
             )}
           </div>
 
