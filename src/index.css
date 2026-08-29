@@ -1,34 +1,50 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
-/* Bengali Custom Typography: Li Chayana Teesta */
+/* Bengali Custom Typography: Li Alinur Banglaborno */
 @font-face {
-  font-family: 'Li Chayana Teesta';
-  src: url('/fonts/Li Chayana Teesta Unicode.ttf') format('truetype');
+  font-family: 'Li Alinur Banglaborno';
+  src: url('/fonts/Li Alinur Banglaborno Unicode.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Li Chayana Teesta';
-  src: url('/fonts/Li Chayana Teesta Unicode.ttf') format('truetype');
+  font-family: 'Li Alinur Banglaborno';
+  src: url('/fonts/Li Alinur Banglaborno Unicode.ttf') format('truetype');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Li Chayana Teesta';
-  src: url('/fonts/Li Chayana Teesta Unicode Italic.ttf') format('truetype');
+  font-family: 'Li Alinur Banglaborno';
+  src: url('/fonts/Li Alinur Banglaborno Unicode.ttf') format('truetype');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Li Alinur Banglaborno';
+  src: url('/fonts/Li Alinur Banglaborno Unicode.ttf') format('truetype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Li Alinur Banglaborno';
+  src: url('/fonts/Li Alinur Banglaborno Unicode Italic.ttf') format('truetype');
   font-weight: normal;
   font-style: italic;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Li Chayana Teesta';
-  src: url('/fonts/Li Chayana Teesta Unicode Italic.ttf') format('truetype');
+  font-family: 'Li Alinur Banglaborno';
+  src: url('/fonts/Li Alinur Banglaborno Unicode Italic.ttf') format('truetype');
   font-weight: 700;
   font-style: italic;
   font-display: swap;
@@ -71,9 +87,9 @@
   --color-emerald-900: var(--color-lime-900);
   --color-emerald-950: var(--color-lime-950);
 
-  --font-sans: "Li Chayana Teesta", "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: "Li Alinur Banglaborno", "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  --font-bangla: "Li Chayana Teesta", sans-serif;
+  --font-bangla: "Li Alinur Banglaborno", sans-serif;
   
   --color-brand-purple: #a855f7;
   --color-brand-purple-dark: #9333ea;
