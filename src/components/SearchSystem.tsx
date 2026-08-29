@@ -28,6 +28,7 @@ import { productService } from "../services";
 import { formatRefId, formatProductPriceLabel } from "../lib/utils";
 import { useCartFeedback } from "../context/FlyToCartContext";
 import ProductCardSkeleton from "./ProductCardSkeleton";
+import CategoryIcon from "./CategoryIcon";
 
 interface SearchSystemProps {
   onAddToCart: (productId: string, qty: number) => Promise<boolean>;
@@ -339,7 +340,7 @@ export default function SearchSystem({
         </div>
 
         {/* Quick Horizontal Scroll Category Filters */}
-        <div className="flex gap-1.5 overflow-x-auto pr-2 scrollbar-none">
+        <div className="flex gap-1.5 overflow-x-auto pr-2 scrollbar-none py-0.5">
           {categories.map(cat => (
             <button
               key={cat}
@@ -347,13 +348,16 @@ export default function SearchSystem({
                 setSelectedCategory(cat);
                 setPage(1);
               }}
-              className={`px-3.5 py-1.5 rounded-xl text-[11px] font-bold transition-all whitespace-nowrap cursor-pointer ${
+              className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
                 selectedCategory === cat
                   ? "bg-brand-purple text-white shadow-sm shadow-brand-purple/20"
-                  : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200/80"
               }`}
             >
-              {cat}
+              {cat !== "All" && (
+                <CategoryIcon name={cat} className={`w-3.5 h-3.5 ${selectedCategory === cat ? "text-brand-lime" : "text-slate-500"}`} />
+              )}
+              <span>{cat}</span>
             </button>
           ))}
         </div>

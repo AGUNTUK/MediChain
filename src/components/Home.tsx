@@ -27,6 +27,7 @@ import { apiCache } from "../lib/apiCache";
 import { useCartFeedback } from "../context/FlyToCartContext";
 import PrescriptionScanner from "./PrescriptionScanner";
 import HeroCarousel from "./HeroCarousel";
+import CategoryIcon, { getCategoryConfig } from "./CategoryIcon";
 
 interface HomeProps {
   onTriggerSearch: (query?: string, category?: string) => void;
@@ -71,51 +72,41 @@ export default function Home({
   const [isLoading, setIsLoading] = useState(!apiCache.get("categories"));
   const [error, setError] = useState<string | null>(null);
 
-  const categoryIconMap: Record<string, string> = {
-    "Tablet": "💊",
-    "Capsule": "🧬",
-    "Syrup": "🧪",
-    "Suspension": "🧴",
-    "Drops": "💧",
-    "Injection": "💉",
-    "Infusion": "🩻",
-    "Inhaler": "🌬️",
-    "Cream": "🧴",
-    "Ointment": "🩹",
-    "Gel": "🧊",
-    "Lotion": "🫧",
-    "Powder": "🧂",
-    "Sachet": "🛍️",
-    "Oral Solution": "🍹",
-    "Oral Saline": "🧂",
-    "Eye Drop": "👁️",
-    "Eye Ointment": "👁️‍🗨️",
-    "Ear Drop": "👂",
-    "Nasal Spray": "👃",
-    "Suppository": "💊",
-    "Pessary": "💊",
-    "Patch": "🩹",
-    "Insulin": "💉",
-    "Vaccine": "🛡️",
-    "Medical Devices": "🩺",
-    "Surgical Items": "✂️",
-    "Dressing": "🤕",
-    "Bandage": "🩹",
-    "Gloves": "🧤",
-    "Masks": "😷",
-    "Test Kits": "🧪",
-    "Nebulizer Solution": "💨",
-    "Herbal": "🌿",
-    "Ayurvedic": "🍂",
-    "Homeopathic": "🌼",
-    "Vitamins": "🍊",
-    "Supplements": "🥗",
-    "Baby Care": "🍼",
-    "Personal Care": "🧼",
-    "Diabetic Care": "🩸",
-    "First Aid": "🚑",
-    "Others": "📦"
-  };
+  const DEFAULT_CATEGORIES = [
+    "Tablet",
+    "Capsule",
+    "Syrup",
+    "Suspension",
+    "Drops",
+    "Injection",
+    "Infusion",
+    "Inhaler",
+    "Cream",
+    "Ointment",
+    "Gel",
+    "Lotion",
+    "Powder",
+    "Sachet",
+    "Nasal Spray",
+    "Suppository",
+    "Patch",
+    "Insulin",
+    "Vaccine",
+    "Medical Devices",
+    "Surgical Items",
+    "Dressing",
+    "Bandage",
+    "Gloves",
+    "Masks",
+    "Test Kits",
+    "Herbal",
+    "Ayurvedic",
+    "Vitamins",
+    "Supplements",
+    "Baby Care",
+    "Diabetic Care",
+    "First Aid"
+  ];
 
   const fetchHomeWidgets = async () => {
     try {
@@ -129,7 +120,7 @@ export default function Home({
         setDbCategories(categoriesData);
       } else {
         // Fallback to default full list if DB is empty
-        setDbCategories(Object.keys(categoryIconMap));
+        setDbCategories(DEFAULT_CATEGORIES);
       }
 
       // 1. Fetch Deals
@@ -177,16 +168,11 @@ export default function Home({
   };
 
   const displayCategoryNames = Array.from(new Set([
-    ...Object.keys(categoryIconMap),
+    ...DEFAULT_CATEGORIES,
     ...dbCategories
   ]));
 
-  const displayCategories = displayCategoryNames.map(name => ({
-    name,
-    icon: categoryIconMap[name] || "📦"
-  }));
-
-  const visibleCategories = showAllCategories ? displayCategories : displayCategories.slice(0, 12);
+  const visibleCategoryNames = showAllCategories ? displayCategoryNames : displayCategoryNames.slice(0, 12);
 
   return (
     <div className="w-full h-full bg-brand-bg flex flex-col select-none overflow-y-auto">
@@ -251,15 +237,16 @@ export default function Home({
         )}
 
         {/* Category Carousel Grid */}
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <h3 className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+        <div className="space-y-2.5">
+          <div className="flex justify-between items-center px-0.5">
+            <h3 className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider flex items-center gap-1.5">
+              <Package className="w-3.5 h-3.5 text-brand-purple" />
               Browse Drug Class / Categories
             </h3>
-            {displayCategories.length > 12 && (
+            {displayCategoryNames.length > 12 && (
               <button
                 onClick={() => setShowAllCategories(!showAllCategories)}
-                className="text-[10px] font-bold text-brand-purple hover:underline"
+                className="text-[11px] font-extrabold text-brand-purple hover:underline cursor-pointer"
               >
                 {showAllCategories ? "View Less" : "View All"}
               </button>
@@ -267,34 +254,44 @@ export default function Home({
           </div>
           
           {showAllCategories ? (
-            <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
-              {visibleCategories.map(cat => (
-                <button
-                  key={cat.name}
-                  onClick={() => onTriggerSearch(undefined, cat.name)}
-                  className="flex flex-col items-center justify-center py-2 px-1 rounded-2xl border shadow-sm cursor-pointer hover:shadow hover:scale-[1.02] transition-all bg-white"
-                >
-                  <span className="text-xl mb-1.5">{cat.icon}</span>
-                  <span className="text-[8px] font-extrabold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis w-full text-center px-1">
-                    {cat.name}
-                  </span>
-                </button>
-              ))}
+            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2.5">
+              {visibleCategoryNames.map(name => {
+                const config = getCategoryConfig(name);
+                return (
+                  <button
+                    key={name}
+                    onClick={() => onTriggerSearch(undefined, name)}
+                    className="flex flex-col items-center justify-center p-2.5 rounded-2xl border border-slate-100/90 shadow-2xs cursor-pointer hover:shadow-md hover:border-slate-200/90 hover:scale-[1.03] transition-all bg-white group"
+                  >
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-1.5 p-2.5 transition-transform group-hover:scale-110 ${config.bg} ${config.text} border ${config.border}`}>
+                      <CategoryIcon name={name} className="w-5 h-5" />
+                    </div>
+                    <span className="text-[10px] font-extrabold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis w-full text-center group-hover:text-brand-purple transition-colors">
+                      {name}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           ) : (
-            <div className="flex overflow-x-auto gap-3 pb-2 -mx-4 px-4 scrollbar-hide snap-x">
-              {visibleCategories.map(cat => (
-                <button
-                  key={cat.name}
-                  onClick={() => onTriggerSearch(undefined, cat.name)}
-                  className="flex-shrink-0 snap-start flex flex-col items-center justify-center py-2 px-1 w-20 h-20 rounded-2xl border shadow-sm cursor-pointer hover:shadow hover:scale-[1.02] transition-all bg-white"
-                >
-                  <span className="text-2xl mb-1.5">{cat.icon}</span>
-                  <span className="text-[9px] font-extrabold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis w-full text-center px-1">
-                    {cat.name}
-                  </span>
-                </button>
-              ))}
+            <div className="flex overflow-x-auto gap-2.5 pb-2 -mx-4 px-4 scrollbar-hide snap-x">
+              {visibleCategoryNames.map(name => {
+                const config = getCategoryConfig(name);
+                return (
+                  <button
+                    key={name}
+                    onClick={() => onTriggerSearch(undefined, name)}
+                    className="flex-shrink-0 snap-start flex flex-col items-center justify-center p-2 w-[82px] h-[90px] rounded-2xl border border-slate-100/90 shadow-2xs cursor-pointer hover:shadow-md hover:border-slate-200/90 hover:scale-[1.03] transition-all bg-white group"
+                  >
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-1.5 p-2.5 transition-transform group-hover:scale-110 ${config.bg} ${config.text} border ${config.border}`}>
+                      <CategoryIcon name={name} className="w-5 h-5" />
+                    </div>
+                    <span className="text-[10px] font-extrabold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis w-full text-center group-hover:text-brand-purple transition-colors">
+                      {name}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
