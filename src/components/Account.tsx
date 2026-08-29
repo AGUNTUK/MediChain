@@ -88,11 +88,11 @@ export default function Account({
   return (
     <div className="h-full bg-brand-bg px-4 sm:px-6 pt-6 pb-32 space-y-4 max-w-4xl mx-auto w-full select-none overflow-y-auto">
       {/* Account Info Header */}
-      <div className="p-5 sm:p-6 flex items-center justify-between gap-4 bg-white rounded-3xl border border-slate-100 shadow-2xs">
+      <div className="p-5 sm:p-6 flex items-center justify-between gap-4 bg-white rounded-3xl border border-slate-100 shadow-xs">
         <div className="flex items-center gap-3.5">
           <MediChainLogo size="sm" withText={false} />
           <div className="flex-1 min-w-0 flex flex-col justify-center">
-            <h2 className="text-base sm:text-lg font-black text-brand-charcoal leading-tight truncate flex items-center gap-1.5">
+            <h2 className="text-lg sm:text-xl font-black text-brand-charcoal leading-tight truncate flex items-center gap-1.5">
               {pharmacy?.pharmacyName || "Pharmacy Profile"}
               {isVerified && (
                 <span className="bg-emerald-500/10 text-emerald-600 rounded-full p-0.5" title="Verified DGDA Account">
@@ -100,32 +100,32 @@ export default function Account({
                 </span>
               )}
             </h2>
-            <p className="text-xs text-slate-500 mt-1 font-semibold flex items-center gap-1">
-              <UserIcon className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+            <p className="text-xs sm:text-sm text-slate-600 mt-1 font-semibold flex items-center gap-1">
+              <UserIcon className="w-4 h-4 text-slate-400 flex-shrink-0" />
               <span className="truncate">স্বত্বাধিকারী: {pharmacy?.ownerName || currentUser?.name || "জাহিদ হাসান"}</span>
             </p>
-            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-              <span className="bg-slate-100 border border-slate-200 text-slate-600 font-bold font-mono text-[9px] px-2.5 py-0.5 rounded-md">
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <span className="bg-slate-100 border border-slate-200 text-slate-700 font-bold font-mono text-xs px-2.5 py-1 rounded-lg">
                 ড্রাগ লাইসেন্স: {pharmacy?.licenseNo || "অনুমোদনের অপেক্ষায়"}
               </span>
-              <span className="bg-purple-50 text-brand-purple border border-purple-200/50 font-bold text-[9px] px-2.5 py-0.5 rounded-md">
+              <span className="bg-purple-50 text-brand-purple border border-purple-200/60 font-extrabold text-xs px-2.5 py-1 rounded-lg">
                 রোল: {currentUser?.role === "Pharmacy Owner" ? "ফার্মেসি মালিক" : currentUser?.role === "Admin" ? "অ্যাডমিন" : currentUser?.role || "ফার্মেসি মালিক"}
               </span>
             </div>
           </div>
         </div>
         {/* Header interactive controls */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={() => setShowEditProfile(true)}
-            className="p-2.5 text-slate-400 hover:text-brand-purple hover:bg-slate-50 rounded-2xl transition-all cursor-pointer border border-slate-100 shadow-3xs"
+            className="p-2.5 text-slate-500 hover:text-brand-purple hover:bg-purple-50 rounded-2xl transition-all cursor-pointer border border-slate-200 shadow-2xs"
             title="ফার্মেসির তথ্য পরিবর্তন"
           >
-            <Pencil className="w-4 h-4" />
+            <Pencil className="w-4.5 h-4.5" />
           </button>
           <button
             onClick={onLogout}
-            className="p-2.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all cursor-pointer border border-slate-100 shadow-3xs"
+            className="p-2.5 text-slate-500 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all cursor-pointer border border-slate-200 shadow-2xs"
             title="লগআউট করুন"
           >
             <LogOut className="w-4.5 h-4.5" />
@@ -146,7 +146,7 @@ export default function Account({
           icon = <Award className="w-5 h-5 text-emerald-600" />;
           statusText = "অনুমোদিত ফার্মেসি";
           statusBadgeClass = "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
-          subText = "ঔষধ প্রশাসন (DGDA) রেগুলেটরি যাচাই সফল। অগ্রাধিকার ডেলিভারি সক্রিয়।";
+          subText = "ঔষধ প্রশাসন (DGDA) রেগুলেটরি যাচাই সফল। অগ্রাধিকার এক্সপ্রেস ডেলিভারি সক্রিয়।";
         } else if (kycStatus === "Pending" || kycStatus === "Under Review") {
           cardBg = "bg-amber-50 border-amber-100 text-amber-850";
           icon = <Clock className="w-5 h-5 text-amber-500 animate-pulse" />;
@@ -156,17 +156,17 @@ export default function Account({
         }
 
         return (
-          <div className={`p-4 rounded-3xl border ${cardBg} shadow-sm space-y-3`}>
-            <div className="flex justify-between items-start">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-white rounded-xl shadow-xs">
+          <div className={`p-5 rounded-3xl border ${cardBg} shadow-sm space-y-3`}>
+            <div className="flex justify-between items-start gap-2">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-white rounded-2xl shadow-xs">
                   {icon}
                 </div>
                 <div>
-                  <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">কেওয়াইসি স্ট্যাটাস</span>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <h4 className="font-extrabold text-xs">{statusText}</h4>
-                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded border ${statusBadgeClass}`}>
+                  <span className="text-[10px] text-slate-400 block font-black uppercase tracking-wider">কেওয়াইসি স্ট্যাটাস</span>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <h4 className="font-black text-sm">{statusText}</h4>
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-md border ${statusBadgeClass}`}>
                       {kycStatus === "Approved" ? "অনুমোদিত" : kycStatus === "Pending" ? "অপেক্ষমান" : kycStatus}
                     </span>
                   </div>
@@ -174,12 +174,12 @@ export default function Account({
               </div>
               <button
                 onClick={() => setShowKycHub(true)}
-                className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-[10px] font-black px-3 py-1.5 rounded-xl transition-all cursor-pointer shadow-xs"
+                className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 text-xs font-black px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-xs shrink-0"
               >
                 {kycStatus === "Approved" ? "কেওয়াইসি বিবরণ" : "এখনই যাচাই করুন"}
               </button>
             </div>
-            <p className="text-[10px] text-slate-500 font-semibold leading-relaxed pl-1">
+            <p className="text-xs text-slate-600 font-semibold leading-relaxed pl-1">
               {subText}
             </p>
           </div>
@@ -187,20 +187,20 @@ export default function Account({
       })()}
 
       {/* PWA Standalone App Integration Card */}
-      <div className="bg-gradient-to-r from-slate-900 to-[#17121F] border border-purple-500/30 rounded-3xl p-4 shadow-sm text-white space-y-2.5">
+      <div className="bg-gradient-to-r from-slate-900 to-[#17121F] border border-purple-500/30 rounded-3xl p-5 shadow-sm text-white space-y-2.5">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-brand-lime/10 border border-brand-lime/30 flex items-center justify-center text-brand-lime">
-              <Smartphone className="w-5 h-5" />
+            <div className="w-11 h-11 rounded-2xl bg-brand-lime/10 border border-brand-lime/30 flex items-center justify-center text-brand-lime shrink-0">
+              <Smartphone className="w-6 h-6" />
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <h4 className="font-extrabold text-xs text-white">মেডিচেইন মোবাইল অ্যাপ</h4>
-                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-brand-lime/20 text-brand-lime border border-brand-lime/30">
+              <div className="flex items-center gap-2">
+                <h4 className="font-black text-sm text-white">মেডিচেইন মোবাইল অ্যাপ</h4>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-brand-lime/20 text-brand-lime border border-brand-lime/30">
                   {isStandalone ? "সক্রিয় অ্যাপ" : "অফলাইন সুবিধা"}
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-300 mt-1">
                 {isStandalone
                   ? "মোবাইল অ্যাপ হিসেবে সফলভাবে চলছে।"
                   : "সহজে ও দ্রুত অর্ডার করতে অ্যাপটি মোবাইলে ইনস্টল করুন।"}
@@ -217,16 +217,16 @@ export default function Account({
                   openInstallBanner();
                 }
               }}
-              className="bg-brand-lime hover:bg-brand-lime/90 active:scale-95 text-slate-950 text-[10px] font-black px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-md flex items-center gap-1.5 flex-shrink-0"
+              className="bg-brand-lime hover:bg-brand-lime-dark active:scale-95 text-slate-950 text-xs font-black px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-md flex items-center gap-1.5 shrink-0"
             >
-              <Download className="w-3.5 h-3.5" />
-              {isIOS ? "ইনস্টল করার নিয়ম" : "অ্যাপ ইনস্টল করুন"}
+              <Download className="w-4 h-4" />
+              {isIOS ? "ইনস্টল নিয়ম" : "অ্যাপ ইনস্টল করুন"}
             </button>
           )}
 
           {isStandalone && (
-            <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1.5 rounded-xl border border-emerald-500/20 flex-shrink-0">
-              <CheckCircle2 className="w-3.5 h-3.5" />
+            <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20 shrink-0">
+              <CheckCircle2 className="w-4 h-4" />
               ইনস্টল করা হয়েছে
             </div>
           )}
@@ -235,14 +235,14 @@ export default function Account({
 
       {/* Savings Metric Row */}
       {analytics && (
-        <div className="bg-white border border-slate-100 rounded-3xl p-4 shadow-sm flex items-center justify-between gap-3">
+        <div className="bg-white border border-slate-100 rounded-3xl p-5 shadow-sm flex items-center justify-between gap-3">
           <div>
-            <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">মোট সাশ্রয় রিপোর্ট</span>
-            <span className="text-lg font-black text-emerald-600 font-mono mt-1 block">
+            <span className="text-[10px] text-slate-400 block font-black uppercase tracking-wider">মোট সাশ্রয় রিপোর্ট</span>
+            <span className="text-xl sm:text-2xl font-black text-emerald-600 font-mono mt-1 block">
               ৳{analytics.totalSavings.toLocaleString()}
             </span>
           </div>
-          <div className="bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-2xl border border-emerald-100 text-[10px] font-extrabold text-right">
+          <div className="bg-emerald-50 text-emerald-700 px-3.5 py-2 rounded-2xl border border-emerald-100 text-xs font-black text-right">
             গড় ২২% পাইকারি সাশ্রয়
           </div>
         </div>
@@ -250,80 +250,80 @@ export default function Account({
 
       {/* B2B Operational Quick-Action Grid */}
       <div className="grid grid-cols-2 gap-3">
-        <button onClick={() => onTriggerTab && onTriggerTab("history")} className="bg-white p-3.5 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-2 hover:border-brand-purple/30 transition-all cursor-pointer items-start text-left">
-          <div className="p-2 bg-brand-purple/10 rounded-xl text-brand-purple">
-            <ShoppingCart className="w-4.5 h-4.5" />
+        <button onClick={() => onTriggerTab && onTriggerTab("history")} className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-2 hover:border-brand-purple/30 transition-all cursor-pointer items-start text-left">
+          <div className="p-2.5 bg-brand-purple/10 rounded-2xl text-brand-purple">
+            <ShoppingCart className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-xs font-bold text-brand-charcoal block">অর্ডার ইতিহাস</span>
-            <span className="text-[9px] text-slate-400 mt-0.5 block">সব পাইকারি অর্ডার দেখুন</span>
+            <span className="text-sm font-black text-brand-charcoal block">অর্ডার ইতিহাস</span>
+            <span className="text-xs text-slate-400 mt-0.5 block font-medium">সব পাইকারি অর্ডার দেখুন</span>
           </div>
         </button>
         
-        <button className="bg-white p-3.5 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-2 hover:border-brand-purple/30 transition-all cursor-pointer items-start text-left">
-          <div className="p-2 bg-blue-500/10 rounded-xl text-blue-600">
-            <FileText className="w-4.5 h-4.5" />
+        <button className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-2 hover:border-brand-purple/30 transition-all cursor-pointer items-start text-left">
+          <div className="p-2.5 bg-blue-500/10 rounded-2xl text-blue-600">
+            <FileText className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-xs font-bold text-brand-charcoal block">ট্যাক্স ও চালান</span>
-            <span className="text-[9px] text-slate-400 mt-0.5 block">ক্রয় ও ভ্যাট স্টেটমেন্ট</span>
+            <span className="text-sm font-black text-brand-charcoal block">ট্যাক্স ও চালান</span>
+            <span className="text-xs text-slate-400 mt-0.5 block font-medium">ক্রয় ও ভ্যাট স্টেটমেন্ট</span>
           </div>
         </button>
         
-        <button className="bg-white p-3.5 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-2 hover:border-brand-purple/30 transition-all cursor-pointer items-start text-left">
-          <div className="p-2 bg-emerald-500/10 rounded-xl text-emerald-600">
-            <Shield className="w-4.5 h-4.5" />
+        <button className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-2 hover:border-brand-purple/30 transition-all cursor-pointer items-start text-left">
+          <div className="p-2.5 bg-emerald-500/10 rounded-2xl text-emerald-600">
+            <Shield className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-xs font-bold text-brand-charcoal block">ডেলিভারির ঠিকানা</span>
-            <span className="text-[9px] text-slate-400 mt-0.5 block">ফার্মেসির অবস্থান ও ড্রপ-অফ</span>
+            <span className="text-sm font-black text-brand-charcoal block">ডেলিভারির ঠিকানা</span>
+            <span className="text-xs text-slate-400 mt-0.5 block font-medium">ফার্মেসির অবস্থান ও ড্রপ-অফ</span>
           </div>
         </button>
 
-        <button className="bg-white p-3.5 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-2 hover:border-brand-purple/30 transition-all cursor-pointer items-start text-left">
-          <div className="p-2 bg-amber-500/10 rounded-xl text-amber-600">
-            <Headset className="w-4.5 h-4.5" />
+        <button className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-2 hover:border-brand-purple/30 transition-all cursor-pointer items-start text-left">
+          <div className="p-2.5 bg-amber-500/10 rounded-2xl text-amber-600">
+            <Headset className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-xs font-bold text-brand-charcoal block">ডিপো হেল্পলাইন</span>
-            <span className="text-[9px] text-slate-400 mt-0.5 block">২৪/৭ কাস্টমার সাপোর্ট</span>
+            <span className="text-sm font-black text-brand-charcoal block">ডিপো হেল্পলাইন</span>
+            <span className="text-xs text-slate-400 mt-0.5 block font-medium">২৪/৭ কাস্টমার সাপোর্ট</span>
           </div>
         </button>
       </div>
 
       {/* Saved Favourites List / Quick order catalog */}
-      <div className="bg-white rounded-3xl p-4 border border-slate-100 space-y-3 shadow-sm">
-        <h3 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+      <div className="bg-white rounded-3xl p-5 border border-slate-100 space-y-3.5 shadow-sm">
+        <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
           <Heart className="w-4 h-4 text-rose-500 fill-current" />
           পছন্দের ওষুধের তালিকা (Favourites)
         </h3>
 
         {favProducts.length === 0 ? (
           <div className="py-6 text-center text-slate-400 flex flex-col items-center">
-            <p className="text-xs font-semibold">পছন্দের কোনো ওষুধ এখনো যুক্ত নেই</p>
-            <p className="text-[10px] text-slate-400 mt-1 mb-4">ক্যাটালগের ওষুধের পাশে হার্ট আইকনে চাপ দিলে এখানে সহজে পেয়ে যাবেন।</p>
+            <p className="text-sm font-bold text-slate-600">পছন্দের কোনো ওষুধ এখনো যুক্ত নেই</p>
+            <p className="text-xs text-slate-400 mt-1 mb-4">ক্যাটালগের ওষুধের পাশে হার্ট আইকনে চাপ দিলে এখানে সহজে পেয়ে যাবেন।</p>
             <button
               onClick={() => onTriggerTab && onTriggerTab("search")}
-              className="bg-brand-purple text-white px-4 py-2 rounded-xl text-[10px] font-extrabold shadow-sm hover:bg-brand-purple/90 transition-all cursor-pointer"
+              className="bg-brand-purple text-white px-5 py-2.5 rounded-xl text-xs font-extrabold shadow-sm hover:bg-brand-purple/90 transition-all cursor-pointer"
             >
               পাইকারি ওষুধ তালিকা দেখুন
             </button>
           </div>
         ) : (
-          <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+          <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
             {favProducts.map(p => (
               <div
                 key={p.id}
-                className="flex justify-between items-center bg-slate-50/50 p-2.5 rounded-xl border border-slate-100 text-xs hover:border-slate-200 transition-all"
+                className="flex justify-between items-center bg-slate-50/70 p-3 rounded-2xl border border-slate-100 text-sm hover:border-slate-200 transition-all"
               >
                 <div>
-                  <div className="font-bold text-slate-700">{p.name} ({p.strength})</div>
-                  <div className="text-[10px] text-slate-400 font-mono">৳{p.sellingPrice} / বক্স</div>
+                  <div className="font-bold text-slate-800 text-sm">{p.name} ({p.strength})</div>
+                  <div className="text-xs text-slate-500 font-mono font-bold mt-0.5">৳{p.sellingPrice} / বক্স</div>
                 </div>
                 <button
                   onClick={() => handleQuickReorder(p.id)}
                   disabled={successId === p.id}
-                  className={`py-1.5 px-3 rounded-lg text-[10px] font-extrabold flex items-center gap-1 transition-all cursor-pointer ${
+                  className={`py-2 px-3.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
                     successId === p.id
                       ? "bg-brand-purple text-white"
                       : "bg-brand-lime text-slate-900 hover:shadow-sm"
@@ -331,12 +331,12 @@ export default function Account({
                 >
                   {successId === p.id ? (
                     <>
-                      <Check className="w-3 h-3" />
+                      <Check className="w-3.5 h-3.5" />
                       যোগ হয়েছে!
                     </>
                   ) : (
                     <>
-                      <ShoppingCart className="w-3 h-3" />
+                      <ShoppingCart className="w-3.5 h-3.5" />
                       ১ বক্স যোগ করুন
                     </>
                   )}
@@ -347,82 +347,21 @@ export default function Account({
         )}
       </div>
 
-      {/* Developer / Demo Persona Console */}
-      <div className="bg-slate-900 text-white rounded-3xl p-5 border border-slate-800 shadow-xl space-y-3">
-        <div className="flex justify-between items-center">
-          <h3 className="text-[10px] font-extrabold text-brand-lime uppercase tracking-widest flex items-center gap-1.5 font-mono">
-            <Shield className="w-4 h-4 text-brand-lime" />
-            ব্যবহারকারী রোল পরিবর্তন (ডেমো কনসোল)
-          </h3>
-          <span className="text-[9px] text-slate-400 font-mono">টেস্টিং মোড</span>
-        </div>
-        <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
-          অ্যাপের সকল ফিচার ও ড্যাশবোর্ড পরখ করে দেখতে রোল পরিবর্তন করুন:
-        </p>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-          {[
-            { role: "Pharmacy Owner", email: "pharmacy@medichain.com", label: "ফার্মেসি মালিক", icon: "🏪" },
-            { role: "Admin", email: "admin@medichain.com", label: "অ্যাডমিন প্যানেল", icon: "🛡️" },
-            { role: "Depot Staff", email: "depot@medichain.com", label: "ডিপো কর্মকর্তা", icon: "📦" },
-            { role: "Delivery Staff", email: "delivery@medichain.com", label: "ডেলিভারি রাইডার", icon: "🛵" }
-          ].map((persona) => {
-            const isCurrent = currentUser?.role === persona.role;
-            return (
-              <button
-                key={persona.role}
-                type="button"
-                onClick={async () => {
-                  if (onSwitchPersona) {
-                    onSwitchPersona(persona.role);
-                  } else {
-                    try {
-                      const data = await authService.login(persona.email, "123456");
-                      window.location.reload();
-                    } catch (e) {
-                      console.error(e);
-                    }
-                  }
-                }}
-                className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
-                  isCurrent
-                    ? "bg-brand-purple border-brand-purple text-white shadow-md ring-2 ring-brand-purple/50"
-                    : "bg-slate-800/80 border-slate-700/80 text-slate-300 hover:bg-slate-800 hover:border-slate-600"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-base">{persona.icon}</span>
-                  {isCurrent && (
-                    <span className="bg-brand-lime text-slate-950 text-[7.5px] font-black px-1.5 py-0.5 rounded uppercase">
-                      সক্রিয়
-                    </span>
-                  )}
-                </div>
-                <div>
-                  <span className="text-xs font-black block leading-tight">{persona.label}</span>
-                  <span className="text-[8.5px] text-slate-400 font-mono block mt-0.5 truncate">{persona.email}</span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* Corporate Support and DGDA Details */}
       <div className="bg-white rounded-3xl p-5 border border-slate-100 space-y-3.5 shadow-sm">
-        <h3 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+        <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
           <LifeBuoy className="w-4 h-4 text-brand-purple" />
           মেডিচেইন ডিপো হেল্পলাইন ও সাপোর্ট
         </h3>
         
-        <div className="text-xs space-y-2 leading-relaxed font-semibold text-slate-600">
-          <div className="flex justify-between">
+        <div className="text-xs space-y-2.5 leading-relaxed font-semibold text-slate-700">
+          <div className="flex justify-between items-center">
             <span className="text-slate-400">সেবার সময়:</span>
-            <span>২৪ ঘণ্টা / ৭ দিন</span>
+            <span className="font-bold">২৪ ঘণ্টা / ৭ দিন</span>
           </div>
-          <div className="flex justify-between">
+          <div className="flex justify-between items-center">
             <span className="text-slate-400">ডিজিডিএ (DGDA) অনুমোদন:</span>
-            <span className={isVerified ? "text-emerald-600" : "text-amber-500"}>
+            <span className={`font-bold ${isVerified ? "text-emerald-600" : "text-amber-500"}`}>
               {isVerified ? "অনুমোদিত বি২বি ফার্মাসিউটিক্যাল সাপ্লাইয়ার" : "যাচাই প্রক্রিয়াধীন রয়েছে"}
             </span>
           </div>

@@ -586,17 +586,17 @@ export default function Home({
                       }`}
                     >
                       <div className="space-y-1">
-                        <span className={`text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded-md inline-block ${
-                          isSelected ? "bg-brand-lime text-slate-950" : "bg-slate-100 text-slate-600"
+                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md inline-block ${
+                          isSelected ? "bg-brand-lime text-slate-950" : "bg-slate-100 text-slate-700"
                         }`}>
                           {m.badge}
                         </span>
-                        <h4 className="text-xs font-black truncate">{m.shortName}</h4>
+                        <h4 className="text-xs sm:text-sm font-black truncate">{m.shortName}</h4>
                       </div>
 
-                      <div className="mt-3 flex items-center justify-between text-[10px] font-bold">
+                      <div className="mt-3 flex items-center justify-between text-xs font-black">
                         <span className={isSelected ? "text-brand-lime" : "text-brand-purple"}>ওষুধ দেখুন</span>
-                        <ChevronRight className="w-3.5 h-3.5" />
+                        <ChevronRight className="w-4 h-4" />
                       </div>
                     </button>
                   );
@@ -607,14 +607,14 @@ export default function Home({
             {/* Category Carousel Grid */}
             <div className="space-y-2.5">
               <div className="flex justify-between items-center px-0.5">
-                <h3 className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider flex items-center gap-1.5">
-                  <Package className="w-3.5 h-3.5 text-brand-purple" />
+                <h3 className="text-xs uppercase font-extrabold text-slate-400 tracking-wider flex items-center gap-1.5">
+                  <Package className="w-4 h-4 text-brand-purple" />
                   ওষুধের ধরন ও ক্যাটাগরি
                 </h3>
                 {displayCategoryNames.length > 12 && (
                   <button
                     onClick={() => setShowAllCategories(!showAllCategories)}
-                    className="text-[11px] font-extrabold text-brand-purple hover:underline cursor-pointer"
+                    className="text-xs font-black text-brand-purple hover:underline cursor-pointer"
                   >
                     {showAllCategories ? "কম দেখুন" : "সব দেখুন"}
                   </button>
@@ -640,10 +640,10 @@ export default function Home({
                             : "bg-white border-slate-100/90 shadow-2xs hover:shadow-md hover:border-slate-200"
                         }`}
                       >
-                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-1.5 p-2.5 transition-transform ${config.bg} ${config.text} border ${config.border}`}>
-                          <CategoryIcon name={name} className="w-5 h-5" />
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-1.5 p-2.5 transition-transform ${config.bg} ${config.text} border ${config.border}`}>
+                          <CategoryIcon name={name} className="w-5.5 h-5.5" />
                         </div>
-                        <span className="text-[10px] font-extrabold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis w-full text-center">
+                        <span className="text-xs font-bold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis w-full text-center">
                           {name}
                         </span>
                       </button>
@@ -663,7 +663,7 @@ export default function Home({
                           const el = document.getElementById("home-product-catalog");
                           if (el) el.scrollIntoView({ behavior: "smooth" });
                         }}
-                        className={`flex-shrink-0 snap-start flex flex-col items-center justify-center p-2 w-[82px] h-[90px] rounded-2xl border transition-all cursor-pointer ${
+                        className={`flex-shrink-0 snap-start flex flex-col items-center justify-center p-2.5 w-[90px] h-[96px] rounded-2xl border transition-all cursor-pointer ${
                           isSelected
                             ? "bg-purple-50 border-brand-purple shadow-md scale-105"
                             : "bg-white border-slate-100/90 shadow-2xs hover:shadow-md hover:border-slate-200"
@@ -672,7 +672,7 @@ export default function Home({
                         <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-1.5 p-2.5 transition-transform ${config.bg} ${config.text} border ${config.border}`}>
                           <CategoryIcon name={name} className="w-5 h-5" />
                         </div>
-                        <span className="text-[10px] font-extrabold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis w-full text-center">
+                        <span className="text-xs font-bold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis w-full text-center">
                           {name}
                         </span>
                       </button>
@@ -727,76 +727,76 @@ export default function Home({
               </div>
             )}
 
-            {/* FULL LIVE PRODUCT CATALOG SECTION ON HOMEPAGE (Point 1) */}
-            <div id="home-product-catalog" className="pt-2 space-y-3.5 scroll-mt-20">
+            {/* FULL LIVE PRODUCT CATALOG SECTION ON HOMEPAGE */}
+            <div id="home-product-catalog" className="pt-2 space-y-4 scroll-mt-20">
               {/* Section Header with Controls */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                 <div>
-                  <h3 className="text-sm font-black text-slate-900 flex items-center gap-1.5">
-                    <Package className="w-4 h-4 text-brand-purple" />
+                  <h3 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
+                    <Package className="w-5 h-5 text-brand-purple" />
                     ওষুধের সম্পূর্ণ পাইকারি ক্যাটালগ
-                    <span className="text-xs text-slate-500 font-mono font-bold">({catalogTotalProducts.toLocaleString()} টি)</span>
+                    <span className="text-sm text-slate-500 font-mono font-bold">({catalogTotalProducts.toLocaleString()} টি)</span>
                   </h3>
-                  <p className="text-[11px] text-slate-500 font-medium">
+                  <p className="text-xs text-slate-500 font-semibold mt-0.5">
                     সরাসরি ডিপো ইনভেন্টরি থেকে লাইভ রেটে ওষুধ নির্বাচন করুন
                   </p>
                 </div>
 
                 {/* View Mode Switcher */}
-                <div className="flex items-center gap-1 bg-white border border-slate-200/80 p-1 rounded-xl shrink-0 self-start sm:self-auto">
+                <div className="flex items-center gap-1 bg-white border border-slate-200/80 p-1.5 rounded-2xl shrink-0 self-start sm:self-auto shadow-2xs">
                   <button
                     type="button"
                     onClick={() => setViewMode("grid")}
-                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                    className={`p-2 rounded-xl transition-colors cursor-pointer ${
                       viewMode === "grid" ? "bg-brand-purple text-white shadow-xs" : "text-slate-500 hover:text-slate-800"
                     }`}
                     title="গ্রিড ভিউ"
                   >
-                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <LayoutGrid className="w-4 h-4" />
                   </button>
                   <button
                     type="button"
                     onClick={() => setViewMode("list")}
-                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                    className={`p-2 rounded-xl transition-colors cursor-pointer ${
                       viewMode === "list" ? "bg-brand-purple text-white shadow-xs" : "text-slate-500 hover:text-slate-800"
                     }`}
                     title="তালিকা ভিউ"
                   >
-                    <ListFilter className="w-3.5 h-3.5" />
+                    <ListFilter className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
               {/* Active Filter Badges */}
               {(selectedManufacturer || selectedCategory !== "All" || selectedFilter !== "all" || search) && (
-                <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold">
-                  <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider">সক্রিয় ফিল্টার:</span>
+                <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
+                  <span className="text-xs text-slate-400 uppercase font-black tracking-wider">সক্রিয় ফিল্টার:</span>
                   
                   {selectedManufacturer && (
-                    <span className="inline-flex items-center gap-1 bg-slate-900 text-white px-2 py-0.5 rounded-lg">
+                    <span className="inline-flex items-center gap-1.5 bg-slate-900 text-white px-2.5 py-1 rounded-xl">
                       কোম্পানি: {selectedManufacturer}
-                      <button onClick={() => setSelectedManufacturer(null)} className="cursor-pointer"><X className="w-3 h-3" /></button>
+                      <button onClick={() => setSelectedManufacturer(null)} className="cursor-pointer"><X className="w-3.5 h-3.5" /></button>
                     </span>
                   )}
 
                   {selectedCategory !== "All" && (
-                    <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-800 px-2 py-0.5 rounded-lg">
+                    <span className="inline-flex items-center gap-1.5 bg-purple-100 text-purple-900 px-2.5 py-1 rounded-xl">
                       ক্যাটাগরি: {selectedCategory}
-                      <button onClick={() => setSelectedCategory("All")} className="cursor-pointer"><X className="w-3 h-3" /></button>
+                      <button onClick={() => setSelectedCategory("All")} className="cursor-pointer"><X className="w-3.5 h-3.5" /></button>
                     </span>
                   )}
 
                   {selectedFilter !== "all" && (
-                    <span className="inline-flex items-center gap-1 bg-lime-100 text-lime-900 px-2 py-0.5 rounded-lg">
+                    <span className="inline-flex items-center gap-1.5 bg-lime-100 text-lime-950 px-2.5 py-1 rounded-xl">
                       ফিল্টার: {selectedFilter === "deals" ? "সর্বোচ্চ লাভ" : selectedFilter === "frequent" ? "জনপ্রিয়" : "কম স্টক"}
-                      <button onClick={() => setSelectedFilter("all")} className="cursor-pointer"><X className="w-3 h-3" /></button>
+                      <button onClick={() => setSelectedFilter("all")} className="cursor-pointer"><X className="w-3.5 h-3.5" /></button>
                     </span>
                   )}
 
                   {search && (
-                    <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-lg">
+                    <span className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-800 px-2.5 py-1 rounded-xl">
                       খোঁজা হচ্ছে: "{search}"
-                      <button onClick={() => setSearch("")} className="cursor-pointer"><X className="w-3 h-3" /></button>
+                      <button onClick={() => setSearch("")} className="cursor-pointer"><X className="w-3.5 h-3.5" /></button>
                     </span>
                   )}
 
@@ -808,7 +808,7 @@ export default function Home({
                       setSelectedFilter("all");
                       setSearch("");
                     }}
-                    className="text-[11px] text-rose-500 hover:underline cursor-pointer ml-1"
+                    className="text-xs font-black text-rose-600 hover:underline cursor-pointer ml-1"
                   >
                     সব রিসেট করুন
                   </button>
@@ -816,14 +816,14 @@ export default function Home({
               )}
 
               {/* Filter Tabs */}
-              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+              <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-hide">
                 <button
                   type="button"
                   onClick={() => setSelectedFilter("all")}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all shrink-0 cursor-pointer ${
+                  className={`px-4 py-2 rounded-2xl text-xs sm:text-sm font-black transition-all shrink-0 cursor-pointer ${
                     selectedFilter === "all"
                       ? "bg-slate-900 text-white shadow-xs"
-                      : "bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-50"
+                      : "bg-white text-slate-700 border border-slate-200/80 hover:bg-slate-50"
                   }`}
                 >
                   সব ওষুধ
@@ -832,26 +832,26 @@ export default function Home({
                 <button
                   type="button"
                   onClick={() => setSelectedFilter("deals")}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all shrink-0 flex items-center gap-1 cursor-pointer ${
+                  className={`px-4 py-2 rounded-2xl text-xs sm:text-sm font-black transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
                     selectedFilter === "deals"
                       ? "bg-brand-purple text-white shadow-xs"
-                      : "bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-50"
+                      : "bg-white text-slate-700 border border-slate-200/80 hover:bg-slate-50"
                   }`}
                 >
-                  <Flame className="w-3.5 h-3.5 text-amber-500" />
+                  <Flame className="w-4 h-4 text-amber-500" />
                   সর্বোচ্চ লাভ (ছাড়)
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setSelectedFilter("frequent")}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all shrink-0 flex items-center gap-1 cursor-pointer ${
+                  className={`px-4 py-2 rounded-2xl text-xs sm:text-sm font-black transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
                     selectedFilter === "frequent"
                       ? "bg-brand-purple text-white shadow-xs"
-                      : "bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-50"
+                      : "bg-white text-slate-700 border border-slate-200/80 hover:bg-slate-50"
                   }`}
                 >
-                  <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+                  <TrendingUp className="w-4 h-4 text-emerald-600" />
                   জনপ্রিয় ওষুধ
                 </button>
 

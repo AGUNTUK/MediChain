@@ -100,14 +100,24 @@
 }
 
 /* Base styling */
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
 body, button, input, textarea, select {
   font-family: var(--font-sans);
+  line-height: 1.45;
+  letter-spacing: 0.015em;
 }
 
 body {
   background-color: #F8F9F5;
   color: #111827;
   overflow-x: hidden;
+  font-size: 0.975rem;
 }
 
 /* Animation utilities */

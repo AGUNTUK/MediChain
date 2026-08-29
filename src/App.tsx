@@ -688,8 +688,8 @@ export default function App() {
                   activeTab === "home" ? "text-brand-purple scale-105" : "text-slate-400 hover:text-slate-600"
                 }`}
               >
-                <HomeIcon className="w-5 h-5" />
-                <span className="text-[10px] font-bold">হোম</span>
+                <HomeIcon className="w-5.5 h-5.5" />
+                <span className="text-xs font-black">হোম</span>
               </button>
 
               <button
@@ -698,8 +698,8 @@ export default function App() {
                   activeTab === "search" ? "text-brand-purple scale-105" : "text-slate-400 hover:text-slate-600"
                 }`}
               >
-                <PackageIcon className="w-5 h-5" />
-                <span className="text-[10px] font-bold">ওষুধ খুঁজুন</span>
+                <PackageIcon className="w-5.5 h-5.5" />
+                <span className="text-xs font-black">ওষুধ খুঁজুন</span>
               </button>
 
               {/* Center Prominent Cart Action Button */}
@@ -709,14 +709,14 @@ export default function App() {
                 title="কার্ট দেখুন"
               >
                 <div className="relative p-1 rounded-xl group-hover:bg-brand-purple/10 transition-colors">
-                  <ShoppingBag className="w-5 h-5 text-slate-600 group-hover:text-brand-purple group-hover:scale-110 transition-transform" />
+                  <ShoppingBag className="w-5.5 h-5.5 text-slate-600 group-hover:text-brand-purple group-hover:scale-110 transition-transform" />
                   {cartCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-brand-lime text-slate-950 font-black text-[9px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-xs border border-white">
+                    <span className="absolute -top-1 -right-1 bg-brand-lime text-slate-950 font-black text-[10px] min-w-4.5 h-4.5 px-1 rounded-full flex items-center justify-center shadow-xs border border-white">
                       {cartCount}
                     </span>
                   )}
                 </div>
-                <span className="text-[10px] font-bold text-slate-600 group-hover:text-brand-purple">কার্ট</span>
+                <span className="text-xs font-black text-slate-600 group-hover:text-brand-purple">কার্ট</span>
               </button>
               
               <button
@@ -725,8 +725,8 @@ export default function App() {
                   activeTab === "history" ? "text-brand-purple scale-105" : "text-slate-400 hover:text-slate-600"
                 }`}
               >
-                <ListIcon className="w-5 h-5" />
-                <span className="text-[10px] font-bold">অর্ডারসমূহ</span>
+                <ListIcon className="w-5.5 h-5.5" />
+                <span className="text-xs font-black">অর্ডারসমূহ</span>
               </button>
 
               <button
@@ -735,8 +735,8 @@ export default function App() {
                   activeTab === "account" ? "text-brand-purple scale-105" : "text-slate-400 hover:text-slate-600"
                 }`}
               >
-                <UserIcon className="w-5 h-5" />
-                <span className="text-[10px] font-bold">প্রোফাইল</span>
+                <UserIcon className="w-5.5 h-5.5" />
+                <span className="text-xs font-black">প্রোফাইল</span>
               </button>
             </div>
           )}

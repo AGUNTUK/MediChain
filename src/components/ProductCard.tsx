@@ -115,41 +115,41 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
 
           {/* Product Details (Middle) */}
           <div className="flex-1 min-w-0 space-y-0.5">
-            <h3 className="text-xs sm:text-sm font-black text-slate-900 leading-snug break-words">
-              {product.name} <span className="text-[11px] font-bold text-slate-500">{product.strength}</span>
+            <h3 className="text-sm sm:text-base font-black text-slate-900 line-clamp-1 leading-snug">
+              {product.name} <span className="text-xs font-bold text-slate-500 font-mono">({product.strength})</span>
             </h3>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider truncate mt-0.5">
               {product.genericName}
             </p>
-            <p className="text-[10px] text-slate-500 font-semibold truncate flex items-center gap-1">
-              <Building2 className="w-3 h-3 text-slate-400 shrink-0" />
+            <p className="text-xs text-slate-500 font-semibold truncate flex items-center gap-1 mt-0.5">
+              <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <span className="truncate">{product.company}</span>
             </p>
-            <div className="flex items-center gap-1.5 text-[9px] font-mono text-slate-500 pt-0.5">
-              <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">{product.packSize}</span>
+            <div className="flex items-center gap-2 text-xs font-mono text-slate-600 pt-1">
+              <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold">{product.packSize}</span>
               <span className="text-slate-300">•</span>
-              <span className="font-semibold text-slate-600">মজুদ: {product.availableStock ?? 100} বক্স</span>
+              <span className="font-bold text-slate-700">মজুদ: {product.availableStock ?? 100} বক্স</span>
             </div>
           </div>
 
           {/* Price / Savings Column (Right) */}
-          <div className="shrink-0 text-right flex flex-col items-end gap-1 min-w-[85px] sm:min-w-[100px]">
+          <div className="shrink-0 text-right flex flex-col items-end gap-1 min-w-[95px] sm:min-w-[110px]">
             {calculatedDiscount > 0 && (
-              <span className="bg-brand-lime text-slate-950 text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0">
+              <span className="bg-brand-lime text-slate-950 text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider shrink-0">
                 {calculatedDiscount}% সাশ্রয়
               </span>
             )}
             <div className="flex items-baseline gap-1 flex-wrap justify-end">
-              <span className="text-xs sm:text-sm font-black text-brand-purple">৳{product.sellingPrice}</span>
+              <span className="text-sm sm:text-base font-black text-brand-purple">৳{product.sellingPrice}</span>
               {product.mrp > product.sellingPrice && (
-                <span className="text-[9.5px] text-slate-400 line-through font-medium">৳{product.mrp}</span>
+                <span className="text-xs text-slate-400 line-through font-medium">৳{product.mrp}</span>
               )}
             </div>
-            <span className="text-[8px] text-slate-500 font-mono block leading-none">
+            <span className="text-[10px] text-slate-500 font-mono block leading-none">
               {formatProductPriceLabel(product.sellingPrice, product.packSize)}
             </span>
             {product.mrp > product.sellingPrice && (
-              <span className="text-[7.5px] bg-emerald-50 text-emerald-700 font-extrabold border border-emerald-200/60 px-1.5 py-0.5 rounded whitespace-nowrap">
+              <span className="text-[9px] bg-emerald-50 text-emerald-700 font-black border border-emerald-200 px-2 py-0.5 rounded whitespace-nowrap">
                 সাশ্রয় ৳{product.mrp - product.sellingPrice}
               </span>
             )}
@@ -160,7 +160,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
         <div className="pt-2 border-t border-slate-50 flex items-center justify-between gap-2">
           {cartQuantity > 0 ? (
             <div
-              className="flex items-center justify-between gap-2 bg-brand-purple/5 border border-brand-purple/20 rounded-xl px-2 py-1 w-full"
+              className="flex items-center justify-between gap-2 bg-brand-purple/5 border border-brand-purple/20 rounded-xl px-2.5 py-1.5 w-full"
               onClick={(e) => e.stopPropagation()}
             >
               <span className="text-xs font-black text-brand-purple font-mono">
@@ -173,9 +173,9 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
                     e.stopPropagation();
                     onUpdateCartQty?.(product.id, cartQuantity, -1);
                   }}
-                  className="w-5 h-5 bg-white text-brand-purple border border-brand-purple/30 hover:bg-brand-purple hover:text-white rounded-lg transition-colors flex items-center justify-center cursor-pointer"
+                  className="w-6 h-6 bg-white text-brand-purple border border-brand-purple/30 hover:bg-brand-purple hover:text-white rounded-lg transition-colors flex items-center justify-center cursor-pointer"
                 >
-                  <Minus className="w-3 h-3" />
+                  <Minus className="w-3.5 h-3.5" />
                 </button>
                 <span className="text-xs font-black text-brand-purple font-mono px-1">{cartQuantity}</span>
                 <button
@@ -184,15 +184,15 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
                     e.stopPropagation();
                     onUpdateCartQty?.(product.id, cartQuantity, 1);
                   }}
-                  className="w-5 h-5 bg-white text-brand-purple border border-brand-purple/30 hover:bg-brand-purple hover:text-white rounded-lg transition-colors flex items-center justify-center cursor-pointer"
+                  className="w-6 h-6 bg-white text-brand-purple border border-brand-purple/30 hover:bg-brand-purple hover:text-white rounded-lg transition-colors flex items-center justify-center cursor-pointer"
                 >
-                  <Plus className="w-3 h-3" />
+                  <Plus className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
           ) : (
             <div className="flex items-center justify-between w-full gap-2">
-              <div className="text-[9.5px] font-semibold text-slate-500 truncate">
+              <div className="text-xs font-bold text-slate-500 truncate">
                 পাইকারি রেট
               </div>
               {isOutOfStock ? (
@@ -202,9 +202,9 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
                     e.stopPropagation();
                     onOpenDetails?.(product);
                   }}
-                  className="py-1.5 px-3 rounded-xl text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer shrink-0 bg-purple-50 text-brand-purple border border-purple-200/80 hover:bg-brand-purple hover:text-white"
+                  className="py-2 px-3.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shrink-0 bg-purple-50 text-brand-purple border border-purple-200 hover:bg-brand-purple hover:text-white"
                 >
-                  <Bell className="w-3 h-3" />
+                  <Bell className="w-3.5 h-3.5" />
                   <span>নোটিফাই</span>
                 </button>
               ) : (
@@ -212,7 +212,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
                   type="button"
                   onClick={handleAddToCart}
                   disabled={isAdding}
-                  className={`py-1.5 px-3.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
+                  className={`py-2 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
                     isAdded
                       ? "bg-emerald-600 text-white shadow-md"
                       : isAdding
@@ -297,14 +297,14 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
         {/* Card Body Information */}
         <div className="p-3.5 space-y-2">
           <div>
-            <h3 className="text-xs sm:text-sm font-black text-slate-900 line-clamp-1 leading-snug">
-              {product.name} <span className="text-[11px] font-bold text-slate-500">{product.strength}</span>
+            <h3 className="text-sm sm:text-base font-black text-slate-900 line-clamp-1 leading-snug">
+              {product.name} <span className="text-xs font-bold text-slate-500 font-mono">({product.strength})</span>
             </h3>
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider line-clamp-1 mt-0.5">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider line-clamp-1 mt-0.5">
               {product.genericName}
             </p>
-            <p className="text-[10px] text-slate-500 font-semibold truncate flex items-center gap-1 mt-1">
-              <Building2 className="w-3 h-3 text-slate-400 shrink-0" />
+            <p className="text-xs text-slate-500 font-semibold truncate flex items-center gap-1 mt-1">
+              <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <span className="truncate">{product.company}</span>
             </p>
           </div>
@@ -315,21 +315,21 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
               <div className="flex items-baseline gap-1.5 flex-wrap">
                 <span className="text-sm sm:text-base font-black text-brand-purple">৳{product.sellingPrice}</span>
                 {product.mrp > product.sellingPrice && (
-                  <span className="text-[10px] text-slate-400 line-through font-medium">৳{product.mrp}</span>
+                  <span className="text-xs text-slate-400 line-through font-medium">৳{product.mrp}</span>
                 )}
               </div>
-              <span className="text-[8px] text-slate-400 font-mono block">
+              <span className="text-[10px] text-slate-500 font-mono block">
                 {formatProductPriceLabel(product.sellingPrice, product.packSize)}
               </span>
             </div>
             <div className="flex flex-col items-end gap-1">
               {product.packSize && (
-                <span className="text-[9px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded font-mono shrink-0">
+                <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded font-mono shrink-0">
                   {product.packSize}
                 </span>
               )}
               {calculatedDiscount > 0 && (
-                <span className="text-[8px] bg-purple-50 text-brand-purple font-extrabold border border-purple-200/50 px-1.5 py-0.5 rounded shrink-0">
+                <span className="text-[10px] bg-purple-50 text-brand-purple font-black border border-purple-200 px-2 py-0.5 rounded shrink-0">
                   {calculatedDiscount}% লাভ
                 </span>
               )}

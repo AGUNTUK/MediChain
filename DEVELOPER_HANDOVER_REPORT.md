@@ -446,6 +446,21 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 37. Production Live User Experience & Typography Optimization
+- **Permanent Removal of Demo / Developer Persona Switcher**:
+  - The application is LIVE in production with real customer traffic.
+  - Completely purged the `ব্যবহারকারী রোল পরিবর্তন (ডেমো কনসোল)` testing widget from the customer-facing `Account.tsx` profile screen.
+  - Ensured no testing or demo controls are visible to real pharmacy customers.
+- **Enhanced Bengali Typography Scaling & Readability**:
+  - Globally configured `src/index.css` with improved base font scaling (`0.975rem` / `16px`), line-height (`1.45`), letter spacing (`0.015em`), and subpixel antialiasing for `Li Alinur Banglaborno`.
+  - Scaled up UI font sizes across all customer views:
+    - **Bottom Navigation Bar**: Scaled labels to `text-xs font-black` and icons to `w-5.5 h-5.5`.
+    - **Account / Profile Page**: Scaled headers to `text-lg sm:text-xl font-black`, drug license/role badges to `text-xs font-bold`, and action cards to `text-sm font-black`.
+    - **Product Cards (Grid & Horizontal)**: Increased medicine titles (`text-sm sm:text-base font-black`), generic names (`text-xs font-bold`), pack size & stock (`text-xs font-mono`), and discount tags (`text-[10px] font-black`).
+    - **Homepage Controls**: Increased brand names, category badges, catalog tabs, and section headings for crystal clear readability by mofussil pharmacy shopkeepers.
+
+----------------------------------------
+
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).
