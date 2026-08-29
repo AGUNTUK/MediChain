@@ -414,6 +414,20 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 35. Custom Bengali Typography Package Integration (`Li Chayana Teesta`)
+- **Font Package Details**:
+  - Embedded local font package files stored under `public/fonts/`:
+    - `Li Chayana Teesta Unicode.ttf` (Regular & Bold weights)
+    - `Li Chayana Teesta Unicode Italic.ttf` (Italic & Bold Italic weights)
+    - Additional ANSI v1 & v2 fallbacks.
+- **Implementation & Optimization**:
+  - Configured `@font-face` definitions in `src/index.css` with `font-display: swap` for zero-FOIT.
+  - Linked `<link rel="preload" href="/fonts/Li%20Chayana%20Teesta%20Unicode.ttf" as="font" type="font/ttf" crossorigin="anonymous" />` in `index.html` for instant page load.
+  - Configured Tailwind v4 `--font-sans: "Li Chayana Teesta", "Plus Jakarta Sans", ...;` and `--font-bangla` theme variables.
+  - Set global CSS rule ensuring all `body`, `button`, `input`, `textarea`, `select` elements automatically render in **Li Chayana Teesta**.
+
+----------------------------------------
+
 ## 30. Final AI Handover
 
 **To AI Agents:**

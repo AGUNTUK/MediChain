@@ -1,6 +1,39 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
+/* Bengali Custom Typography: Li Chayana Teesta */
+@font-face {
+  font-family: 'Li Chayana Teesta';
+  src: url('/fonts/Li Chayana Teesta Unicode.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Li Chayana Teesta';
+  src: url('/fonts/Li Chayana Teesta Unicode.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Li Chayana Teesta';
+  src: url('/fonts/Li Chayana Teesta Unicode Italic.ttf') format('truetype');
+  font-weight: normal;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Li Chayana Teesta';
+  src: url('/fonts/Li Chayana Teesta Unicode Italic.ttf') format('truetype');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
 @theme {
   --color-blue-50: var(--color-purple-50);
   --color-blue-100: var(--color-purple-100);
@@ -38,8 +71,9 @@
   --color-emerald-900: var(--color-lime-900);
   --color-emerald-950: var(--color-lime-950);
 
-  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Li Chayana Teesta", "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-bangla: "Li Chayana Teesta", sans-serif;
   
   --color-brand-purple: #a855f7;
   --color-brand-purple-dark: #9333ea;
@@ -50,8 +84,11 @@
 }
 
 /* Base styling */
-body {
+body, button, input, textarea, select {
   font-family: var(--font-sans);
+}
+
+body {
   background-color: #F8F9F5;
   color: #111827;
   overflow-x: hidden;
