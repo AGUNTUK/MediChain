@@ -112,7 +112,7 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
           >
             <ArrowLeft className="w-4 h-4 text-slate-600" />
           </button>
-          <h2 className="text-sm font-black text-brand-charcoal">Procurement Checkout</h2>
+          <h2 className="text-sm font-black text-brand-charcoal">অর্ডার নিশ্চিতকরণ (Checkout)</h2>
         </div>
 
         {error && (
@@ -127,12 +127,12 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
           <div className="flex justify-between items-center mb-3">
             <h3 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
               <MapPin className="w-4 h-4 text-brand-purple" />
-              Default Shipping Address
+              ফার্মেসির ডেলিভারি ঠিকানা
             </h3>
             {pharmacy?.verificationStatus === "Approved" && (
               <span className="bg-emerald-50 text-emerald-600 text-[9px] font-black px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
                 <Check className="w-3 h-3 text-emerald-600 stroke-[3]" />
-                Verified Pharmacy
+                অনুমোদিত ফার্মেসি
               </span>
             )}
           </div>
@@ -140,7 +140,7 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
             <div className="font-bold text-slate-800">{pharmacy?.pharmacyName}</div>
             <p className="text-slate-500 mt-1 leading-relaxed">{pharmacy?.address}, {pharmacy?.city}</p>
             <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-2.5">
-              Owner Mobile: {pharmacy?.phone}
+              মোবাইল নম্বর: {pharmacy?.phone}
             </div>
           </div>
         </div>
@@ -149,7 +149,7 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
         <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs space-y-2.5">
           <h3 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-brand-purple" />
-            Select Depot Dispatch Slot
+            ডিপো ডেলিভারির সময় বেছে নিন
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <label className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between ${
@@ -166,11 +166,11 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
                   className="accent-brand-purple cursor-pointer"
                 />
                 <div>
-                  <span className="text-xs font-black text-slate-900 block">Morning Dispatch</span>
-                  <span className="text-[9px] text-slate-500 font-medium">09:00 AM – 01:00 PM</span>
+                  <span className="text-xs font-black text-slate-900 block">সকালের ডেলিভারি</span>
+                  <span className="text-[9px] text-slate-500 font-medium">সকাল ০৯:০০ – দুপুর ০১:০০</span>
                 </div>
               </div>
-              <span className="text-[8px] bg-indigo-100 text-brand-purple font-black px-2 py-0.5 rounded uppercase">Fastest</span>
+              <span className="text-[8px] bg-indigo-100 text-brand-purple font-black px-2 py-0.5 rounded uppercase">দ্রুততম</span>
             </label>
 
             <label className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between ${
@@ -187,11 +187,11 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
                   className="accent-brand-purple cursor-pointer"
                 />
                 <div>
-                  <span className="text-xs font-black text-slate-900 block">Evening Restock</span>
-                  <span className="text-[9px] text-slate-500 font-medium">04:00 PM – 08:00 PM</span>
+                  <span className="text-xs font-black text-slate-900 block">বিকালের ডেলিভারি</span>
+                  <span className="text-[9px] text-slate-500 font-medium">বিকাল ০৪:০০ – রাত ০৮:০০</span>
                 </div>
               </div>
-              <span className="text-[8px] bg-slate-100 text-slate-600 font-black px-2 py-0.5 rounded uppercase">Standard</span>
+              <span className="text-[8px] bg-slate-100 text-slate-600 font-black px-2 py-0.5 rounded uppercase">স্ট্যান্ডার্ড</span>
             </label>
           </div>
         </div>
@@ -200,7 +200,7 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
         <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs space-y-3">
           <h3 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
             <CreditCard className="w-4 h-4 text-brand-purple" />
-            Select Payment Method
+            পেমেন্ট পদ্ধতি নির্বাচন করুন
           </h3>
 
           <div className="space-y-2">
@@ -219,14 +219,14 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
                   className="accent-brand-purple cursor-pointer"
                 />
                 <div className="text-left">
-                  <span>Cash on Delivery (COD)</span>
+                  <span>ক্যাশ অন ডেলিভারি (নগদ টাকা)</span>
                   <p className="text-[9px] text-slate-400 mt-0.5 font-medium leading-tight">
-                    Pay with cash at your doorstep upon delivery.
+                    ডেলিভারি রাইডারের কাছ থেকে পণ্য বুঝে পেয়ে নগদ পরিশোধ করুন।
                   </p>
                 </div>
               </div>
               <div className="bg-emerald-100 text-emerald-800 text-[9px] font-black px-2 py-0.5 rounded-md uppercase">
-                Recommended
+                সবচেয়ে সহজ
               </div>
             </label>
 
@@ -245,14 +245,14 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
                   className="accent-brand-purple cursor-pointer"
                 />
                 <div className="text-left">
-                  <span>B2B Credit Line (30-Day Pay Later)</span>
+                  <span>বি২বি ক্রেডিট লাইন (৩০ দিনের বাকিতে ক্রয়)</span>
                   <p className="text-[9px] text-slate-400 mt-0.5 font-medium leading-tight">
-                    Approved wholesale credit line with net-30 terms.
+                    মেডিচেইনের অনুমোদিত ৩০ দিনের সুবিধাজনক বাকি সুবিধা।
                   </p>
                 </div>
               </div>
               <div className="bg-purple-100 text-brand-purple text-[9px] font-black px-2 py-0.5 rounded-md uppercase">
-                ৳50,000 Limit
+                ৳৫০,০০০ লিমিট
               </div>
             </label>
 
@@ -271,10 +271,10 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
                     onChange={() => setPaymentMethod("bKash")}
                     className="accent-[#E2125D] cursor-pointer"
                   />
-                  <span>bKash Payment Gateway</span>
+                  <span>বিকাশ পেমেন্ট গেটওয়ে</span>
                 </div>
                 <div className="bg-[#E2125D] text-white text-[9px] font-black px-2 py-0.5 rounded-md uppercase">
-                  Instant PGW
+                  তাৎক্ষণিক
                 </div>
               </label>
 
@@ -282,7 +282,7 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
                 <div className="mt-3 pt-3 border-t border-[#E2125D]/20 space-y-2">
                   <label className="text-[10px] font-bold text-slate-600 flex items-center gap-1">
                     <Smartphone className="w-3.5 h-3.5 text-[#E2125D]" />
-                    bKash Account Mobile Number
+                    বিকাশ অ্যাকাউন্ট নম্বর
                   </label>
                   <input
                     type="text"
@@ -292,7 +292,7 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-slate-800 outline-none focus:border-[#E2125D]"
                   />
                   <p className="text-[9px] text-slate-400 font-medium">
-                    You will be redirected to bKash PGW secure verification window to enter your OTP & PIN.
+                    বিকাশের নিরাপদ গেটওয়েতে ওটিপি ও পিন দিয়ে পেমেন্ট সম্পন্ন করুন।
                   </p>
                 </div>
               )}
@@ -313,10 +313,10 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
                     onChange={() => setPaymentMethod("Nagad")}
                     className="accent-[#F15A22] cursor-pointer"
                   />
-                  <span>Nagad Digital Wallet</span>
+                  <span>নগদ ডিজিটাল ওয়ালেট</span>
                 </div>
                 <div className="bg-[#F15A22] text-white text-[9px] font-black px-2 py-0.5 rounded-md uppercase">
-                  Instant PGW
+                  তাৎক্ষণিক
                 </div>
               </label>
 
@@ -324,7 +324,7 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
                 <div className="mt-3 pt-3 border-t border-[#F15A22]/20 space-y-2">
                   <label className="text-[10px] font-bold text-slate-600 flex items-center gap-1">
                     <Smartphone className="w-3.5 h-3.5 text-[#F15A22]" />
-                    Nagad Mobile Wallet
+                    নগদ মোবাইল নম্বর
                   </label>
                   <input
                     type="text"
@@ -334,7 +334,7 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-slate-800 outline-none focus:border-[#F15A22]"
                   />
                   <p className="text-[9px] text-slate-400 font-medium">
-                    Fast automated settlement via Nagad Merchant API.
+                    নগদ ডিজিটাল ওয়ালেটের মাধ্যমে সরাসরি পেমেন্ট করুন।
                   </p>
                 </div>
               )}
@@ -345,11 +345,11 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
         {/* Order Notes */}
         <div className="bg-white rounded-2xl p-4 border border-slate-100">
           <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block mb-2">
-            Special Depot Delivery Instructions (Optional)
+            ডিপো ও রাইডারের জন্য বিশেষ নির্দেশনা (ঐচ্ছিক)
           </label>
           <textarea
             rows={2}
-            placeholder="e.g. Please deliver before 2 PM, or notify staff Zahid..."
+            placeholder="যেমন: দুপুর ২টার আগে ডেলিভারি দিন, অথবা দোকানে না পেলে ফোনে জানান..."
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs outline-none focus:border-brand-purple font-medium"
@@ -361,14 +361,14 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
       <div className="p-4 bg-white border-t border-slate-100 rounded-t-3xl shadow-xl flex-shrink-0 mt-4">
         <div className="flex justify-between items-center mb-3">
           <div>
-            <span className="text-[9px] text-slate-400 block uppercase font-mono">Net Billing Amount</span>
+            <span className="text-[9px] text-slate-400 block uppercase font-mono">সর্বমোট প্রদেয় বিল</span>
             <span className="text-lg font-black text-brand-purple font-mono">
               ৳{cartSummary.totalAmount.toLocaleString()}
             </span>
           </div>
           <div className="text-right">
             <span className="text-[8px] bg-emerald-50 text-emerald-700 font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider">
-              Total Saved: ৳{cartSummary.totalSavings.toLocaleString()}
+              মোট সাশ্রয়: ৳{cartSummary.totalSavings.toLocaleString()}
             </span>
           </div>
         </div>
@@ -389,8 +389,8 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
           ) : (
             <>
               {paymentMethod === "Cash on Delivery"
-                ? `Confirm & Place Order (৳${cartSummary.totalAmount.toLocaleString()})`
-                : `Pay via ${paymentMethod} Gateway (৳${cartSummary.totalAmount.toLocaleString()})`}
+                ? `অর্ডার নিশ্চিত করুন (৳${cartSummary.totalAmount.toLocaleString()})`
+                : `${paymentMethod} দিয়ে পরিশোধ করুন (৳${cartSummary.totalAmount.toLocaleString()})`}
               <ShieldCheck className="w-4 h-4 shrink-0" />
             </>
           )}
@@ -407,11 +407,11 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
             }`}>
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-widest text-white/80">
-                  {paymentMethod} PGW Gateway
+                  {paymentMethod} পেমেন্ট গেটওয়ে
                 </span>
                 <h3 className="text-base font-black flex items-center gap-1.5 mt-0.5">
                   <ShieldCheck className="w-5 h-5" />
-                  MediChain Merchant
+                  মেডিচেইন মার্চেন্ট
                 </h3>
               </div>
               <button
@@ -425,7 +425,7 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
             {/* Modal Body */}
             <div className="p-5 space-y-4">
               <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex justify-between items-center text-xs">
-                <span className="text-slate-500 font-medium">Invoice Amount:</span>
+                <span className="text-slate-500 font-medium">ইনভয়েস অ্যামাউন্ট:</span>
                 <span className="text-base font-black text-slate-900 font-mono">
                   ৳{cartSummary.totalAmount.toLocaleString()}
                 </span>
@@ -434,7 +434,7 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
               <div className="space-y-3">
                 <div>
                   <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1">
-                    Wallet Phone Number
+                    মোবাইল নম্বর
                   </label>
                   <input
                     type="text"
@@ -447,7 +447,7 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
                 <div>
                   <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1 flex items-center gap-1">
                     <Lock className="w-3 h-3 text-slate-400" />
-                    Enter Wallet PIN
+                    ওয়ালেট পিন (PIN) দিন
                   </label>
                   <input
                     type="password"
@@ -460,7 +460,7 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
               </div>
 
               <p className="text-[10px] text-slate-400 text-center leading-normal">
-                By clicking confirm, you authorize MediChain to debit ৳{cartSummary.totalAmount.toLocaleString()} from your {paymentMethod} wallet.
+                কনফার্ম বাটনে ক্লিক করে আপনি মেডিচেইনকে আপনার {paymentMethod} অ্যাকাউন্ট থেকে ৳{cartSummary.totalAmount.toLocaleString()} চার্জ করার অনুমতি দিচ্ছেন।
               </p>
 
               <button
@@ -478,7 +478,7 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
                 {isProcessingPayment ? (
                   <RefreshCw className="w-4 h-4 animate-spin" />
                 ) : (
-                  `Confirm & Authorize Payment`
+                  `পেমেন্ট নিশ্চিত করুন`
                 )}
               </button>
             </div>

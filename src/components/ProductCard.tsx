@@ -128,7 +128,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
             <div className="flex items-center gap-1.5 text-[9px] font-mono text-slate-500 pt-0.5">
               <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">{product.packSize}</span>
               <span className="text-slate-300">•</span>
-              <span className="font-semibold text-slate-600">Stock: {product.availableStock ?? 100} Box</span>
+              <span className="font-semibold text-slate-600">মজুদ: {product.availableStock ?? 100} বক্স</span>
             </div>
           </div>
 
@@ -136,7 +136,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
           <div className="shrink-0 text-right flex flex-col items-end gap-1 min-w-[85px] sm:min-w-[100px]">
             {calculatedDiscount > 0 && (
               <span className="bg-brand-lime text-slate-950 text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0">
-                {calculatedDiscount}% OFF
+                {calculatedDiscount}% সাশ্রয়
               </span>
             )}
             <div className="flex items-baseline gap-1 flex-wrap justify-end">
@@ -150,7 +150,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
             </span>
             {product.mrp > product.sellingPrice && (
               <span className="text-[7.5px] bg-emerald-50 text-emerald-700 font-extrabold border border-emerald-200/60 px-1.5 py-0.5 rounded whitespace-nowrap">
-                Save ৳{product.mrp - product.sellingPrice}
+                সাশ্রয় ৳{product.mrp - product.sellingPrice}
               </span>
             )}
           </div>
@@ -164,7 +164,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
               onClick={(e) => e.stopPropagation()}
             >
               <span className="text-xs font-black text-brand-purple font-mono">
-                {cartQuantity} Box in Cart
+                {cartQuantity} বক্স কার্টে আছে
               </span>
               <div className="flex items-center gap-1.5">
                 <button
@@ -193,7 +193,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
           ) : (
             <div className="flex items-center justify-between w-full gap-2">
               <div className="text-[9.5px] font-semibold text-slate-500 truncate">
-                Wholesale B2B Rate
+                পাইকারি রেট
               </div>
               {isOutOfStock ? (
                 <button
@@ -205,7 +205,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
                   className="py-1.5 px-3 rounded-xl text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer shrink-0 bg-purple-50 text-brand-purple border border-purple-200/80 hover:bg-brand-purple hover:text-white"
                 >
                   <Bell className="w-3 h-3" />
-                  <span>Notify</span>
+                  <span>নোটিফাই</span>
                 </button>
               ) : (
                 <button
@@ -223,14 +223,14 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
                   {isAdded ? (
                     <>
                       <Check className="w-3.5 h-3.5" />
-                      <span>Added</span>
+                      <span>যোগ হয়েছে</span>
                     </>
                   ) : isAdding ? (
-                    <span>Adding...</span>
+                    <span>যোগ হচ্ছে...</span>
                   ) : (
                     <>
                       <ShoppingCart className="w-3.5 h-3.5 text-slate-950" />
-                      <span>Add</span>
+                      <span>যোগ করুন</span>
                     </>
                   )}
                 </button>
@@ -257,7 +257,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
             </span>
             {calculatedDiscount > 0 && (
               <span className="bg-brand-lime text-slate-950 text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase shadow-xs flex items-center gap-0.5">
-                <Tag className="w-2.5 h-2.5" /> {calculatedDiscount}% OFF
+                <Tag className="w-2.5 h-2.5" /> {calculatedDiscount}% সাশ্রয়
               </span>
             )}
           </div>
@@ -266,15 +266,15 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
           <div className="absolute top-2 right-2 z-10">
             {isOutOfStock ? (
               <span className="bg-rose-100 text-rose-700 border border-rose-200 text-[8px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
-                <AlertTriangle className="w-2.5 h-2.5" /> Out of Stock
+                <AlertTriangle className="w-2.5 h-2.5" /> স্টকে নেই
               </span>
             ) : isLowStock ? (
               <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[8px] font-bold px-1.5 py-0.5 rounded-md">
-                Low Stock ({product.availableStock})
+                কম মজুদ ({product.availableStock})
               </span>
             ) : (
               <span className="bg-emerald-50 text-emerald-700 border border-emerald-200/60 text-[8px] font-bold px-1.5 py-0.5 rounded-md">
-                In Stock
+                স্টকে আছে
               </span>
             )}
           </div>
@@ -330,7 +330,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
               )}
               {calculatedDiscount > 0 && (
                 <span className="text-[8px] bg-purple-50 text-brand-purple font-extrabold border border-purple-200/50 px-1.5 py-0.5 rounded shrink-0">
-                  {calculatedDiscount}% Margin
+                  {calculatedDiscount}% লাভ
                 </span>
               )}
             </div>
@@ -356,7 +356,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
               <Minus className="w-3.5 h-3.5" />
             </button>
             <span className="text-xs font-black text-brand-purple font-mono">
-              {cartQuantity} Box in Cart
+              {cartQuantity} বক্স কার্টে আছে
             </span>
             <button
               type="button"
@@ -401,7 +401,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
                 className="flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer bg-purple-50 text-brand-purple border border-purple-200/80 hover:bg-brand-purple hover:text-white shadow-2xs"
               >
                 <Bell className="w-3.5 h-3.5" />
-                <span>Notify on Restock</span>
+                <span>স্টকে আসলে জানান</span>
               </button>
             ) : (
               <button
@@ -419,14 +419,14 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
                 {isAdded ? (
                   <>
                     <Check className="w-3.5 h-3.5" />
-                    <span>Added!</span>
+                    <span>যোগ হয়েছে!</span>
                   </>
                 ) : isAdding ? (
-                  <span>Adding...</span>
+                  <span>যোগ হচ্ছে...</span>
                 ) : (
                   <>
                     <ShoppingCart className="w-3.5 h-3.5 text-slate-950" />
-                    <span>Add to Order</span>
+                    <span>কার্টে যোগ করুন</span>
                   </>
                 )}
               </button>

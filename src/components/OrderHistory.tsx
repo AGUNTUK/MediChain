@@ -63,16 +63,20 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
 
   // Status Badge Helper
   const getStatusBadge = (status: string) => {
-    const map: Record<string, string> = {
-      Confirmed: "bg-blue-50 text-blue-700 border-blue-100",
-      Processing: "bg-amber-50 text-amber-700 border-amber-100",
-      Packed: "bg-purple-50 text-purple-700 border-purple-100",
-      "Out for Delivery": "bg-indigo-50 text-indigo-700 border-indigo-100",
-      Delivered: "bg-emerald-50 text-emerald-800 border-emerald-100"
+    const map: Record<string, { label: string; cls: string }> = {
+      Pending: { label: "প্রক্রিয়াধীন", cls: "bg-slate-50 text-slate-700 border-slate-200" },
+      Confirmed: { label: "গৃহীত", cls: "bg-blue-50 text-blue-700 border-blue-100" },
+      Processing: { label: "যাচাই চলছে", cls: "bg-amber-50 text-amber-700 border-amber-100" },
+      Packed: { label: "প্যাকিং সম্পন্ন", cls: "bg-purple-50 text-purple-700 border-purple-100" },
+      "Out for Delivery": { label: "পথে আছেন", cls: "bg-indigo-50 text-indigo-700 border-indigo-100" },
+      Delivered: { label: "ডেলিভারি সম্পন্ন", cls: "bg-emerald-50 text-emerald-800 border-emerald-100" },
+      Completed: { label: "সম্পন্ন", cls: "bg-emerald-50 text-emerald-800 border-emerald-100" },
+      Cancelled: { label: "বাতিল", cls: "bg-rose-50 text-rose-700 border-rose-100" }
     };
+    const badge = map[status] || { label: status, cls: "bg-slate-50 text-slate-500" };
     return (
-      <span className={`text-[9px] font-black border px-2 py-0.5 rounded uppercase tracking-wider ${map[status] || "bg-slate-50 text-slate-500"}`}>
-        {status}
+      <span className={`text-[9px] font-black border px-2 py-0.5 rounded uppercase tracking-wider ${badge.cls}`}>
+        {badge.label}
       </span>
     );
   };
@@ -80,9 +84,9 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
   return (
     <div className="h-full bg-brand-bg select-none overflow-y-auto px-4 sm:px-6 pt-6 pb-32 space-y-4 max-w-4xl mx-auto w-full">
       <div className="flex justify-between items-center">
-        <h2 className="text-base font-black text-brand-charcoal">Procurement History</h2>
+        <h2 className="text-base font-black text-brand-charcoal">অর্ডার ইতিহাস</h2>
         <span className="text-[10px] text-slate-400 font-bold uppercase font-mono bg-white px-2.5 py-1 rounded-xl border border-slate-100 shadow-2xs">
-          Total Placed: {orders.length} Consignments
+          মোট অর্ডার: {orders.length} টি
         </span>
       </div>
 
@@ -98,9 +102,9 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
           <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 mb-3">
             <ListFilter className="w-6 h-6 text-slate-300" />
           </div>
-          <p className="text-sm font-bold text-slate-700">No Orders Logged Yet</p>
+          <p className="text-sm font-bold text-slate-700">এখনো কোনো অর্ডার নেই</p>
           <p className="text-xs text-slate-400 mt-1 max-w-xs leading-relaxed">
-            All confirmed wholesale medicine purchases will reflect in this list immediately.
+            আপনার করা সব পাইকারি অর্ডারের তথ্য ও ডেলিভারি স্ট্যাটাস এখানে দেখতে পাবেন।
           </p>
         </div>
       ) : (
@@ -112,7 +116,7 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
             {/* Status & ID Line */}
             <div className="flex justify-between items-center pb-2.5 border-b border-slate-50">
               <div>
-                <span className="text-[10px] text-slate-400 font-mono block">Order Reference</span>
+                <span className="text-[10px] text-slate-400 font-mono block">অর্ডার নম্বর</span>
                 <span className="text-xs sm:text-sm font-black text-brand-charcoal font-mono">{formatRefId(order.id, "ORD")}</span>
               </div>
               <div className="text-right">
@@ -138,10 +142,10 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
 
                   {/* 4 dots */}
                   {[
-                    { label: "Confirmed", active: ["Confirmed", "Processing", "Packed", "Out for Delivery", "Delivered", "Completed"].includes(order.status) },
-                    { label: "Packed", active: ["Packed", "Out for Delivery", "Delivered", "Completed"].includes(order.status) },
-                    { label: "In Transit", active: ["Out for Delivery", "Delivered", "Completed"].includes(order.status) },
-                    { label: "Delivered", active: ["Delivered", "Completed"].includes(order.status) }
+                    { label: "গৃহীত", active: ["Confirmed", "Processing", "Packed", "Out for Delivery", "Delivered", "Completed"].includes(order.status) },
+                    { label: "প্যাকিং", active: ["Packed", "Out for Delivery", "Delivered", "Completed"].includes(order.status) },
+                    { label: "পথে আছেন", active: ["Out for Delivery", "Delivered", "Completed"].includes(order.status) },
+                    { label: "ডেলিভারি", active: ["Delivered", "Completed"].includes(order.status) }
                   ].map((st, sIdx) => (
                     <div key={sIdx} className="flex flex-col items-center z-10 relative">
                       <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center transition-all ${
@@ -162,12 +166,12 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
             {order.status === "Out for Delivery" && (
               <div className="bg-brand-purple/5 border border-brand-purple/15 p-3 rounded-2xl flex items-center justify-between gap-2 animate-fade-in shadow-2xs">
                 <div>
-                  <span className="text-[8px] text-brand-purple font-black uppercase tracking-wider block">Handover Verification</span>
+                  <span className="text-[8px] text-brand-purple font-black uppercase tracking-wider block">🔒 ডেলিভারি ওটিপি পিন</span>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span className="bg-brand-purple text-white font-mono font-black text-xs px-2.5 py-0.5 rounded shadow-sm">
                       OTP: {order.handoverOtp || generateOrderOTP(order.id)}
                     </span>
-                    <span className="text-[8.5px] text-slate-500 font-semibold">Share only upon verified consignment handover</span>
+                    <span className="text-[8.5px] text-slate-500 font-semibold">ওষুধ বুঝে পাওয়ার পর রাইডারকে দিন</span>
                   </div>
                 </div>
                 <a
@@ -175,7 +179,7 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
                   className="bg-brand-lime hover:bg-brand-lime-dark text-slate-900 px-3 py-1.5 rounded-xl text-[9px] font-black flex items-center gap-1 hover:shadow-xs transition-all cursor-pointer flex-shrink-0"
                 >
                   <Phone className="w-3 h-3" />
-                  Call Rider
+                  রাইডারকে কল দিন
                 </a>
               </div>
             )}
@@ -183,18 +187,18 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
             {/* Content summary */}
             <div onClick={() => onTrackOrder(order.id)} className="cursor-pointer">
               <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1.5">
-                Consignment Details
+                অর্ডার করা ওষুধসমূহ
               </div>
               <div className="space-y-1">
                 {order.items.slice(0, 3).map((item, idx) => (
                   <div key={idx} className="flex justify-between text-xs font-medium text-slate-700">
-                    <span className="truncate pr-2">{item.name} ({item.quantity} box)</span>
+                    <span className="truncate pr-2">{item.name} ({item.quantity} বক্স)</span>
                     <span className="font-mono shrink-0">৳{item.subtotal?.toLocaleString()}</span>
                   </div>
                 ))}
                 {order.items.length > 3 && (
                   <div className="text-[10px] text-brand-purple font-bold">
-                    + {order.items.length - 3} more pharmaceutical lines
+                    + আরও {order.items.length - 3} টি ওষুধ
                   </div>
                 )}
               </div>
@@ -203,11 +207,11 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
             {/* Totals & Delivery Date */}
             <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl text-xs">
               <div>
-                <span className="text-slate-400 block text-[9px] font-bold">Billing Net</span>
+                <span className="text-slate-400 block text-[9px] font-bold">মোট বিল</span>
                 <span className="font-black text-brand-charcoal font-mono">৳{order.totalAmount?.toLocaleString()}</span>
               </div>
               <div className="text-right">
-                <span className="text-slate-400 block text-[9px] font-bold">Status Date</span>
+                <span className="text-slate-400 block text-[9px] font-bold">অর্ডারের তারিখ</span>
                 <span className="font-mono text-slate-600 font-bold">
                   {new Date(order.createdAt).toLocaleDateString()}
                 </span>
@@ -222,7 +226,7 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
                 className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-colors"
               >
                 <Eye className="w-3.5 h-3.5" />
-                Track Status
+                ট্র্যাকিং দেখুন
               </button>
 
               {/* View Invoice */}
@@ -231,7 +235,7 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
                 className="flex-1 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 py-2 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-colors"
               >
                 <Receipt className="w-3.5 h-3.5 text-brand-purple" />
-                Invoice
+                চালান / রসিদ
               </button>
 
               {/* Reorder */}
@@ -241,7 +245,7 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
                 className="flex-1 bg-brand-lime hover:bg-brand-lime-dark text-slate-900 py-2 rounded-xl text-[10px] font-black flex items-center justify-center gap-1 cursor-pointer transition-all hover:shadow-xs"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                Reorder
+                পুনরায় অর্ডার
               </button>
             </div>
 
@@ -251,18 +255,18 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
                 onClick={async () => {
                   try {
                     await orderService.cancelOrder(order.id);
-                    setSuccessMsg("Order cancelled successfully.");
+                    setSuccessMsg("অর্ডারটি সফলভাবে বাতিল করা হয়েছে।");
                     setTimeout(() => setSuccessMsg(""), 3000);
                     fetchOrders();
                   } catch (err) {
-                    setSuccessMsg("Failed to cancel order.");
+                    setSuccessMsg("অর্ডার বাতিল করা সম্ভব হয়নি।");
                     setTimeout(() => setSuccessMsg(""), 3000);
                   }
                 }}
                 className="w-full text-center text-[10px] font-extrabold text-rose-500 bg-rose-50 hover:bg-rose-100 py-1.5 rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-all mt-2"
               >
                 <XCircle className="w-3 h-3" />
-                Cancel Order
+                অর্ডার বাতিল করুন
               </button>
             )}
 
@@ -273,14 +277,14 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
                 className="w-full text-center text-[10px] font-extrabold text-brand-purple bg-brand-purple/5 hover:bg-brand-purple/10 py-1.5 rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-all"
               >
                 <CornerDownLeft className="w-3 h-3" />
-                Request Return / Dispute Depot Items
+                ওষুধ ফেরত বা পরিবর্তনের আবেদন
               </button>
             )}
 
             {order.hasReturnRequested && (
               <div className="bg-rose-50 border border-rose-100 p-2 rounded-xl text-[10px] flex justify-between items-center">
                 <div>
-                  <span className="font-extrabold text-rose-600 block uppercase">Return Status: {order.returnStatus}</span>
+                  <span className="font-extrabold text-rose-600 block uppercase">ফেরতের অবস্থা: {order.returnStatus}</span>
                   <span className="text-slate-500 italic">"{order.returnReason}"</span>
                 </div>
                 {order.returnStatus === "Pending" && (
@@ -291,7 +295,7 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
                     }}
                     className="bg-brand-lime text-slate-900 font-extrabold px-2 py-1 rounded-md text-[9px] cursor-pointer"
                   >
-                    Approve (Demo)
+                    অনুমোদন করুন (ডেমো)
                   </button>
                 )}
               </div>
@@ -317,22 +321,22 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
               <div className="flex justify-center mb-2">
                 <MediChainLogo size="sm" withText={true} textColor="dark" />
               </div>
-              <div className="text-[10px] text-slate-400 mt-1">Authorized Wholesaler & Depot Operations</div>
+              <div className="text-[10px] text-slate-400 mt-1">অনুমোদিত পাইকারি ওষুধ সরবরাহ ও ডিপো চালান</div>
               <div className="text-[9px] font-mono text-slate-400 mt-0.5">INV-REF: {formatRefId(selectedInvoice.id, "INV")}</div>
             </div>
 
             {/* Bill Details */}
             <div className="py-4 space-y-1 border-b border-dashed border-slate-200 text-[11px]">
               <div className="flex justify-between text-slate-400">
-                <span>Ref Date:</span>
+                <span>তারিখ:</span>
                 <span className="font-mono text-slate-700">{new Date(selectedInvoice.createdAt).toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-slate-400">
-                <span>Settlement:</span>
+                <span>পেমেন্ট মাধ্যম:</span>
                 <span className="font-bold text-slate-700">{selectedInvoice.paymentMethod}</span>
               </div>
               <div className="flex justify-between text-slate-400">
-                <span>Outstanding:</span>
+                <span>পেমেন্ট অবস্থা:</span>
                 <span className="font-extrabold text-emerald-600 uppercase font-mono">{selectedInvoice.paymentStatus}</span>
               </div>
             </div>
@@ -340,9 +344,9 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
             {/* Items details table */}
             <div className="py-4 space-y-3.5 border-b border-dashed border-slate-200">
               <div className="grid grid-cols-5 font-black text-slate-400 uppercase text-[9px] tracking-wider mb-1">
-                <span className="col-span-3">Item Detail</span>
-                <span className="text-center col-span-1">Qty</span>
-                <span className="text-right col-span-1">Total</span>
+                <span className="col-span-3">ওষুধের বিবরণ</span>
+                <span className="text-center col-span-1">পরিমাণ</span>
+                <span className="text-right col-span-1">মোট</span>
               </div>
               {selectedInvoice.items.map((item, idx) => (
                 <div key={idx} className="grid grid-cols-5 text-[11px] font-medium leading-relaxed">
@@ -359,22 +363,22 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
             {/* Total pricing */}
             <div className="py-4 space-y-2 text-[11px]">
               <div className="flex justify-between text-slate-400">
-                <span>Standard M.R.P Total:</span>
+                <span>মোট খুচরা মূল্য (MRP):</span>
                 <span className="font-mono text-slate-500 line-through">৳{selectedInvoice.totalMrp.toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-brand-purple font-bold">
-                <span>Wholesale Savings:</span>
+                <span>পাইকারি বিশেষ সাশ্রয়:</span>
                 <span className="font-mono">- ৳{selectedInvoice.totalSavings.toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-sm font-black text-brand-charcoal pt-1.5 border-t border-slate-100">
-                <span>Procurement Settlement</span>
+                <span>সর্বমোট প্রদেয় বিল</span>
                 <span className="text-brand-purple font-mono text-base">৳{selectedInvoice.totalAmount.toLocaleString()}</span>
               </div>
             </div>
 
             {/* Footer */}
             <div className="text-center text-[9px] text-slate-400 mt-4 leading-relaxed font-medium">
-              Thank you for procurement. For wholesale support, contact MediChain B2B Helpline at support@medichain.com.
+              মেডিচেইন থেকে ওষুধ ক্রয়ের জন্য ধন্যবাদ। যেকোনো প্রয়োজনে ডিপো হেল্পলাইনে যোগাযোগ করুন।
             </div>
           </div>
         </div>
@@ -391,9 +395,9 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
               &times;
             </button>
 
-            <h3 className="text-sm font-black text-brand-charcoal mb-2 mt-1">Dispute Consignment</h3>
+            <h3 className="text-sm font-black text-brand-charcoal mb-2 mt-1">ওষুধ ফেরত বা অভিযোগ জানান</h3>
             <p className="text-[10px] text-slate-500 mb-4 leading-relaxed">
-              MediChain supports wholesale adjustments. Please enter the specific reason for requesting a return or damage adjustment for Order #{showReturnModal.id}:
+              মেডিচেইন ক্ষতিগ্রস্ত বা মেয়াদোত্তীর্ণ ওষুধ ফেরতের সুযোগ দেয়। অর্ডার #{showReturnModal.id} এর সমস্যার কারণ লিখুন:
             </p>
 
             {successMsg && (
@@ -405,7 +409,7 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
 
             <textarea
               rows={3}
-              placeholder="e.g. Received damaged outer boxes, or 2 units expire within 1 month (FEFO audit failure)..."
+              placeholder="যেমন: প্যাকেটের ক্ষতি হয়েছে বা মেয়াদ ১ মাসের কম রয়েছে..."
               value={returnReason}
               onChange={(e) => setReturnReason(e.target.value)}
               className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs outline-none focus:border-brand-purple mb-4 font-medium"
@@ -416,7 +420,7 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
               disabled={!returnReason}
               className="w-full bg-brand-purple text-white py-3 rounded-xl font-bold text-xs cursor-pointer disabled:opacity-50"
             >
-              Submit Dispute Request
+              আবেদন জমা দিন
             </button>
           </div>
         </div>

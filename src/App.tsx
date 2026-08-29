@@ -689,7 +689,7 @@ export default function App() {
                 }`}
               >
                 <HomeIcon className="w-5 h-5" />
-                <span className="text-[10px] font-bold">Home</span>
+                <span className="text-[10px] font-bold">হোম</span>
               </button>
 
               <button
@@ -699,14 +699,14 @@ export default function App() {
                 }`}
               >
                 <PackageIcon className="w-5 h-5" />
-                <span className="text-[10px] font-bold">Products</span>
+                <span className="text-[10px] font-bold">ওষুধ খুঁজুন</span>
               </button>
 
               {/* Center Prominent Cart Action Button */}
               <button
                 onClick={() => setIsCartDrawerOpen(true)}
                 className="flex flex-col items-center gap-1 cursor-pointer transition-all relative text-slate-400 hover:text-brand-purple group"
-                title="View Procurement Cart"
+                title="কার্ট দেখুন"
               >
                 <div className="relative p-1 rounded-xl group-hover:bg-brand-purple/10 transition-colors">
                   <ShoppingBag className="w-5 h-5 text-slate-600 group-hover:text-brand-purple group-hover:scale-110 transition-transform" />
@@ -716,7 +716,7 @@ export default function App() {
                     </span>
                   )}
                 </div>
-                <span className="text-[10px] font-bold text-slate-600 group-hover:text-brand-purple">Cart</span>
+                <span className="text-[10px] font-bold text-slate-600 group-hover:text-brand-purple">কার্ট</span>
               </button>
               
               <button
@@ -726,7 +726,7 @@ export default function App() {
                 }`}
               >
                 <ListIcon className="w-5 h-5" />
-                <span className="text-[10px] font-bold">Orders</span>
+                <span className="text-[10px] font-bold">অর্ডারসমূহ</span>
               </button>
 
               <button
@@ -736,7 +736,7 @@ export default function App() {
                 }`}
               >
                 <UserIcon className="w-5 h-5" />
-                <span className="text-[10px] font-bold">Account</span>
+                <span className="text-[10px] font-bold">প্রোফাইল</span>
               </button>
             </div>
           )}

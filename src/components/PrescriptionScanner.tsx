@@ -69,17 +69,17 @@ export default function PrescriptionScanner({ onClose }: { onClose: () => void }
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
-              <Scan className="w-5 h-5 text-indigo-600" />
+            <div className="w-10 h-10 rounded-xl bg-brand-purple/10 flex items-center justify-center">
+              <Scan className="w-5 h-5 text-brand-purple" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-800 tracking-tight">AI Prescription Scanner</h2>
-              <p className="text-xs font-medium text-slate-500">Powered by Google Gemini</p>
+              <h2 className="text-lg font-bold text-slate-800 tracking-tight">প্রেসক্রিপশন স্ক্যানার</h2>
+              <p className="text-xs font-medium text-slate-500">আর্টিফিশিয়াল ইন্টেলিজেন্স দ্বারা চালিত</p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+            className="p-2 hover:bg-slate-200 rounded-full transition-colors cursor-pointer"
           >
             <X className="w-5 h-5 text-slate-500" />
           </button>
@@ -90,14 +90,14 @@ export default function PrescriptionScanner({ onClose }: { onClose: () => void }
           {!image && (
             <div 
               onClick={() => fileInputRef.current?.click()}
-              className="w-full h-64 border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center gap-4 cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 transition-all group"
+              className="w-full h-64 border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center gap-4 cursor-pointer hover:border-brand-purple hover:bg-brand-purple/5 transition-all group"
             >
-              <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center group-hover:bg-indigo-100 transition-colors">
-                <Upload className="w-7 h-7 text-slate-400 group-hover:text-indigo-600" />
+              <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center group-hover:bg-brand-purple/10 transition-colors">
+                <Upload className="w-7 h-7 text-slate-400 group-hover:text-brand-purple" />
               </div>
               <div className="text-center">
-                <h3 className="font-bold text-slate-700">Upload Prescription Photo</h3>
-                <p className="text-sm text-slate-500 mt-1 max-w-xs">Scan handwritten or printed medical prescriptions to auto-fill your cart.</p>
+                <h3 className="font-bold text-slate-700">প্রেসক্রিপশনের ছবি আপলোড করুন</h3>
+                <p className="text-sm text-slate-500 mt-1 max-w-xs">হাতে লেখা বা প্রিন্ট করা প্রেসক্রিপশনের ছবি দিলে ওষুধ নিজে থেকেই কার্টে যোগ হবে।</p>
               </div>
               <input 
                 type="file" 
@@ -122,7 +122,7 @@ export default function PrescriptionScanner({ onClose }: { onClose: () => void }
                 {scanning && (
                   <div className="absolute inset-0 bg-indigo-900/20 backdrop-blur-sm flex flex-col items-center justify-center text-white">
                     <Loader2 className="w-10 h-10 animate-spin mb-3" />
-                    <span className="font-bold tracking-wide drop-shadow-md">AI Optical Engine Processing...</span>
+                    <span className="font-bold tracking-wide drop-shadow-md">প্রেসক্রিপশন স্ক্যান ও ওষুধ অনুসন্ধান চলছে...</span>
                   </div>
                 )}
               </div>
@@ -131,7 +131,7 @@ export default function PrescriptionScanner({ onClose }: { onClose: () => void }
                 <div className="p-4 rounded-xl bg-red-50 border border-red-100 flex items-start gap-3">
                   <Info className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
                   <div>
-                    <h4 className="text-sm font-bold text-red-800">Scan Failed</h4>
+                    <h4 className="text-sm font-bold text-red-800">স্ক্যান সম্পন্ন হয়নি</h4>
                     <p className="text-xs text-red-600 mt-1">{error}</p>
                   </div>
                 </div>
@@ -141,7 +141,7 @@ export default function PrescriptionScanner({ onClose }: { onClose: () => void }
                 <div className="space-y-4">
                   <h3 className="font-bold text-slate-800 flex items-center gap-2">
                     <Check className="w-5 h-5 text-emerald-500" />
-                    Extraction Results ({results.length} items found)
+                    স্ক্যান ফলাফল ({results.length} টি ওষুধ পাওয়া গেছে)
                   </h3>
                   
                   <div className="space-y-3">
@@ -151,30 +151,30 @@ export default function PrescriptionScanner({ onClose }: { onClose: () => void }
                           <h4 className="font-bold text-slate-800 truncate">{item.extractedName}</h4>
                           <div className="text-xs text-slate-500 flex items-center gap-2 mt-1">
                             {item.extractedStrength && <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600">{item.extractedStrength}</span>}
-                            <span>Qty: {item.extractedQuantity}</span>
+                            <span>পরিমাণ: {item.extractedQuantity}</span>
                           </div>
                         </div>
 
                         {item.matchedProduct ? (
                           <div className="flex items-center gap-3 shrink-0">
                             <div className="text-right hidden sm:block">
-                              <p className="text-xs font-bold text-emerald-600">Match Found</p>
+                              <p className="text-xs font-bold text-emerald-600">ডিপোতে পাওয়া গেছে</p>
                               <p className="text-[10px] text-slate-500">{item.matchedProduct.company}</p>
                             </div>
                             <button
                               onClick={() => handleAddToCart(item.matchedProduct!.id, item.extractedQuantity)}
                               disabled={addingToCart[item.matchedProduct!.id]}
-                              className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors disabled:opacity-50"
+                              className="px-4 py-2 bg-brand-purple/10 hover:bg-brand-purple/20 text-brand-purple rounded-lg text-xs font-black flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
                             >
                               {addingToCart[item.matchedProduct!.id] ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
-                              Add
+                              কার্টে যোগ করুন
                             </button>
                           </div>
                         ) : (
                           <div className="shrink-0">
                             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-50 text-orange-700 text-xs font-bold">
                               <Search className="w-3.5 h-3.5" />
-                              Not in Catalog
+                              ডিপোতে নেই
                             </span>
                           </div>
                         )}

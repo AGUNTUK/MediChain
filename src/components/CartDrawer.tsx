@@ -85,15 +85,15 @@ export default function CartDrawer({
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-base font-black text-slate-900 tracking-tight">Procurement Cart</h3>
+                    <h3 className="text-base font-black text-slate-900 tracking-tight">আপনার ক্রয়ের কার্ট</h3>
                     {cartCount > 0 && (
                       <span className="text-[10px] font-black bg-brand-lime text-slate-950 px-2 py-0.5 rounded-full shadow-xs">
-                        {cartCount} {cartCount === 1 ? "Box" : "Boxes"}
+                        {cartCount} বক্স
                       </span>
                     )}
                   </div>
                   <p className="text-[11px] text-slate-400 font-semibold">
-                    Wholesale B2B Order Summary
+                    পাইকারি অর্ডার সারাংশ
                   </p>
                 </div>
               </div>
@@ -113,9 +113,9 @@ export default function CartDrawer({
                 <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center border border-slate-200/80 shadow-md mb-4 text-slate-300">
                   <ShoppingBag className="w-9 h-9" />
                 </div>
-                <h4 className="text-base font-extrabold text-slate-800">Your Cart is Empty</h4>
+                <h4 className="text-base font-extrabold text-slate-800">আপনার কার্ট বর্তমানে খালি</h4>
                 <p className="text-xs text-slate-400 max-w-xs mt-1.5 leading-relaxed font-medium">
-                  Add wholesale medicines and pharmacy stock from the catalog to place orders with instant depot dispatch.
+                  ডিপো থেকে দ্রুত ডেলিভারি পেতে ক্যাটালগ থেকে পাইকারি ওষুধ কার্টে যুক্ত করুন।
                 </p>
                 <button
                   onClick={() => {
@@ -124,7 +124,7 @@ export default function CartDrawer({
                   }}
                   className="mt-6 px-6 py-3 bg-brand-purple hover:bg-brand-purple/90 text-white font-bold text-xs rounded-xl shadow-md shadow-brand-purple/20 transition-all cursor-pointer"
                 >
-                  Browse Wholesale Catalog
+                  পাইকারি ওষুধ তালিকা দেখুন
                 </button>
               </div>
             ) : (
@@ -134,12 +134,12 @@ export default function CartDrawer({
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
                       <Truck className="w-4 h-4 text-brand-purple" />
-                      <span>Express Depot Delivery</span>
+                      <span>এক্সপ্রেস ডিপো ডেলিভারি</span>
                     </div>
                     <span className="text-[11px] font-mono font-bold text-slate-600">
                       {isFreeDelivery ? (
                         <span className="text-emerald-600 font-extrabold flex items-center gap-1">
-                          <Sparkles className="w-3.5 h-3.5 text-emerald-500" /> FREE Delivery!
+                          <Sparkles className="w-3.5 h-3.5 text-emerald-500" /> ফ্রি ডেলিভারি!
                         </span>
                       ) : (
                         `৳${totalAmount.toLocaleString()} / ৳${FREE_DELIVERY_THRESHOLD.toLocaleString()}`
@@ -164,11 +164,11 @@ export default function CartDrawer({
                   <p className="text-[11px] text-slate-500 mt-2 font-medium leading-tight">
                     {isFreeDelivery ? (
                       <span className="text-emerald-700 font-bold">
-                        🎉 Great news! You've unlocked FREE Express Depot Delivery for this order.
+                        🎉 অভিনন্দন! এই অর্ডারে আপনি পাচ্ছেন সম্পূর্ণ ফ্রি এক্সপ্রেস ডেলিভারি।
                       </span>
                     ) : (
                       <>
-                        Add <strong className="text-brand-purple font-mono font-extrabold">৳{deliveryNeeded.toLocaleString()}</strong> more to qualify for FREE delivery.
+                        আর মাত্র <strong className="text-brand-purple font-mono font-extrabold">৳{deliveryNeeded.toLocaleString()}</strong> টাকার ওষুধ কিনলেই ফ্রি ডেলিভারি পাবেন!
                       </>
                     )}
                   </p>
@@ -212,7 +212,7 @@ export default function CartDrawer({
 
                         <div className="flex items-baseline gap-2 mt-1.5">
                           <span className="text-[11px] font-bold text-slate-500 font-mono">
-                            ৳{product.sellingPrice} / box
+                            ৳{product.sellingPrice} / বক্স
                           </span>
                           <span className="text-slate-300 text-[10px]">•</span>
                           <span className="text-xs font-black text-brand-purple font-mono">
@@ -225,7 +225,7 @@ export default function CartDrawer({
                       <button
                         onClick={() => onRemoveItem(product.id)}
                         className="absolute top-3 right-3 text-slate-300 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                        title="Remove medicine"
+                        title="ওষুধটি বাদ দিন"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -256,7 +256,7 @@ export default function CartDrawer({
                 <div className="p-5 bg-white border-t border-slate-100 shadow-[0_-12px_30px_rgba(0,0,0,0.06)] space-y-3.5 flex-shrink-0">
                   <div className="space-y-1.5 text-xs">
                     <div className="flex justify-between text-slate-500 font-medium">
-                      <span>Subtotal (M.R.P)</span>
+                      <span>মোট ওষুধের খুচরা দাম (MRP)</span>
                       <span className="font-mono font-bold">৳{totalMrp.toLocaleString()}</span>
                     </div>
 
@@ -264,21 +264,21 @@ export default function CartDrawer({
                       <div className="flex justify-between text-brand-purple font-bold bg-brand-purple/5 px-2.5 py-1.5 rounded-xl border border-brand-purple/10">
                         <span className="flex items-center gap-1">
                           <Tag className="w-3.5 h-3.5 text-brand-purple" />
-                          Wholesale Discount
+                          পাইকারি বিশেষ সাশ্রয়
                         </span>
                         <span className="font-mono font-black">- ৳{totalSavings.toLocaleString()}</span>
                       </div>
                     )}
 
                     <div className="flex justify-between text-slate-500 font-medium">
-                      <span>Express Delivery Fee</span>
+                      <span>এক্সপ্রেস ডেলিভারি চার্জ</span>
                       <span className="font-mono font-bold text-emerald-600">
-                        {isFreeDelivery ? "FREE" : `৳${DELIVERY_FEE}`}
+                        {isFreeDelivery ? "সম্পূর্ণ ফ্রি" : `৳${DELIVERY_FEE}`}
                       </span>
                     </div>
 
                     <div className="flex justify-between font-black text-slate-900 pt-2 border-t border-slate-100 text-sm">
-                      <span>Total Net Amount</span>
+                      <span>সর্বমোট প্রদেয় বিল</span>
                       <span className="text-brand-purple font-mono text-lg font-black">
                         ৳{finalPayable.toLocaleString()}
                       </span>
@@ -292,7 +292,7 @@ export default function CartDrawer({
                     }}
                     className="w-full bg-brand-lime hover:bg-brand-lime/90 text-slate-950 py-3.5 px-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-brand-lime/25 active:scale-[0.99] transition-all cursor-pointer"
                   >
-                    <span>Proceed to Checkout</span>
+                    <span>অর্ডার করতে এগিয়ে যান</span>
                     <ArrowRight className="w-4.5 h-4.5" />
                   </button>
                 </div>

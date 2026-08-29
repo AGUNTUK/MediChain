@@ -333,7 +333,7 @@ export default function SearchSystem({
       <div className="p-4 bg-white border-b border-slate-100 flex-shrink-0 shadow-xs flex flex-col gap-3">
         {/* Top Header Row */}
         <div className="flex justify-between items-center">
-          <h1 className="text-lg font-black text-brand-charcoal tracking-tight">Products</h1>
+          <h1 className="text-lg font-black text-brand-charcoal tracking-tight">ওষুধের তালিকা</h1>
           {onOpenCart && (
             <button
               type="button"
@@ -368,7 +368,7 @@ export default function SearchSystem({
               {cat !== "All" && (
                 <CategoryIcon name={cat} className={`w-3.5 h-3.5 ${selectedCategory === cat ? "text-brand-lime" : "text-slate-500"}`} />
               )}
-              <span>{cat}</span>
+              <span>{cat === "All" ? "সব ক্যাটাগরি" : cat}</span>
             </button>
           ))}
         </div>
@@ -376,7 +376,7 @@ export default function SearchSystem({
         {/* Sort and Filters */}
         <div className="flex justify-between items-center pt-2.5 border-t border-slate-50">
           <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-            Instant B2B Procurement
+            পাইকারি মেডিসিন লিস্ট
           </span>
           <div className="flex gap-2">
             <select
@@ -387,10 +387,10 @@ export default function SearchSystem({
               }}
               className="text-[10px] font-bold text-slate-600 bg-slate-100 py-1 px-2.5 rounded-lg border-none outline-none cursor-pointer hover:bg-slate-150 transition-colors"
             >
-              <option value="all">Default Sorting</option>
-              <option value="deals">Highest Discount</option>
-              <option value="frequent">Most Popular</option>
-              <option value="low_stock">Low Stock Warnings</option>
+              <option value="all">সাধারণ ক্রম</option>
+              <option value="deals">সর্বোচ্চ লাভ (ছাড়)</option>
+              <option value="frequent">জনপ্রিয় ওষুধ</option>
+              <option value="low_stock">কম স্টকের ওষুধ</option>
             </select>
           </div>
         </div>
@@ -405,7 +405,7 @@ export default function SearchSystem({
               <Search className="text-slate-400 w-5 h-5 mr-3 flex-shrink-0" />
               <input
                 type="text"
-                placeholder="Search by medicine name, generic, or brand..."
+                placeholder="ওষুধের নাম, জেনেরিক বা কোম্পানি দিয়ে খুঁজুন..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onFocus={() => setIsSearchFocused(true)}
@@ -430,7 +430,7 @@ export default function SearchSystem({
                       ? 'bg-rose-100 text-rose-500 animate-pulse' 
                       : 'bg-slate-50 hover:bg-slate-100 text-slate-500'
                   }`}
-                  title="Voice Search"
+                  title="ভয়েস সার্চ"
                 >
                   <Mic className="w-4.5 h-4.5" />
                 </button>
@@ -441,8 +441,8 @@ export default function SearchSystem({
             {isSearchFocused && !search && recentSearches.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden z-20 animate-fade-in">
                 <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Recent Searches</span>
-                  <button onMouseDown={(e) => { e.preventDefault(); clearRecentSearches(); }} className="text-[10px] font-bold text-slate-400 hover:text-rose-500 transition-colors uppercase cursor-pointer">Clear All</button>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">সম্প্রতি খোঁজা হয়েছে</span>
+                  <button onMouseDown={(e) => { e.preventDefault(); clearRecentSearches(); }} className="text-[10px] font-bold text-slate-400 hover:text-rose-500 transition-colors uppercase cursor-pointer">মুছে ফেলুন</button>
                 </div>
                 <div>
                   {recentSearches.map((q, i) => (
@@ -467,7 +467,7 @@ export default function SearchSystem({
           {correctedQuery && (
             <div className="mt-2 text-[10.5px] text-slate-500 bg-brand-purple/5 border border-brand-purple/10 px-3 py-1.5 rounded-xl flex items-center justify-between">
               <span className="font-semibold">
-                Showing corrected results for: <strong className="text-brand-purple font-black">{correctedQuery}</strong>
+                সঠিক বানান অনুসারে দেখানো হচ্ছে: <strong className="text-brand-purple font-black">{correctedQuery}</strong>
               </span>
               <button
                 onClick={() => {
@@ -476,14 +476,14 @@ export default function SearchSystem({
                 }}
                 className="text-[9.5px] font-black text-brand-purple underline cursor-pointer"
               >
-                Use this query
+                এই বানানে খুঁজুন
               </button>
             </div>
           )}
 
           {suggestions.length > 0 && !correctedQuery && (
             <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Suggestions:</span>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">পরামর্শ:</span>
               {suggestions.map((s, i) => (
                 <button
                   key={i}
@@ -506,7 +506,7 @@ export default function SearchSystem({
                 {frequentProducts.length > 0 && (
                   <div className="space-y-2">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 px-1">
-                      <TrendingUp className="w-4 h-4 text-brand-purple" /> Frequently Procured Medicines
+                      <TrendingUp className="w-4 h-4 text-brand-purple" /> নিয়মিত ক্রয়ের ওষুধসমূহ
                     </span>
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5">
                       {frequentProducts.map(p => {
@@ -535,7 +535,7 @@ export default function SearchSystem({
                               if (inCartQty > 0) {
                                 return (
                                   <div className="mt-2.5 pt-2 border-t border-slate-50 flex flex-col gap-1 w-full animate-fade-in">
-                                    <span className="text-[8px] font-black text-brand-purple text-center">In Basket: {inCartQty} box</span>
+                                    <span className="text-[8px] font-black text-brand-purple text-center">কার্টে আছে: {inCartQty} বক্স</span>
                                     <div className="flex items-center justify-between bg-brand-purple/5 border border-brand-purple/20 rounded-lg p-1">
                                       <button
                                         type="button"
@@ -576,7 +576,7 @@ export default function SearchSystem({
                                     }`}
                                   >
                                     {addedSuccess[p.id] ? <Check className="w-3 h-3 text-white" /> : <ShoppingCart className="w-3 h-3" />}
-                                    {addedSuccess[p.id] ? "✓ Added" : cartAdding[p.id] ? "Adding..." : "Buy"}
+                                    {addedSuccess[p.id] ? "✓ যোগ হয়েছে" : cartAdding[p.id] ? "যোগ হচ্ছে..." : "কিনুন"}
                                   </button>
                                 </div>
                               );
@@ -639,7 +639,7 @@ export default function SearchSystem({
             <div className="flex items-center gap-1.5 mb-3 px-1 pt-2 border-t border-slate-100/50">
               <Store className="w-4 h-4 text-brand-purple" />
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                {debouncedSearch ? `Catalog Matches (${totalProducts} items)` : `${selectedCategory === "All" ? "Wholesale Medicine Catalog" : `${selectedCategory} Catalog`} (${totalProducts} items)`}
+                {debouncedSearch ? `খোঁজা হয়েছে (${totalProducts} টি ওষুধ)` : `${selectedCategory === "All" ? "পাইকারি ওষুধের ক্যাটালগ" : `${selectedCategory} ক্যাটালগ`} (${totalProducts} টি ওষুধ)`}
               </span>
             </div>
 
@@ -652,9 +652,9 @@ export default function SearchSystem({
             ) : products.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center bg-white rounded-2xl border border-slate-100 p-6">
                 <AlertCircle className="w-8 h-8 text-slate-300 mb-2" />
-                <p className="text-xs font-bold text-slate-700">No matching medicine found</p>
+                <p className="text-xs font-bold text-slate-700">কোনো ওষুধ খুঁজে পাওয়া যায়নি</p>
                 <p className="text-[10px] text-slate-400 max-w-[240px] mt-1 leading-relaxed">
-                  Verify the spelling or search using a generic formula like "Paracetamol" or "Omeprazole".
+                  বানান সঠিক আছে কিনা দেখুন অথবা জেনেরিক নাম (যেমন: Paracetamol বা Omeprazole) লিখে খুঁজুন।
                 </p>
               </div>
             ) : (
@@ -672,7 +672,7 @@ export default function SearchSystem({
                     >
                       {/* Discount ribbon */}
                       <div className="absolute top-0 left-0 bg-brand-purple text-white text-[9px] font-black px-2.5 py-1 rounded-br-xl uppercase tracking-wider shadow-sm">
-                        {p.discountPercentage}% OFF
+                        {p.discountPercentage}% সাশ্রয়
                       </div>
 
                       {/* Header Actions */}
@@ -708,19 +708,19 @@ export default function SearchSystem({
                             <div className="text-right flex-shrink-0">
                               {p.availableStock <= 0 ? (
                                 <span className="text-[8px] bg-slate-100 text-slate-500 border border-slate-200 font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider block mb-1">
-                                  Restocking Soon
+                                  স্টকে নেই
                                 </span>
                               ) : p.availableStock <= 15 ? (
                                 <span className="text-[8.5px] bg-rose-50 text-rose-600 border border-rose-100 font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider block mb-1 animate-pulse">
-                                  Only {p.availableStock} Left
+                                  মাত্র {p.availableStock} টি বাকি
                                 </span>
                               ) : (
                                 <span className="text-[8px] bg-emerald-50 text-emerald-700 font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider block mb-1">
-                                  In Stock
+                                  স্টকে আছে
                                 </span>
                               )}
-                              <span className="text-[9px] text-slate-400 block font-mono">Pack: {p.packSize}</span>
-                              <span className="text-[9px] text-slate-500 block font-mono font-bold mt-0.5">Stock: {p.availableStock} Box</span>
+                              <span className="text-[9px] text-slate-400 block font-mono">প্যাক: {p.packSize}</span>
+                              <span className="text-[9px] text-slate-500 block font-mono font-bold mt-0.5">মজুদ: {p.availableStock} বক্স</span>
                             </div>
                           </div>
                         </div>
@@ -728,17 +728,17 @@ export default function SearchSystem({
                         {/* Price box with sharp B2B hierarchy */}
                         <div className="grid grid-cols-3 items-center gap-2 bg-slate-50 p-2.5 sm:p-3 rounded-2xl border border-slate-100 w-full">
                           <div className="min-w-0">
-                            <span className="text-[8px] text-slate-400 block font-bold uppercase tracking-wider truncate">Retail MRP</span>
+                            <span className="text-[8px] text-slate-400 block font-bold uppercase tracking-wider truncate">খুচরা MRP</span>
                             <span className="text-xs font-bold text-slate-400 line-through">৳{p.mrp}</span>
                           </div>
                           <div className="border-l border-slate-200 pl-2.5 min-w-0">
-                            <span className="text-[8px] text-brand-purple block font-black uppercase tracking-wider truncate">B2B Wholesale</span>
+                            <span className="text-[8px] text-brand-purple block font-black uppercase tracking-wider truncate">মেডিচেইন পাইকারি</span>
                             <span className="text-xs sm:text-sm font-black text-brand-purple">৳{p.sellingPrice}</span>
                             <span className="text-[7.5px] text-slate-400 font-bold block leading-tight truncate">{formatProductPriceLabel(p.sellingPrice, p.packSize)}</span>
                           </div>
                           <div className="bg-emerald-50 text-emerald-800 border border-emerald-100 px-2 py-1 rounded-xl text-center flex flex-col justify-center items-center min-w-0">
-                            <span className="text-[7px] uppercase font-bold block truncate">Net Savings</span>
-                            <span className="text-[10px] sm:text-[11px] font-black tracking-tight text-emerald-700 truncate">Save ৳{p.mrp - p.sellingPrice}</span>
+                            <span className="text-[7px] uppercase font-bold block truncate">মোট লাভ/সাশ্রয়</span>
+                            <span className="text-[10px] sm:text-[11px] font-black tracking-tight text-emerald-700 truncate">সাশ্রয় ৳{p.mrp - p.sellingPrice}</span>
                           </div>
                         </div>
                       </div>
@@ -751,7 +751,7 @@ export default function SearchSystem({
                             return (
                               <div className="flex items-center justify-between gap-3 w-full animate-fade-in">
                                 <span className="text-[10px] text-brand-purple font-black uppercase tracking-wider">
-                                  In Basket:
+                                  কার্টে আছে:
                                 </span>
                                 <div className="flex-1 flex items-center justify-between bg-brand-purple/5 border border-brand-purple/20 rounded-xl px-2 py-1.5">
                                   <button
@@ -762,7 +762,7 @@ export default function SearchSystem({
                                     <Minus className="w-3.5 h-3.5" />
                                   </button>
                                   <span className="text-xs font-black text-brand-purple font-mono">
-                                    {inCartQty} boxes
+                                    {inCartQty} বক্স
                                   </span>
                                   <button
                                     type="button"
@@ -780,7 +780,7 @@ export default function SearchSystem({
                             <>
                               {/* Quick preset boxes */}
                               <div className="flex items-center gap-1">
-                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mr-1">Boxes:</span>
+                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mr-1">পরিমাণ:</span>
                                 {[1, 5, 10, 50].map(qtyVal => (
                                   <button
                                     key={qtyVal}
@@ -792,7 +792,7 @@ export default function SearchSystem({
                                         : "bg-slate-100 hover:bg-slate-200 text-slate-600"
                                     }`}
                                   >
-                                    {qtyVal} Box
+                                    {qtyVal} বক্স
                                   </button>
                                 ))}
                               </div>
@@ -835,17 +835,17 @@ export default function SearchSystem({
                                   {addedSuccess[p.id] ? (
                                     <>
                                       <Check className="w-4 h-4 text-white" />
-                                      ✓ Added to Cart!
+                                      ✓ কার্টে যোগ হয়েছে!
                                     </>
                                   ) : cartAdding[p.id] ? (
                                     <>
                                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                      Adding...
+                                      যোগ হচ্ছে...
                                     </>
                                   ) : (
                                     <>
                                       <ShoppingCart className="w-3.5 h-3.5" />
-                                      Buy (৳{(currentQty * p.sellingPrice).toLocaleString()})
+                                      কার্টে যোগ করুন (৳{(currentQty * p.sellingPrice).toLocaleString()})
                                     </>
                                   )}
                                 </button>

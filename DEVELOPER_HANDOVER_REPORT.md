@@ -391,6 +391,29 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 34. Pharmacy-Facing Simple & Natural Bengali UI Localization (সহজ ও সাবলীল বাংলা ইন্টারফেস)
+- **Target Audience Alignment**:
+  - Tailored specifically for retail pharmacy owners and shopkeepers in mofussil towns and district headquarters across Bangladesh who are comfortable with everyday conversational Bengali.
+- **Localized Components & Features**:
+  1. **Persistent Navigation & Global Search (`src/App.tsx`, `src/components/Home.tsx`)**:
+     - Localized bottom tabs (*হোম*, *ওষুধ খুঁজুন*, *কার্ট*, *অর্ডারসমূহ*, *প্রোফাইল*).
+     - Search placeholders (*১০,০০০+ ওষুধ বা জেনেরিক নাম লিখে খুঁজুন...*), scan button (*প্রেসক্রিপশন স্ক্যান*), and live order status card (*ডিপোতে প্রসেসিং চলছে* / *রাইডার ডেলিভারি নিয়ে আসছেন*).
+  2. **Product Catalog & Search System (`src/components/SearchSystem.tsx`, `src/components/ProductCard.tsx`)**:
+     - Filter selectors (*সাধারণ ক্রম*, *সর্বোচ্চ লাভ (ছাড়)*, *জনপ্রিয় ওষুধ*, *কম স্টকের ওষুধ*), recent searches (*সম্প্রতি খোঁজা হয়েছে*), and stock badges (*স্টকে আছে*, *কম মজুদ*, *স্টকে নেই*).
+     - Profit margin chips (*...% লাভ*) and trade pricing tags (*মেডিচেইন পাইকারি রেট*).
+  3. **Product Details Modal & Smart Substitution Engine (`src/components/ProductDetails.tsx`)**:
+     - Specs (*প্রস্তুতকারক কোম্পানি*, *প্যাকেটের সাইজ*, *ওষুধের মেয়াদ (FEFO)*, *উৎপাদন ব্যাচ নং*), stock ledger (*মজুদ আছে*, *রিজার্ভড*, *মোট বিক্রি*), and substitution finder (*💡 একই ফর্মুলার বিকল্প কোম্পানির ওষুধসমূহ*).
+  4. **Procurement Cart Drawer (`src/components/CartDrawer.tsx`)**:
+     - Free delivery banner (*🎉 অভিনন্দন! এই অর্ডারে আপনি পাচ্ছেন সম্পূর্ণ ফ্রি এক্সপ্রেস ডেলিভারি* / *আর মাত্র ৳... টাকার ওষুধ কিনলেই ফ্রি ডেলিভারি পাবেন!*), invoice breakdown, and action CTA (*অর্ডার করতে এগিয়ে যান*).
+  5. **Checkout & Gateway (`src/components/Checkout.tsx`)**:
+     - Verified address badge (*অনুমোদিত ফার্মেসি*), delivery slots (*সকালের ডেলিভারি*, *বিকালের ডেলিভারি*), payment methods (*ক্যাশ অন ডেলিভারি*, *বি২বি ক্রেডিট লাইন (৩০ দিনের বাকিতে ক্রয়)*, *বিকাশ*, *নগদ*), and pin confirmation dialogs.
+  6. **Live Order Tracking & History (`src/components/OrderTracking.tsx`, `src/components/OrderHistory.tsx`, `src/components/OrderSuccess.tsx`)**:
+     - 4-milestone tracking steps (*অর্ডার গৃহীত*, *প্যাকিং সম্পন্ন*, *রাইডার পথে আছেন*, *ডেলিভারি সম্পন্ন*), handover OTP safety instruction (*🔒 নিরাপদ ডেলিভারি ওটিপি পিন • ওষুধ বুঝে পাওয়ার পর কেবল এই পিনটি রাইডারকে দিন*), and return dispute modal.
+  7. **Prescription Scanner & Profile (`src/components/PrescriptionScanner.tsx`, `src/components/Account.tsx`)**:
+     - AI prescription scanner, DGDA KYC status, PWA install prompt (*অ্যাপ ইনস্টল করুন*), and quick action tiles.
+
+----------------------------------------
+
 ## 30. Final AI Handover
 
 **To AI Agents:**

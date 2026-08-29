@@ -102,14 +102,14 @@ export default function Account({
             </h2>
             <p className="text-xs text-slate-500 mt-1 font-semibold flex items-center gap-1">
               <UserIcon className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-              <span className="truncate">Proprietor: {pharmacy?.ownerName || currentUser?.name || "Zahid Hasan"}</span>
+              <span className="truncate">স্বত্বাধিকারী: {pharmacy?.ownerName || currentUser?.name || "জাহিদ হাসান"}</span>
             </p>
             <div className="flex items-center gap-1.5 mt-2 flex-wrap">
               <span className="bg-slate-100 border border-slate-200 text-slate-600 font-bold font-mono text-[9px] px-2.5 py-0.5 rounded-md">
-                DGDA Drug Lic: {pharmacy?.licenseNo || "Pending Approval"}
+                ড্রাগ লাইসেন্স: {pharmacy?.licenseNo || "অনুমোদনের অপেক্ষায়"}
               </span>
               <span className="bg-purple-50 text-brand-purple border border-purple-200/50 font-bold text-[9px] px-2.5 py-0.5 rounded-md">
-                Role: {currentUser?.role || "Pharmacy Owner"}
+                রোল: {currentUser?.role === "Pharmacy Owner" ? "ফার্মেসি মালিক" : currentUser?.role === "Admin" ? "অ্যাডমিন" : currentUser?.role || "ফার্মেসি মালিক"}
               </span>
             </div>
           </div>
@@ -119,14 +119,14 @@ export default function Account({
           <button
             onClick={() => setShowEditProfile(true)}
             className="p-2.5 text-slate-400 hover:text-brand-purple hover:bg-slate-50 rounded-2xl transition-all cursor-pointer border border-slate-100 shadow-3xs"
-            title="Edit pharmacy details"
+            title="ফার্মেসির তথ্য পরিবর্তন"
           >
             <Pencil className="w-4 h-4" />
           </button>
           <button
             onClick={onLogout}
             className="p-2.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all cursor-pointer border border-slate-100 shadow-3xs"
-            title="Sign out of MediChain"
+            title="লগআউট করুন"
           >
             <LogOut className="w-4.5 h-4.5" />
           </button>
@@ -137,22 +137,22 @@ export default function Account({
       {(() => {
         let cardBg = "bg-rose-50 border-rose-100 text-rose-800";
         let icon = <AlertTriangle className="w-5 h-5 text-rose-500" />;
-        let statusText = "Verification Required";
+        let statusText = "যাচাইকরণ প্রয়োজন";
         let statusBadgeClass = "bg-rose-500/10 text-rose-600 border-rose-500/20";
-        let subText = "Tap to submit your National ID card and Drug License documents to unlock premium wholesale.";
+        let subText = "পাইকারি কেনাকাটার জন্য জাতীয় পরিচয়পত্র ও ড্রাগ লাইসেন্সের ছবি আপলোড করুন।";
 
         if (kycStatus === "Approved") {
           cardBg = "bg-emerald-50 border-emerald-100 text-emerald-800";
           icon = <Award className="w-5 h-5 text-emerald-600" />;
-          statusText = "Verified Pharmacy";
+          statusText = "অনুমোদিত ফার্মেসি";
           statusBadgeClass = "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
-          subText = "DGDA B2B regulatory audit completed. Priority dispatching unlocked.";
+          subText = "ঔষধ প্রশাসন (DGDA) রেগুলেটরি যাচাই সফল। অগ্রাধিকার ডেলিভারি সক্রিয়।";
         } else if (kycStatus === "Pending" || kycStatus === "Under Review") {
           cardBg = "bg-amber-50 border-amber-100 text-amber-850";
           icon = <Clock className="w-5 h-5 text-amber-500 animate-pulse" />;
-          statusText = "Pending Compliance Review";
+          statusText = "যাচাই প্রক্রিয়াধীন রয়েছে";
           statusBadgeClass = "bg-amber-500/10 text-amber-600 border-amber-500/20";
-          subText = "Our operations desk is verifying your uploaded documents against DGDA systems. ETA < 24 Hours.";
+          subText = "আমাদের ডিপো টিম আপনার প্রদত্ত ড্রাগ লাইসেন্স যাচাই করছে (সর্বোচ্চ ২৪ ঘণ্টা)।";
         }
 
         return (
@@ -163,11 +163,11 @@ export default function Account({
                   {icon}
                 </div>
                 <div>
-                  <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">Compliance Status</span>
+                  <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">কেওয়াইসি স্ট্যাটাস</span>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <h4 className="font-extrabold text-xs">{statusText}</h4>
                     <span className={`text-[8px] font-black px-1.5 py-0.5 rounded border ${statusBadgeClass}`}>
-                      {kycStatus}
+                      {kycStatus === "Approved" ? "অনুমোদিত" : kycStatus === "Pending" ? "অপেক্ষমান" : kycStatus}
                     </span>
                   </div>
                 </div>
@@ -176,7 +176,7 @@ export default function Account({
                 onClick={() => setShowKycHub(true)}
                 className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-[10px] font-black px-3 py-1.5 rounded-xl transition-all cursor-pointer shadow-xs"
               >
-                {kycStatus === "Approved" ? "Manage KYC" : "Verify Now"}
+                {kycStatus === "Approved" ? "কেওয়াইসি বিবরণ" : "এখনই যাচাই করুন"}
               </button>
             </div>
             <p className="text-[10px] text-slate-500 font-semibold leading-relaxed pl-1">
@@ -185,8 +185,6 @@ export default function Account({
           </div>
         );
       })()}
-
-
 
       {/* PWA Standalone App Integration Card */}
       <div className="bg-gradient-to-r from-slate-900 to-[#17121F] border border-purple-500/30 rounded-3xl p-4 shadow-sm text-white space-y-2.5">
@@ -197,15 +195,15 @@ export default function Account({
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h4 className="font-extrabold text-xs text-white">MediChain Mobile App</h4>
+                <h4 className="font-extrabold text-xs text-white">মেডিচেইন মোবাইল অ্যাপ</h4>
                 <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-brand-lime/20 text-brand-lime border border-brand-lime/30">
-                  {isStandalone ? "Active PWA" : "Offline Ready"}
+                  {isStandalone ? "সক্রিয় অ্যাপ" : "অফলাইন সুবিধা"}
                 </span>
               </div>
               <p className="text-[10px] text-slate-400 mt-0.5">
                 {isStandalone
-                  ? "Running in Standalone Mode with local caching."
-                  : "Install for instant procurement & offline access."}
+                  ? "মোবাইল অ্যাপ হিসেবে সফলভাবে চলছে।"
+                  : "সহজে ও দ্রুত অর্ডার করতে অ্যাপটি মোবাইলে ইনস্টল করুন।"}
               </p>
             </div>
           </div>
@@ -222,14 +220,14 @@ export default function Account({
               className="bg-brand-lime hover:bg-brand-lime/90 active:scale-95 text-slate-950 text-[10px] font-black px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-md flex items-center gap-1.5 flex-shrink-0"
             >
               <Download className="w-3.5 h-3.5" />
-              {isIOS ? "How to Install" : "Install App"}
+              {isIOS ? "ইনস্টল করার নিয়ম" : "অ্যাপ ইনস্টল করুন"}
             </button>
           )}
 
           {isStandalone && (
             <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1.5 rounded-xl border border-emerald-500/20 flex-shrink-0">
               <CheckCircle2 className="w-3.5 h-3.5" />
-              Installed
+              ইনস্টল করা হয়েছে
             </div>
           )}
         </div>
@@ -239,13 +237,13 @@ export default function Account({
       {analytics && (
         <div className="bg-white border border-slate-100 rounded-3xl p-4 shadow-sm flex items-center justify-between gap-3">
           <div>
-            <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">Total Savings Report</span>
+            <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-wider">মোট সাশ্রয় রিপোর্ট</span>
             <span className="text-lg font-black text-emerald-600 font-mono mt-1 block">
               ৳{analytics.totalSavings.toLocaleString()}
             </span>
           </div>
           <div className="bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-2xl border border-emerald-100 text-[10px] font-extrabold text-right">
-            Avg 22% Bulk Savings Verified
+            গড় ২২% পাইকারি সাশ্রয়
           </div>
         </div>
       )}
@@ -257,8 +255,8 @@ export default function Account({
             <ShoppingCart className="w-4.5 h-4.5" />
           </div>
           <div>
-            <span className="text-xs font-bold text-brand-charcoal block">Order History</span>
-            <span className="text-[9px] text-slate-400 mt-0.5 block">View wholesale orders</span>
+            <span className="text-xs font-bold text-brand-charcoal block">অর্ডার ইতিহাস</span>
+            <span className="text-[9px] text-slate-400 mt-0.5 block">সব পাইকারি অর্ডার দেখুন</span>
           </div>
         </button>
         
@@ -267,8 +265,8 @@ export default function Account({
             <FileText className="w-4.5 h-4.5" />
           </div>
           <div>
-            <span className="text-xs font-bold text-brand-charcoal block">Tax & VAT</span>
-            <span className="text-[9px] text-slate-400 mt-0.5 block">Procurement statements</span>
+            <span className="text-xs font-bold text-brand-charcoal block">ট্যাক্স ও চালান</span>
+            <span className="text-[9px] text-slate-400 mt-0.5 block">ক্রয় ও ভ্যাট স্টেটমেন্ট</span>
           </div>
         </button>
         
@@ -277,8 +275,8 @@ export default function Account({
             <Shield className="w-4.5 h-4.5" />
           </div>
           <div>
-            <span className="text-xs font-bold text-brand-charcoal block">Delivery Location</span>
-            <span className="text-[9px] text-slate-400 mt-0.5 block">Manage depot drop-offs</span>
+            <span className="text-xs font-bold text-brand-charcoal block">ডেলিভারির ঠিকানা</span>
+            <span className="text-[9px] text-slate-400 mt-0.5 block">ফার্মেসির অবস্থান ও ড্রপ-অফ</span>
           </div>
         </button>
 
@@ -287,8 +285,8 @@ export default function Account({
             <Headset className="w-4.5 h-4.5" />
           </div>
           <div>
-            <span className="text-xs font-bold text-brand-charcoal block">Depot Support</span>
-            <span className="text-[9px] text-slate-400 mt-0.5 block">24/7 Helpline & Dispatch</span>
+            <span className="text-xs font-bold text-brand-charcoal block">ডিপো হেল্পলাইন</span>
+            <span className="text-[9px] text-slate-400 mt-0.5 block">২৪/৭ কাস্টমার সাপোর্ট</span>
           </div>
         </button>
       </div>
@@ -297,18 +295,18 @@ export default function Account({
       <div className="bg-white rounded-3xl p-4 border border-slate-100 space-y-3 shadow-sm">
         <h3 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
           <Heart className="w-4 h-4 text-rose-500 fill-current" />
-          Saved Procurement Favorites
+          পছন্দের ওষুধের তালিকা (Favourites)
         </h3>
 
         {favProducts.length === 0 ? (
           <div className="py-6 text-center text-slate-400 flex flex-col items-center">
-            <p className="text-xs font-semibold">No Favorites Saved</p>
-            <p className="text-[10px] text-slate-400 mt-1 mb-4">Tap hearts on catalog medicines for instant access here.</p>
+            <p className="text-xs font-semibold">পছন্দের কোনো ওষুধ এখনো যুক্ত নেই</p>
+            <p className="text-[10px] text-slate-400 mt-1 mb-4">ক্যাটালগের ওষুধের পাশে হার্ট আইকনে চাপ দিলে এখানে সহজে পেয়ে যাবেন।</p>
             <button
               onClick={() => onTriggerTab && onTriggerTab("search")}
               className="bg-brand-purple text-white px-4 py-2 rounded-xl text-[10px] font-extrabold shadow-sm hover:bg-brand-purple/90 transition-all cursor-pointer"
             >
-              Browse Wholesale Catalog
+              পাইকারি ওষুধ তালিকা দেখুন
             </button>
           </div>
         ) : (
@@ -320,7 +318,7 @@ export default function Account({
               >
                 <div>
                   <div className="font-bold text-slate-700">{p.name} ({p.strength})</div>
-                  <div className="text-[10px] text-slate-400 font-mono">৳{p.sellingPrice} / Box</div>
+                  <div className="text-[10px] text-slate-400 font-mono">৳{p.sellingPrice} / বক্স</div>
                 </div>
                 <button
                   onClick={() => handleQuickReorder(p.id)}
@@ -334,12 +332,12 @@ export default function Account({
                   {successId === p.id ? (
                     <>
                       <Check className="w-3 h-3" />
-                      Added!
+                      যোগ হয়েছে!
                     </>
                   ) : (
                     <>
                       <ShoppingCart className="w-3 h-3" />
-                      Quick 1 Box
+                      ১ বক্স যোগ করুন
                     </>
                   )}
                 </button>
@@ -354,20 +352,20 @@ export default function Account({
         <div className="flex justify-between items-center">
           <h3 className="text-[10px] font-extrabold text-brand-lime uppercase tracking-widest flex items-center gap-1.5 font-mono">
             <Shield className="w-4 h-4 text-brand-lime" />
-            B2B Persona & Role Switcher Console
+            ব্যবহারকারী রোল পরিবর্তন (ডেমো কনসোল)
           </h3>
-          <span className="text-[9px] text-slate-400 font-mono">Instant Test Environment</span>
+          <span className="text-[9px] text-slate-400 font-mono">টেস্টিং মোড</span>
         </div>
         <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
-          Switch role identities instantly to test features across all operations layers:
+          অ্যাপের সকল ফিচার ও ড্যাশবোর্ড পরখ করে দেখতে রোল পরিবর্তন করুন:
         </p>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
           {[
-            { role: "Pharmacy Owner", email: "pharmacy@medichain.com", label: "Pharmacy Owner", icon: "🏪" },
-            { role: "Admin", email: "admin@medichain.com", label: "Admin Console", icon: "🛡️" },
-            { role: "Depot Staff", email: "depot@medichain.com", label: "Depot Bay", icon: "📦" },
-            { role: "Delivery Staff", email: "delivery@medichain.com", label: "Rider Portal", icon: "🛵" }
+            { role: "Pharmacy Owner", email: "pharmacy@medichain.com", label: "ফার্মেসি মালিক", icon: "🏪" },
+            { role: "Admin", email: "admin@medichain.com", label: "অ্যাডমিন প্যানেল", icon: "🛡️" },
+            { role: "Depot Staff", email: "depot@medichain.com", label: "ডিপো কর্মকর্তা", icon: "📦" },
+            { role: "Delivery Staff", email: "delivery@medichain.com", label: "ডেলিভারি রাইডার", icon: "🛵" }
           ].map((persona) => {
             const isCurrent = currentUser?.role === persona.role;
             return (
@@ -396,7 +394,7 @@ export default function Account({
                   <span className="text-base">{persona.icon}</span>
                   {isCurrent && (
                     <span className="bg-brand-lime text-slate-950 text-[7.5px] font-black px-1.5 py-0.5 rounded uppercase">
-                      Active
+                      সক্রিয়
                     </span>
                   )}
                 </div>
@@ -414,18 +412,18 @@ export default function Account({
       <div className="bg-white rounded-3xl p-5 border border-slate-100 space-y-3.5 shadow-sm">
         <h3 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
           <LifeBuoy className="w-4 h-4 text-brand-purple" />
-          B2B Support & Depot Helpline
+          মেডিচেইন ডিপো হেল্পলাইন ও সাপোর্ট
         </h3>
         
         <div className="text-xs space-y-2 leading-relaxed font-semibold text-slate-600">
           <div className="flex justify-between">
-            <span className="text-slate-400">Support Hours:</span>
-            <span>24 Hours / 7 Days</span>
+            <span className="text-slate-400">সেবার সময়:</span>
+            <span>২৪ ঘণ্টা / ৭ দিন</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-slate-400">DGDA License Verification:</span>
+            <span className="text-slate-400">ডিজিডিএ (DGDA) অনুমোদন:</span>
             <span className={isVerified ? "text-emerald-600" : "text-amber-500"}>
-              {isVerified ? "Verified B2B Regulatory Approved" : "Audit Pending / KYC Required"}
+              {isVerified ? "অনুমোদিত বি২বি ফার্মাসিউটিক্যাল সাপ্লাইয়ার" : "যাচাই প্রক্রিয়াধীন রয়েছে"}
             </span>
           </div>
         </div>
