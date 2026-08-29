@@ -4,13 +4,13 @@ import { SpeedInsights } from "@vercel/speed-insights/react";
 import Splash from "./components/Splash";
 import Login from "./components/Login";
 import Home from "./components/Home";
-import FloatingCartBar from "./components/FloatingCartBar";
+import CartDrawer from "./components/CartDrawer";
 import { PWAInstallPrompt } from "./pwa/PWAInstallPrompt";
 import { CartFeedbackProvider } from "./context/FlyToCartContext";
 import CartBurst from "./components/CartBurst";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { Product, Pharmacy, Order, Notification, User } from "./types";
-import { Home as HomeIcon, Search as SearchIcon, Package as PackageIcon, FileText as FileIcon, ClipboardList as ListIcon, User as UserIcon, Shield, Smartphone } from "lucide-react";
+import { Home as HomeIcon, Search as SearchIcon, Package as PackageIcon, FileText as FileIcon, ClipboardList as ListIcon, User as UserIcon, Shield, Smartphone, ShoppingBag } from "lucide-react";
 import { authService, productService, orderService, profileService, notificationService } from "./services";
 
 const ProfileSetup = lazy(() => import("./components/ProfileSetup"));
@@ -94,6 +94,7 @@ export default function App() {
   // Mobile app navigation state
   const [appStep, setAppStep] = useState<"splash" | "login" | "setup" | "main" | "cart" | "checkout" | "success" | "tracking" | "bulk_deals">("splash");
   const [activeTab, setActiveTab] = useState<"home" | "search" | "history" | "account">("home");
+  const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
   const [activeBulkCampaignId, setActiveBulkCampaignId] = useState<string | undefined>();
 
   // Core Data State
@@ -503,7 +504,7 @@ export default function App() {
                   orders={orders}
                   cartQuantities={cartQuantities}
                   onUpdateCartQty={handleUpdateCartQty}
-                  onOpenCart={() => setAppStep("cart")}
+                  onOpenCart={() => setIsCartDrawerOpen(true)}
                   cartCount={cartCount}
                 />
               </Suspense>
@@ -553,7 +554,7 @@ export default function App() {
                 unreadNotificationsCount={unreadNotificationsCount}
                 cartQuantities={cartQuantities}
                 onUpdateCartQty={handleUpdateCartQty}
-                onOpenCart={() => setAppStep("cart")}
+                onOpenCart={() => setIsCartDrawerOpen(true)}
                 cartCount={cartCount}
               />
             );
@@ -629,8 +630,10 @@ export default function App() {
             )}
           </div>
 
-          {/* Floating Bottom Cart Bar (Sticky Footer) & Slide-Up Cart Drawer */}
-          <FloatingCartBar
+          {/* Modern Slide-Over Cart Drawer */}
+          <CartDrawer
+            isOpen={isCartDrawerOpen}
+            onClose={() => setIsCartDrawerOpen(false)}
             cartData={cartData}
             cartCount={cartCount}
             onUpdateCartQty={handleUpdateCartQty}
@@ -639,10 +642,12 @@ export default function App() {
               await refreshCartCounter();
             }}
             onCheckoutTrigger={() => {
+              setIsCartDrawerOpen(false);
               setAppStep("checkout");
             }}
-            onRefreshCartCounter={refreshCartCounter}
-            isVisible={appStep === "main"}
+            onBrowseCatalog={() => {
+              setActiveTab("search");
+            }}
           />
 
           {/* Cart feedback burst */}
@@ -651,46 +656,58 @@ export default function App() {
 
           {/* Bottom persistent Nav Bar */}
           {appStep === "main" && (
-            <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200 shadow-lg px-6 lg:px-12 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] flex items-center justify-between lg:max-w-7xl lg:left-1/2 lg:-translate-x-1/2">
+            <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200 shadow-lg px-4 sm:px-8 lg:px-12 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] flex items-center justify-between lg:max-w-7xl lg:left-1/2 lg:-translate-x-1/2">
               <button
                 onClick={() => setActiveTab("home")}
                 className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                  activeTab === "home" ? "text-brand-purple scale-110" : "text-slate-400 hover:text-slate-500"
+                  activeTab === "home" ? "text-brand-purple scale-105" : "text-slate-400 hover:text-slate-600"
                 }`}
               >
                 <HomeIcon className="w-5 h-5" />
                 <span className="text-[10px] font-bold">Home</span>
               </button>
+
               <button
                 onClick={() => setActiveTab("search")}
-                className={`flex flex-col items-center gap-1 cursor-pointer transition-all relative ${
-                  activeTab === "search" ? "text-brand-purple scale-110" : "text-slate-400 hover:text-slate-500"
+                className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
+                  activeTab === "search" ? "text-brand-purple scale-105" : "text-slate-400 hover:text-slate-600"
                 }`}
               >
                 <PackageIcon className="w-5 h-5" />
                 <span className="text-[10px] font-bold">Products</span>
-                {cartCount > 0 && (
-                  <span className="absolute -top-1 -right-1.5 bg-brand-lime text-slate-900 font-extrabold text-[8px] px-1.5 py-0.5 rounded-full min-w-4 text-center">
-                    {cartCount}
-                  </span>
-                )}
+              </button>
+
+              {/* Center Prominent Cart Action Button */}
+              <button
+                onClick={() => setIsCartDrawerOpen(true)}
+                className="flex flex-col items-center gap-1 cursor-pointer transition-all relative text-slate-400 hover:text-brand-purple group"
+                title="View Procurement Cart"
+              >
+                <div className="relative p-1 rounded-xl group-hover:bg-brand-purple/10 transition-colors">
+                  <ShoppingBag className="w-5 h-5 text-slate-600 group-hover:text-brand-purple group-hover:scale-110 transition-transform" />
+                  {cartCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-brand-lime text-slate-950 font-black text-[9px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-xs border border-white">
+                      {cartCount}
+                    </span>
+                  )}
+                </div>
+                <span className="text-[10px] font-bold text-slate-600 group-hover:text-brand-purple">Cart</span>
               </button>
               
               <button
                 onClick={() => setActiveTab("history")}
                 className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                  activeTab === "history" ? "text-brand-purple scale-110" : "text-slate-400 hover:text-slate-500"
+                  activeTab === "history" ? "text-brand-purple scale-105" : "text-slate-400 hover:text-slate-600"
                 }`}
               >
                 <ListIcon className="w-5 h-5" />
                 <span className="text-[10px] font-bold">Orders</span>
               </button>
 
-              
               <button
                 onClick={() => setActiveTab("account")}
                 className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                  activeTab === "account" ? "text-brand-purple scale-110" : "text-slate-400 hover:text-slate-500"
+                  activeTab === "account" ? "text-brand-purple scale-105" : "text-slate-400 hover:text-slate-600"
                 }`}
               >
                 <UserIcon className="w-5 h-5" />
