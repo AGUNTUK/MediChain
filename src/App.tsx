@@ -634,6 +634,7 @@ export default function App() {
                   product={selectedProduct}
                   onClose={() => setSelectedProduct(null)}
                   onAddToCart={(pid, qty) => handleAddToCart(pid, qty)}
+                  onSelectProduct={(p) => setSelectedProduct(p)}
                 />
               </Suspense>
             )}

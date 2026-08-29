@@ -172,4 +172,68 @@ export const productService = {
     this.clearCache();
     return res.json();
   },
+
+  /**
+   * Fetches alternative brands sharing the exact same active generic molecule.
+   */
+  async getGenericAlternatives(genericName: string, excludeId?: string): Promise<Product[]> {
+    if (!genericName || !genericName.trim()) return [];
+    try {
+      const cleanGeneric = genericName.trim();
+      const allMatches = await this.getProducts({ search: cleanGeneric, limit: 30 });
+      return allMatches.filter(p => 
+        p.id !== excludeId && 
+        p.genericName && 
+        p.genericName.toLowerCase().trim() === cleanGeneric.toLowerCase()
+      );
+    } catch (err) {
+      console.warn("Failed to fetch generic alternatives:", err);
+      return [];
+    }
+  },
+
+  /**
+   * Returns list of product IDs subscribed to restock alerts.
+   */
+  getRestockAlerts(): string[] {
+    try {
+      const saved = localStorage.getItem("medichain_restock_alerts");
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  },
+
+  /**
+   * Checks if a product has an active restock alert.
+   */
+  hasRestockAlert(productId: string): boolean {
+    const alerts = this.getRestockAlerts();
+    return alerts.includes(productId);
+  },
+
+  /**
+   * Toggles restock alert for an out-of-stock product. Returns new state.
+   */
+  toggleRestockAlert(productId: string): boolean {
+    const alerts = this.getRestockAlerts();
+    let updated: string[];
+    let isSubscribed: boolean;
+
+    if (alerts.includes(productId)) {
+      updated = alerts.filter(id => id !== productId);
+      isSubscribed = false;
+    } else {
+      updated = [...alerts, productId];
+      isSubscribed = true;
+    }
+
+    try {
+      localStorage.setItem("medichain_restock_alerts", JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+
+    return isSubscribed;
+  },
 };

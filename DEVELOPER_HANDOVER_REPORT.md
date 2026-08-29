@@ -379,6 +379,18 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 33. Smart Generic Alternative Finder & Stock-Out Restock Alert Engine
+- **Smart Generic Alternative Finder (`productService.getGenericAlternatives`, `ProductDetails.tsx`)**:
+  - Automatically queries and displays alternative brands sharing identical active generic molecules (e.g., Square, Beximco, Incepta, Acme, Renata, Opsonin).
+  - Shows comparative manufacturer names, available depot stock, packaging, trade price, and wholesale profit margins (`% Margin`).
+  - Pharmacists can switch views or 1-tap add alternative brand boxes directly to their procurement cart.
+- **Stock-Out Restock Notification Alert Engine (`ProductDetails.tsx`, `ProductCard.tsx`)**:
+  - For out-of-stock products (`availableStock === 0`), replaced disabled buttons with an active **"🔔 স্টকে আসলে নোটিফাই করুন (Notify When Restocked)"** CTA.
+  - Pharmacists can toggle restock alerts with instant state feedback and persistent local storage synchronization (`medichain_restock_alerts`).
+  - Upgraded catalog cards in both horizontal and grid layouts to feature mini **"Notify"** restock triggers.
+
+----------------------------------------
+
 ## 30. Final AI Handover
 
 **To AI Agents:**

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Plus, Minus, ShoppingCart, Check, Tag, Building2, AlertTriangle, TrendingUp } from "lucide-react";
+import { Plus, Minus, ShoppingCart, Check, Tag, Building2, AlertTriangle, TrendingUp, Bell } from "lucide-react";
 import { Product } from "../types";
 import { formatProductPriceLabel } from "../lib/utils";
 import { useCartFeedback } from "../context/FlyToCartContext";
@@ -195,34 +195,46 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
               <div className="text-[9.5px] font-semibold text-slate-500 truncate">
                 Wholesale B2B Rate
               </div>
-              <button
-                type="button"
-                onClick={handleAddToCart}
-                disabled={isOutOfStock || isAdding}
-                className={`py-1.5 px-3.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
-                  isAdded
-                    ? "bg-emerald-600 text-white shadow-md"
-                    : isOutOfStock || isAdding
-                    ? "bg-slate-100 text-slate-400 cursor-not-allowed"
-                    : "bg-brand-lime hover:bg-brand-lime-dark text-slate-950 shadow-xs hover:shadow-md"
-                }`}
-              >
-                {isAdded ? (
-                  <>
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Added</span>
-                  </>
-                ) : isAdding ? (
-                  <span>Adding...</span>
-                ) : isOutOfStock ? (
-                  <span>Out of Stock</span>
-                ) : (
-                  <>
-                    <ShoppingCart className="w-3.5 h-3.5 text-slate-950" />
-                    <span>Add</span>
-                  </>
-                )}
-              </button>
+              {isOutOfStock ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenDetails?.(product);
+                  }}
+                  className="py-1.5 px-3 rounded-xl text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer shrink-0 bg-purple-50 text-brand-purple border border-purple-200/80 hover:bg-brand-purple hover:text-white"
+                >
+                  <Bell className="w-3 h-3" />
+                  <span>Notify</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleAddToCart}
+                  disabled={isAdding}
+                  className={`py-1.5 px-3.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
+                    isAdded
+                      ? "bg-emerald-600 text-white shadow-md"
+                      : isAdding
+                      ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                      : "bg-brand-lime hover:bg-brand-lime-dark text-slate-950 shadow-xs hover:shadow-md"
+                  }`}
+                >
+                  {isAdded ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Added</span>
+                    </>
+                  ) : isAdding ? (
+                    <span>Adding...</span>
+                  ) : (
+                    <>
+                      <ShoppingCart className="w-3.5 h-3.5 text-slate-950" />
+                      <span>Add</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -378,35 +390,47 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
               </button>
             </div>
 
-            {/* Add to Cart Button */}
-            <button
-              type="button"
-              onClick={handleAddToCart}
-              disabled={isOutOfStock || isAdding}
-              className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
-                isAdded
-                  ? "bg-emerald-600 text-white shadow-md"
-                  : isOutOfStock || isAdding
-                  ? "bg-slate-100 text-slate-400 cursor-not-allowed"
-                  : "bg-brand-lime hover:bg-brand-lime-dark text-slate-950 hover:shadow-md"
-              }`}
-            >
-              {isAdded ? (
-                <>
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Added!</span>
-                </>
-              ) : isAdding ? (
-                <span>Adding...</span>
-              ) : isOutOfStock ? (
-                <span>Out of Stock</span>
-              ) : (
-                <>
-                  <ShoppingCart className="w-3.5 h-3.5 text-slate-950" />
-                  <span>Add to Order</span>
-                </>
-              )}
-            </button>
+            {/* Add to Cart Button or Out of Stock Notify */}
+            {isOutOfStock ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenDetails?.(product);
+                }}
+                className="flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer bg-purple-50 text-brand-purple border border-purple-200/80 hover:bg-brand-purple hover:text-white shadow-2xs"
+              >
+                <Bell className="w-3.5 h-3.5" />
+                <span>Notify on Restock</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleAddToCart}
+                disabled={isAdding}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
+                  isAdded
+                    ? "bg-emerald-600 text-white shadow-md"
+                    : isAdding
+                    ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                    : "bg-brand-lime hover:bg-brand-lime-dark text-slate-950 hover:shadow-md"
+                }`}
+              >
+                {isAdded ? (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Added!</span>
+                  </>
+                ) : isAdding ? (
+                  <span>Adding...</span>
+                ) : (
+                  <>
+                    <ShoppingCart className="w-3.5 h-3.5 text-slate-950" />
+                    <span>Add to Order</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
         )}
       </div>
