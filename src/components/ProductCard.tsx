@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { Plus, Minus, ShoppingCart, Check, Tag, Building2, Pill, AlertTriangle } from "lucide-react";
+import { Plus, Minus, ShoppingCart, Check, Tag, Building2, AlertTriangle, TrendingUp } from "lucide-react";
 import { Product } from "../types";
 import { formatProductPriceLabel } from "../lib/utils";
 import { useCartFeedback } from "../context/FlyToCartContext";
+import CategoryIcon, { getCategoryConfig } from "./CategoryIcon";
 
 interface ProductCardProps {
   product: Product;
@@ -33,11 +34,13 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
   const isOutOfStock = (product.availableStock ?? 100) <= 0;
   const isLowStock = (product.availableStock ?? 100) > 0 && (product.availableStock ?? 100) <= 20;
 
-  // Calculate discount percentage
+  // Calculate discount and profit margin percentage
   const calculatedDiscount =
     product.mrp && product.sellingPrice && product.mrp > product.sellingPrice
       ? Math.round(((product.mrp - product.sellingPrice) / product.mrp) * 100)
       : product.discountPercentage || 0;
+
+  const categoryTheme = getCategoryConfig(product.category);
 
   const handleAddToCart = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
@@ -86,11 +89,11 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
     return (
       <div
         onClick={handleCardClick}
-        className={`bg-white rounded-2xl p-3.5 border border-slate-100 shadow-sm hover:border-slate-300 transition-all cursor-pointer relative flex flex-col gap-2.5 ${className}`}
+        className={`bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs hover:shadow-md hover:border-slate-200 transition-all cursor-pointer relative flex flex-col gap-2.5 ${className}`}
       >
         {/* Top Header Row: Image + Main Details + Right Pricing Column */}
         <div className="flex gap-3 items-start">
-          {/* Image Container */}
+          {/* Image Container with Exact Category Vector Fallback */}
           <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-slate-50 border border-slate-100 flex-shrink-0 flex items-center justify-center p-1 relative">
             {imageUrl && !imageError ? (
               <img
@@ -101,8 +104,8 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
                 className="w-full h-full object-contain"
               />
             ) : (
-              <div className="flex flex-col items-center justify-center text-slate-300">
-                <Pill className="w-6 h-6 text-brand-purple/40" />
+              <div className={`w-full h-full rounded-lg flex items-center justify-center p-2 ${categoryTheme.bg} ${categoryTheme.text}`}>
+                <CategoryIcon name={product.category} className="w-7 h-7" />
               </div>
             )}
             <span className="absolute bottom-0.5 left-0.5 bg-slate-900/80 backdrop-blur-xs text-white text-[7px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider">
@@ -273,11 +276,8 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
               className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-300"
             />
           ) : (
-            <div className="flex flex-col items-center justify-center text-slate-300">
-              <Pill className="w-10 h-10 text-brand-purple/30 mb-1" />
-              <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">
-                {product.packSize || "Medicine"}
-              </span>
+            <div className={`w-16 h-16 rounded-2xl flex flex-col items-center justify-center p-3 ${categoryTheme.bg} ${categoryTheme.text}`}>
+              <CategoryIcon name={product.category} className="w-8 h-8" />
             </div>
           )}
         </div>
@@ -310,11 +310,18 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
                 {formatProductPriceLabel(product.sellingPrice, product.packSize)}
               </span>
             </div>
-            {product.packSize && (
-              <span className="text-[9px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded font-mono shrink-0">
-                {product.packSize}
-              </span>
-            )}
+            <div className="flex flex-col items-end gap-1">
+              {product.packSize && (
+                <span className="text-[9px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded font-mono shrink-0">
+                  {product.packSize}
+                </span>
+              )}
+              {calculatedDiscount > 0 && (
+                <span className="text-[8px] bg-purple-50 text-brand-purple font-extrabold border border-purple-200/50 px-1.5 py-0.5 rounded shrink-0">
+                  {calculatedDiscount}% Margin
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>

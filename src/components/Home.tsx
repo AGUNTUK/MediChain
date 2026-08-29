@@ -13,10 +13,15 @@ import {
   Plus,
   ShoppingCart,
   Minus,
-  Check
+  Check,
+  Truck,
+  ArrowRight,
+  ShieldCheck,
+  Zap,
+  Flame
 } from "lucide-react";
 import MediChainLogo from "./MediChainLogo";
-import { Product } from "../types";
+import { Product, Order } from "../types";
 import { productService } from "../services";
 import NotificationBell from "./NotificationBell";
 import ProductCard from "./ProductCard";
@@ -43,6 +48,8 @@ interface HomeProps {
   onOpenCart?: () => void;
   cartCount?: number;
   onOpenBulkDeals?: (campaignId?: string) => void;
+  orders?: Order[];
+  onTrackOrder?: (orderId: string) => void;
 }
 
 export default function Home({
@@ -58,7 +65,9 @@ export default function Home({
   onUpdateCartQty,
   onOpenCart,
   cartCount = 0,
-  onOpenBulkDeals
+  onOpenBulkDeals,
+  orders = [],
+  onTrackOrder
 }: HomeProps) {
   const [bestDeals, setBestDeals] = useState<Product[]>([]);
   const [frequentProducts, setFrequentProducts] = useState<Product[]>([]);
@@ -213,165 +222,257 @@ export default function Home({
       ) : (
         <>
           <HeroCarousel pharmacyName={pharmacyName} onOpenScanner={() => setIsScannerOpen(true)} onBrowseCatalog={() => onTriggerSearch()} onOpenBulkDeals={onOpenBulkDeals} />
-          <div className="p-4 space-y-4 pb-32">
-            {/* Search & Scan Actions */}
-        <div className="flex gap-2">
-          <div
-            onClick={() => onTriggerSearch()}
-            className="flex-1 flex items-center bg-white border border-slate-200/80 rounded-2xl p-3 shadow-sm hover:shadow-md hover:border-slate-300 transition-all cursor-pointer"
-          >
-            <Search className="text-slate-400 w-4.5 h-4.5 mr-2.5 shrink-0" />
-            <span className="text-xs text-slate-400 font-semibold truncate">Search by brand, generic...</span>
-          </div>
-          <button
-            onClick={() => setIsScannerOpen(true)}
-            className="shrink-0 flex items-center justify-center gap-1.5 px-4 bg-brand-purple text-white rounded-2xl font-bold text-xs hover:shadow-lg hover:bg-indigo-700 transition-all active:scale-95 cursor-pointer shadow-sm shadow-indigo-200"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            Scan Rx
-          </button>
-        </div>
-
-        {isScannerOpen && (
-          <PrescriptionScanner onClose={() => setIsScannerOpen(false)} />
-        )}
-
-        {/* Category Carousel Grid */}
-        <div className="space-y-2.5">
-          <div className="flex justify-between items-center px-0.5">
-            <h3 className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider flex items-center gap-1.5">
-              <Package className="w-3.5 h-3.5 text-brand-purple" />
-              Browse Drug Class / Categories
-            </h3>
-            {displayCategoryNames.length > 12 && (
-              <button
-                onClick={() => setShowAllCategories(!showAllCategories)}
-                className="text-[11px] font-extrabold text-brand-purple hover:underline cursor-pointer"
-              >
-                {showAllCategories ? "View Less" : "View All"}
-              </button>
-            )}
-          </div>
           
-          {showAllCategories ? (
-            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2.5">
-              {visibleCategoryNames.map(name => {
-                const config = getCategoryConfig(name);
-                return (
-                  <button
-                    key={name}
-                    onClick={() => onTriggerSearch(undefined, name)}
-                    className="flex flex-col items-center justify-center p-2.5 rounded-2xl border border-slate-100/90 shadow-2xs cursor-pointer hover:shadow-md hover:border-slate-200/90 hover:scale-[1.03] transition-all bg-white group"
-                  >
-                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-1.5 p-2.5 transition-transform group-hover:scale-110 ${config.bg} ${config.text} border ${config.border}`}>
-                      <CategoryIcon name={name} className="w-5 h-5" />
-                    </div>
-                    <span className="text-[10px] font-extrabold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis w-full text-center group-hover:text-brand-purple transition-colors">
-                      {name}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="flex overflow-x-auto gap-2.5 pb-2 -mx-4 px-4 scrollbar-hide snap-x">
-              {visibleCategoryNames.map(name => {
-                const config = getCategoryConfig(name);
-                return (
-                  <button
-                    key={name}
-                    onClick={() => onTriggerSearch(undefined, name)}
-                    className="flex-shrink-0 snap-start flex flex-col items-center justify-center p-2 w-[82px] h-[90px] rounded-2xl border border-slate-100/90 shadow-2xs cursor-pointer hover:shadow-md hover:border-slate-200/90 hover:scale-[1.03] transition-all bg-white group"
-                  >
-                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-1.5 p-2.5 transition-transform group-hover:scale-110 ${config.bg} ${config.text} border ${config.border}`}>
-                      <CategoryIcon name={name} className="w-5 h-5" />
-                    </div>
-                    <span className="text-[10px] font-extrabold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis w-full text-center group-hover:text-brand-purple transition-colors">
-                      {name}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+          <div className="p-4 space-y-4 pb-32">
+            {/* Active Order Live Tracker Pulse Card */}
+            {(() => {
+              const activeOrder = orders.find(o => 
+                ["Pending", "Processing", "Dispatched", "Out for Delivery"].includes(o.status)
+              );
+              if (!activeOrder) return null;
 
-        {/* Frequent / Recently Ordered */}
-        {(frequentProducts.length > 0 || isLoading) && (
-          <div className="space-y-2.5">
-            <div className="flex justify-between items-center">
-              <h3 className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-brand-lime" />
-                Frequently Ordered
-              </h3>
-            </div>
-            <div className="flex gap-3 overflow-x-auto pb-2 pr-4 -mr-4 pl-1">
-              {isLoading
-                ? Array.from({ length: 4 }).map((_, i) => (
-                    <ProductCardSkeleton key={`freq-skel-${i}`} layout="frequent" />
-                  ))
-                : frequentProducts.map(p => {
-                const inCartQty = cartQuantities[p.id] || 0;
-                return (
-                  <div
-                    key={p.id}
-                    onClick={() => onOpenProductDetails(p)}
-                    className="bg-white border border-slate-100 rounded-2xl p-3 shadow-sm hover:border-slate-200 cursor-pointer flex flex-col justify-between relative min-w-[140px] flex-shrink-0"
-                  >
-                    {inCartQty > 0 && (
-                      <span className="absolute -top-1.5 -right-1.5 bg-brand-purple text-white text-[8px] font-black px-1.5 py-0.5 rounded-full z-10 shadow-sm animate-fade-in">
-                        {inCartQty} in cart
-                      </span>
-                    )}
-                    <div>
-                      {p.imageUrl && (
-                        <div className="w-full h-14 rounded-xl overflow-hidden bg-slate-50 border border-slate-100 mb-2">
-                          <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
-                        </div>
-                      )}
-                      <div className="flex justify-between items-start mb-1.5">
-                        <span className="bg-slate-100 text-slate-500 text-[8px] font-black px-1.5 py-0.5 rounded">
-                          {p.category}
-                        </span>
-                        <span className="text-[9px] text-slate-400 font-mono font-bold">{p.packSize}</span>
-                      </div>
-                      <h4 className="text-xs font-black text-brand-charcoal truncate">{p.name}</h4>
-                      <p className="text-[9px] text-slate-400 uppercase font-bold truncate mt-0.5">{p.genericName}</p>
+              return (
+                <div 
+                  onClick={() => onTrackOrder?.(activeOrder.id)}
+                  className="bg-linear-to-r from-slate-900 via-indigo-950 to-purple-950 text-white rounded-2xl p-3.5 shadow-lg border border-purple-800/30 flex items-center justify-between gap-3 cursor-pointer hover:scale-[1.01] transition-all group"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-brand-purple/30 border border-brand-purple/40 flex items-center justify-center shrink-0 text-brand-lime relative">
+                      <Truck className="w-5 h-5 animate-pulse" />
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-brand-lime rounded-full ring-2 ring-slate-950 animate-ping"></span>
                     </div>
-                    <div className="mt-3 flex justify-between items-center">
-                      <div className="flex flex-col">
-                        <span className="text-xs font-black text-brand-purple">৳{p.sellingPrice}</span>
-                        <span className="text-[8px] text-slate-400 font-bold font-mono">{formatProductPriceLabel(p.sellingPrice, p.packSize)}</span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-black uppercase text-brand-lime tracking-wider font-mono">
+                          {activeOrder.status === "Out for Delivery" ? "Rider En Route" : "Depot Processing"}
+                        </span>
+                        <span className="text-[9px] text-slate-400 font-mono">#{activeOrder.id.substring(0, 8)}</span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (inCartQty > 0) {
-                            onUpdateCartQty && onUpdateCartQty(p.id, inCartQty, 1);
-                          } else {
-                            handleQuickBuy(p.id, 1, e, p.imageUrl || p.image_url);
-                          }
-                        }}
-                        className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
-                          successId === p.id
-                            ? "bg-emerald-600 text-white scale-110 shadow-md"
-                            : "bg-brand-lime text-slate-900 hover:bg-brand-lime-dark"
-                        }`}
-                      >
-                        {successId === p.id ? (
-                          <Check className="w-3.5 h-3.5" />
-                        ) : (
-                          <Plus className="w-3.5 h-3.5" />
-                        )}
-                      </button>
+                      <p className="text-xs font-bold text-slate-100 truncate">
+                        {activeOrder.items?.length || 1} Products • ৳{activeOrder.totalAmount?.toLocaleString()}
+                      </p>
                     </div>
                   </div>
-                );
-              })}
+
+                  <button
+                    type="button"
+                    className="shrink-0 bg-brand-lime hover:bg-brand-lime-dark text-slate-950 font-black text-[11px] px-3 py-1.5 rounded-xl flex items-center gap-1 shadow-xs transition-transform group-hover:scale-105"
+                  >
+                    <span>Track</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
+              );
+            })()}
+
+            {/* Search & Scan Actions */}
+            <div className="flex gap-2">
+              <div
+                onClick={() => onTriggerSearch()}
+                className="flex-1 flex items-center bg-white border border-slate-200/80 rounded-2xl p-3 shadow-2xs hover:shadow-md hover:border-slate-300 transition-all cursor-pointer group"
+              >
+                <Search className="text-slate-400 group-hover:text-brand-purple w-4.5 h-4.5 mr-2.5 shrink-0 transition-colors" />
+                <span className="text-xs text-slate-400 font-semibold truncate">Search 10,000+ medicines, generics...</span>
+              </div>
+              <button
+                onClick={() => setIsScannerOpen(true)}
+                className="shrink-0 flex items-center justify-center gap-1.5 px-4 bg-brand-purple text-white rounded-2xl font-bold text-xs hover:shadow-lg hover:bg-indigo-700 transition-all active:scale-95 cursor-pointer shadow-sm shadow-indigo-200"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Scan Rx
+              </button>
             </div>
-          </div>
-        )}
+
+            {isScannerOpen && (
+              <PrescriptionScanner onClose={() => setIsScannerOpen(false)} />
+            )}
+
+            {/* Category Carousel Grid */}
+            <div className="space-y-2.5">
+              <div className="flex justify-between items-center px-0.5">
+                <h3 className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider flex items-center gap-1.5">
+                  <Package className="w-3.5 h-3.5 text-brand-purple" />
+                  Browse Drug Class / Categories
+                </h3>
+                {displayCategoryNames.length > 12 && (
+                  <button
+                    onClick={() => setShowAllCategories(!showAllCategories)}
+                    className="text-[11px] font-extrabold text-brand-purple hover:underline cursor-pointer"
+                  >
+                    {showAllCategories ? "View Less" : "View All"}
+                  </button>
+                )}
+              </div>
+              
+              {showAllCategories ? (
+                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2.5">
+                  {visibleCategoryNames.map(name => {
+                    const config = getCategoryConfig(name);
+                    return (
+                      <button
+                        key={name}
+                        onClick={() => onTriggerSearch(undefined, name)}
+                        className="flex flex-col items-center justify-center p-2.5 rounded-2xl border border-slate-100/90 shadow-2xs cursor-pointer hover:shadow-md hover:border-slate-200/90 hover:scale-[1.03] transition-all bg-white group"
+                      >
+                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-1.5 p-2.5 transition-transform group-hover:scale-110 ${config.bg} ${config.text} border ${config.border}`}>
+                          <CategoryIcon name={name} className="w-5 h-5" />
+                        </div>
+                        <span className="text-[10px] font-extrabold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis w-full text-center group-hover:text-brand-purple transition-colors">
+                          {name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex overflow-x-auto gap-2.5 pb-2 -mx-4 px-4 scrollbar-hide snap-x">
+                  {visibleCategoryNames.map(name => {
+                    const config = getCategoryConfig(name);
+                    return (
+                      <button
+                        key={name}
+                        onClick={() => onTriggerSearch(undefined, name)}
+                        className="flex-shrink-0 snap-start flex flex-col items-center justify-center p-2 w-[82px] h-[90px] rounded-2xl border border-slate-100/90 shadow-2xs cursor-pointer hover:shadow-md hover:border-slate-200/90 hover:scale-[1.03] transition-all bg-white group"
+                      >
+                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-1.5 p-2.5 transition-transform group-hover:scale-110 ${config.bg} ${config.text} border ${config.border}`}>
+                          <CategoryIcon name={name} className="w-5 h-5" />
+                        </div>
+                        <span className="text-[10px] font-extrabold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis w-full text-center group-hover:text-brand-purple transition-colors">
+                          {name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Live Wholesale Bulk Campaign Banner Card */}
+            {liveCampaign && (
+              <div 
+                onClick={() => onOpenBulkDeals?.(liveCampaign.id)}
+                className="bg-linear-to-r from-purple-950 via-indigo-900 to-slate-900 rounded-3xl p-4 sm:p-5 text-white shadow-xl border border-purple-500/20 relative overflow-hidden cursor-pointer hover:scale-[1.01] transition-all group"
+              >
+                <div className="absolute top-0 right-0 w-64 h-64 bg-radial from-purple-500/20 to-transparent blur-2xl pointer-events-none"></div>
+                <div className="relative z-10 space-y-2.5">
+                  <div className="flex justify-between items-center">
+                    <span className="bg-brand-lime text-slate-950 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                      <Flame className="w-3 h-3 fill-slate-950" />
+                      Live Wholesale Tier Deal
+                    </span>
+                    <span className="text-[10px] text-purple-200 font-mono font-bold flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-brand-lime" />
+                      Limited Restock Window
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="text-base sm:text-lg font-black text-white tracking-tight leading-tight">
+                      {liveCampaign.title || "Quarterly Manufacturer Restock Campaign"}
+                    </h3>
+                    <p className="text-xs text-purple-200/80 font-medium line-clamp-1 mt-0.5">
+                      {liveCampaign.description || "Unlock up to 28% extra margin on verified bulk pharmaceutical lots."}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-brand-lime">Tiered Quantity Pricing</span>
+                      <span className="text-[10px] text-purple-300">• Direct from DGDA Wholesalers</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="bg-white hover:bg-slate-100 text-brand-purple font-black text-xs px-3.5 py-1.5 rounded-xl flex items-center gap-1 shadow-md group-hover:scale-105 transition-transform"
+                    >
+                      <span>Shop Deals</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Frequent / Recently Ordered */}
+            {(frequentProducts.length > 0 || isLoading) && (
+              <div className="space-y-2.5">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-brand-lime" />
+                    Frequently Ordered
+                  </h3>
+                </div>
+                <div className="flex gap-3 overflow-x-auto pb-2 pr-4 -mr-4 pl-1">
+                  {isLoading
+                    ? Array.from({ length: 4 }).map((_, i) => (
+                        <ProductCardSkeleton key={`freq-skel-${i}`} layout="frequent" />
+                      ))
+                    : frequentProducts.map(p => {
+                    const inCartQty = cartQuantities[p.id] || 0;
+                    const catTheme = getCategoryConfig(p.category);
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => onOpenProductDetails(p)}
+                        className="bg-white border border-slate-100/90 rounded-2xl p-3 shadow-2xs hover:shadow-md hover:border-slate-200 cursor-pointer flex flex-col justify-between relative min-w-[145px] flex-shrink-0 transition-all"
+                      >
+                        {inCartQty > 0 && (
+                          <span className="absolute -top-1.5 -right-1.5 bg-brand-purple text-white text-[8px] font-black px-1.5 py-0.5 rounded-full z-10 shadow-xs animate-fade-in">
+                            {inCartQty} in cart
+                          </span>
+                        )}
+                        <div>
+                          <div className="w-full h-14 rounded-xl overflow-hidden bg-slate-50 border border-slate-100/80 mb-2 flex items-center justify-center p-1">
+                            {p.imageUrl ? (
+                              <img src={p.imageUrl} alt={p.name} className="w-full h-full object-contain" />
+                            ) : (
+                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center p-1.5 ${catTheme.bg} ${catTheme.text}`}>
+                                <CategoryIcon name={p.category} className="w-5 h-5" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex justify-between items-start mb-1">
+                            <span className="bg-slate-100 text-slate-600 text-[8px] font-black px-1.5 py-0.5 rounded">
+                              {p.category}
+                            </span>
+                            <span className="text-[8.5px] text-slate-400 font-mono font-bold">{p.packSize}</span>
+                          </div>
+                          <h4 className="text-xs font-black text-brand-charcoal truncate">{p.name}</h4>
+                          <p className="text-[9px] text-slate-400 uppercase font-bold truncate mt-0.5">{p.genericName}</p>
+                        </div>
+                        <div className="mt-3 flex justify-between items-center pt-2 border-t border-slate-50">
+                          <div className="flex flex-col">
+                            <span className="text-xs font-black text-brand-purple">৳{p.sellingPrice}</span>
+                            <span className="text-[8px] text-slate-400 font-bold font-mono">{formatProductPriceLabel(p.sellingPrice, p.packSize)}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (inCartQty > 0) {
+                                onUpdateCartQty && onUpdateCartQty(p.id, inCartQty, 1);
+                              } else {
+                                handleQuickBuy(p.id, 1, e, p.imageUrl || p.image_url);
+                              }
+                            }}
+                            className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
+                              successId === p.id
+                                ? "bg-emerald-600 text-white scale-110 shadow-md"
+                                : "bg-brand-lime text-slate-900 hover:bg-brand-lime-dark"
+                            }`}
+                          >
+                            {successId === p.id ? (
+                              <Check className="w-3.5 h-3.5" />
+                            ) : (
+                              <Plus className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
         
         

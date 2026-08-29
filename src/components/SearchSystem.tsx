@@ -297,6 +297,8 @@ export default function SearchSystem({
   };
 
   // One-tap reorder of a previous order's lines
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
   const handleOneTapReorder = async (order: Order) => {
     if (!order.items || order.items.length === 0) return;
     setIsReordering(prev => ({ ...prev, [order.id]: true }));
@@ -312,12 +314,21 @@ export default function SearchSystem({
     setIsReordering(prev => ({ ...prev, [order.id]: false }));
 
     if (allSuccessful) {
-      alert(`Success: Reordered ${order.items.length} items from past invoice ${order.id} directly to your active cart.`);
+      setToastMessage(`Success: Reordered ${order.items.length} items from past invoice #${order.id.substring(0, 8)} to your active cart.`);
+      setTimeout(() => setToastMessage(null), 3500);
     }
   };
 
   return (
-    <div className="w-full h-full flex flex-col bg-brand-bg select-none">
+    <div className="w-full h-full flex flex-col bg-brand-bg select-none relative">
+      {/* Dynamic Toast Feedback */}
+      {toastMessage && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 backdrop-blur-md text-white text-xs font-bold px-4 py-2.5 rounded-2xl shadow-xl border border-white/10 flex items-center gap-2 animate-slide-down">
+          <Check className="w-4 h-4 text-brand-lime shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
       {/* Search Header Area */}
       <div className="p-4 bg-white border-b border-slate-100 flex-shrink-0 shadow-xs flex flex-col gap-3">
         {/* Top Header Row */}

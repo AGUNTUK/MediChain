@@ -78,21 +78,28 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
   };
 
   return (
-    <div className="h-full bg-brand-bg select-none overflow-y-auto px-4 pt-6 pb-28 space-y-4 max-w-md mx-auto w-full">
+    <div className="h-full bg-brand-bg select-none overflow-y-auto px-4 sm:px-6 pt-6 pb-32 space-y-4 max-w-4xl mx-auto w-full">
       <div className="flex justify-between items-center">
-        <h2 className="text-sm font-black text-brand-charcoal">Procurement History</h2>
-        <span className="text-[9px] text-slate-400 font-bold uppercase font-mono">
-          Total Placed: {orders.length}
+        <h2 className="text-base font-black text-brand-charcoal">Procurement History</h2>
+        <span className="text-[10px] text-slate-400 font-bold uppercase font-mono bg-white px-2.5 py-1 rounded-xl border border-slate-100 shadow-2xs">
+          Total Placed: {orders.length} Consignments
         </span>
       </div>
 
+      {successMsg && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold p-3 rounded-2xl flex items-center gap-2 animate-fade-in">
+          <Check className="w-4 h-4 shrink-0 text-emerald-600" />
+          <span>{successMsg}</span>
+        </div>
+      )}
+
       {orders.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center border border-slate-100 mb-3">
-            <ListFilter className="w-5 h-5 text-slate-300" />
+        <div className="flex flex-col items-center justify-center py-16 text-center bg-white rounded-3xl border border-slate-100 p-8 shadow-2xs">
+          <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 mb-3">
+            <ListFilter className="w-6 h-6 text-slate-300" />
           </div>
-          <p className="text-xs font-bold text-slate-700">No Orders Logged Yet</p>
-          <p className="text-[10px] text-slate-400 mt-1 max-w-[200px] leading-relaxed">
+          <p className="text-sm font-bold text-slate-700">No Orders Logged Yet</p>
+          <p className="text-xs text-slate-400 mt-1 max-w-xs leading-relaxed">
             All confirmed wholesale medicine purchases will reflect in this list immediately.
           </p>
         </div>
@@ -100,13 +107,13 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
         orders.map(order => (
           <div
             key={order.id}
-            className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-3 relative overflow-hidden"
+            className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-100/90 shadow-2xs hover:shadow-md transition-all space-y-3 relative overflow-hidden"
           >
             {/* Status & ID Line */}
             <div className="flex justify-between items-center pb-2.5 border-b border-slate-50">
               <div>
-                <span className="text-[10px] text-slate-400 font-mono block">Order ID</span>
-                <span className="text-xs font-black text-brand-charcoal font-mono">{formatRefId(order.id, "ORD")}</span>
+                <span className="text-[10px] text-slate-400 font-mono block">Order Reference</span>
+                <span className="text-xs sm:text-sm font-black text-brand-charcoal font-mono">{formatRefId(order.id, "ORD")}</span>
               </div>
               <div className="text-right">
                 {getStatusBadge(order.status)}
@@ -115,15 +122,15 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
 
             {/* 4-Stage Horizontal Progress Tracker */}
             {order.status !== "Cancelled" && (
-              <div className="py-2.5 px-1 bg-slate-50/50 rounded-xl border border-slate-50">
-                <div className="flex items-center justify-between relative px-2">
+              <div className="py-2.5 px-2 bg-slate-50/70 rounded-xl border border-slate-100">
+                <div className="flex items-center justify-between relative px-3">
                   {/* Background line */}
-                  <div className="absolute top-[7px] left-4 right-4 h-0.5 bg-slate-100 z-0" />
+                  <div className="absolute top-[7px] left-5 right-5 h-0.5 bg-slate-200/80 z-0" />
                   {/* Progress filler line */}
                   <div 
-                    className="absolute top-[7px] left-4 h-0.5 bg-brand-purple z-0 transition-all duration-500" 
+                    className="absolute top-[7px] left-5 h-0.5 bg-brand-purple z-0 transition-all duration-500" 
                     style={{
-                      width: order.status === "Delivered" || order.status === "Completed" ? "calc(100% - 32px)" :
+                      width: order.status === "Delivered" || order.status === "Completed" ? "calc(100% - 40px)" :
                              order.status === "Out for Delivery" ? "66%" :
                              order.status === "Packed" ? "33%" : "0px"
                     }}
@@ -153,21 +160,21 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
 
             {/* Rider Handover OTP & Secure Actions */}
             {order.status === "Out for Delivery" && (
-              <div className="bg-brand-purple/5 border border-brand-purple/15 p-3 rounded-2xl flex items-center justify-between gap-2 animate-fade-in">
+              <div className="bg-brand-purple/5 border border-brand-purple/15 p-3 rounded-2xl flex items-center justify-between gap-2 animate-fade-in shadow-2xs">
                 <div>
                   <span className="text-[8px] text-brand-purple font-black uppercase tracking-wider block">Handover Verification</span>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="bg-brand-purple text-white font-mono font-black text-xs px-2 py-0.5 rounded shadow-sm">
-                      OTP: {generateOrderOTP(order.id)}
+                    <span className="bg-brand-purple text-white font-mono font-black text-xs px-2.5 py-0.5 rounded shadow-sm">
+                      OTP: {order.handoverOtp || generateOrderOTP(order.id)}
                     </span>
-                    <span className="text-[8.5px] text-slate-500 font-semibold">Share only upon secure delivery</span>
+                    <span className="text-[8.5px] text-slate-500 font-semibold">Share only upon verified consignment handover</span>
                   </div>
                 </div>
                 <a
                   href="tel:+880191234567"
-                  className="bg-brand-lime text-slate-900 px-3 py-1.5 rounded-xl text-[9px] font-black flex items-center gap-1 hover:shadow-xs transition-shadow cursor-pointer flex-shrink-0"
+                  className="bg-brand-lime hover:bg-brand-lime-dark text-slate-900 px-3 py-1.5 rounded-xl text-[9px] font-black flex items-center gap-1 hover:shadow-xs transition-all cursor-pointer flex-shrink-0"
                 >
-                  <Phone className="w-2.5 h-2.5" />
+                  <Phone className="w-3 h-3" />
                   Call Rider
                 </a>
               </div>
@@ -179,15 +186,15 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
                 Consignment Details
               </div>
               <div className="space-y-1">
-                {order.items.slice(0, 2).map((item, idx) => (
-                  <div key={idx} className="flex justify-between text-xs font-medium text-slate-600">
-                    <span>{item.name} ({item.quantity} box)</span>
-                    <span className="font-mono">৳{item.subtotal.toLocaleString()}</span>
+                {order.items.slice(0, 3).map((item, idx) => (
+                  <div key={idx} className="flex justify-between text-xs font-medium text-slate-700">
+                    <span className="truncate pr-2">{item.name} ({item.quantity} box)</span>
+                    <span className="font-mono shrink-0">৳{item.subtotal?.toLocaleString()}</span>
                   </div>
                 ))}
-                {order.items.length > 2 && (
+                {order.items.length > 3 && (
                   <div className="text-[10px] text-brand-purple font-bold">
-                    + {order.items.length - 2} more pharmaceutical lines
+                    + {order.items.length - 3} more pharmaceutical lines
                   </div>
                 )}
               </div>
@@ -197,7 +204,7 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
             <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl text-xs">
               <div>
                 <span className="text-slate-400 block text-[9px] font-bold">Billing Net</span>
-                <span className="font-black text-brand-charcoal font-mono">৳{order.totalAmount.toLocaleString()}</span>
+                <span className="font-black text-brand-charcoal font-mono">৳{order.totalAmount?.toLocaleString()}</span>
               </div>
               <div className="text-right">
                 <span className="text-slate-400 block text-[9px] font-bold">Status Date</span>
@@ -231,7 +238,7 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
               <button
                 disabled={loading}
                 onClick={() => handleReorder(order.id)}
-                className="flex-1 bg-brand-lime text-slate-900 py-2 rounded-xl text-[10px] font-black flex items-center justify-center gap-1 cursor-pointer transition-all hover:shadow-sm"
+                className="flex-1 bg-brand-lime hover:bg-brand-lime-dark text-slate-900 py-2 rounded-xl text-[10px] font-black flex items-center justify-center gap-1 cursor-pointer transition-all hover:shadow-xs"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 Reorder
@@ -244,9 +251,12 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
                 onClick={async () => {
                   try {
                     await orderService.cancelOrder(order.id);
+                    setSuccessMsg("Order cancelled successfully.");
+                    setTimeout(() => setSuccessMsg(""), 3000);
                     fetchOrders();
                   } catch (err) {
-                    alert("Failed to cancel order.");
+                    setSuccessMsg("Failed to cancel order.");
+                    setTimeout(() => setSuccessMsg(""), 3000);
                   }
                 }}
                 className="w-full text-center text-[10px] font-extrabold text-rose-500 bg-rose-50 hover:bg-rose-100 py-1.5 rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-all mt-2"

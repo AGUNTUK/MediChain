@@ -4,6 +4,7 @@ import { Product, Pharmacy, User } from "../types";
 import { paymentService } from "../services/payment";
 import { productService } from "../services/product";
 import { orderService } from "../services/order";
+import { authService } from "../services/auth";
 import { usePWAInstall } from "../pwa/usePWAInstall";
 import EditProfileScreen from "./EditProfileScreen";
 import KYCVerificationHub from "./KYCVerificationHub";
@@ -17,6 +18,7 @@ interface AccountProps {
   favouriteIds: string[];
   onRefreshProfile?: () => Promise<void>;
   onTriggerTab?: (tab: string) => void;
+  onSwitchPersona?: (role: string) => void;
 }
 
 export default function Account({
@@ -26,7 +28,8 @@ export default function Account({
   onAddToCart,
   favouriteIds,
   onRefreshProfile,
-  onTriggerTab
+  onTriggerTab,
+  onSwitchPersona
 }: AccountProps) {
   const { isStandalone, canInstall, isIOS, install, openInstallBanner } = usePWAInstall();
   const [analytics, setAnalytics] = useState<any>(null);
@@ -83,17 +86,17 @@ export default function Account({
   const isVerified = kycStatus === "Approved";
 
   return (
-    <div className="h-full bg-slate-50 px-4 pt-6 pb-28 space-y-4 max-w-md mx-auto w-full select-none overflow-y-auto">
+    <div className="h-full bg-brand-bg px-4 sm:px-6 pt-6 pb-32 space-y-4 max-w-4xl mx-auto w-full select-none overflow-y-auto">
       {/* Account Info Header */}
-      <div className="p-4 sm:p-5 flex items-center justify-between gap-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
-        <div className="flex items-center gap-3">
+      <div className="p-5 sm:p-6 flex items-center justify-between gap-4 bg-white rounded-3xl border border-slate-100 shadow-2xs">
+        <div className="flex items-center gap-3.5">
           <MediChainLogo size="sm" withText={false} />
           <div className="flex-1 min-w-0 flex flex-col justify-center">
-            <h2 className="text-base font-black text-brand-charcoal leading-tight truncate flex items-center gap-1.5">
+            <h2 className="text-base sm:text-lg font-black text-brand-charcoal leading-tight truncate flex items-center gap-1.5">
               {pharmacy?.pharmacyName || "Pharmacy Profile"}
               {isVerified && (
                 <span className="bg-emerald-500/10 text-emerald-600 rounded-full p-0.5" title="Verified DGDA Account">
-                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                  <Check className="w-4 h-4 stroke-[3]" />
                 </span>
               )}
             </h2>
@@ -102,8 +105,11 @@ export default function Account({
               <span className="truncate">Proprietor: {pharmacy?.ownerName || currentUser?.name || "Zahid Hasan"}</span>
             </p>
             <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-              <span className="bg-slate-100 border border-slate-200 text-slate-600 font-bold font-mono text-[9px] px-2 py-0.5 rounded-md">
-                Lic: {pharmacy?.licenseNo || "Pending"}
+              <span className="bg-slate-100 border border-slate-200 text-slate-600 font-bold font-mono text-[9px] px-2.5 py-0.5 rounded-md">
+                DGDA Drug Lic: {pharmacy?.licenseNo || "Pending Approval"}
+              </span>
+              <span className="bg-purple-50 text-brand-purple border border-purple-200/50 font-bold text-[9px] px-2.5 py-0.5 rounded-md">
+                Role: {currentUser?.role || "Pharmacy Owner"}
               </span>
             </div>
           </div>
@@ -112,14 +118,14 @@ export default function Account({
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <button
             onClick={() => setShowEditProfile(true)}
-            className="p-2 text-slate-400 hover:text-brand-purple hover:bg-slate-50 rounded-xl transition-all cursor-pointer"
+            className="p-2.5 text-slate-400 hover:text-brand-purple hover:bg-slate-50 rounded-2xl transition-all cursor-pointer border border-slate-100 shadow-3xs"
             title="Edit pharmacy details"
           >
             <Pencil className="w-4 h-4" />
           </button>
           <button
             onClick={onLogout}
-            className="p-2 text-slate-400 hover:text-rose-500 hover:bg-slate-50 rounded-xl transition-all cursor-pointer"
+            className="p-2.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all cursor-pointer border border-slate-100 shadow-3xs"
             title="Sign out of MediChain"
           >
             <LogOut className="w-4.5 h-4.5" />
@@ -341,6 +347,67 @@ export default function Account({
             ))}
           </div>
         )}
+      </div>
+
+      {/* Developer / Demo Persona Console */}
+      <div className="bg-slate-900 text-white rounded-3xl p-5 border border-slate-800 shadow-xl space-y-3">
+        <div className="flex justify-between items-center">
+          <h3 className="text-[10px] font-extrabold text-brand-lime uppercase tracking-widest flex items-center gap-1.5 font-mono">
+            <Shield className="w-4 h-4 text-brand-lime" />
+            B2B Persona & Role Switcher Console
+          </h3>
+          <span className="text-[9px] text-slate-400 font-mono">Instant Test Environment</span>
+        </div>
+        <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
+          Switch role identities instantly to test features across all operations layers:
+        </p>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+          {[
+            { role: "Pharmacy Owner", email: "pharmacy@medichain.com", label: "Pharmacy Owner", icon: "🏪" },
+            { role: "Admin", email: "admin@medichain.com", label: "Admin Console", icon: "🛡️" },
+            { role: "Depot Staff", email: "depot@medichain.com", label: "Depot Bay", icon: "📦" },
+            { role: "Delivery Staff", email: "delivery@medichain.com", label: "Rider Portal", icon: "🛵" }
+          ].map((persona) => {
+            const isCurrent = currentUser?.role === persona.role;
+            return (
+              <button
+                key={persona.role}
+                type="button"
+                onClick={async () => {
+                  if (onSwitchPersona) {
+                    onSwitchPersona(persona.role);
+                  } else {
+                    try {
+                      const data = await authService.login(persona.email, "123456");
+                      window.location.reload();
+                    } catch (e) {
+                      console.error(e);
+                    }
+                  }
+                }}
+                className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
+                  isCurrent
+                    ? "bg-brand-purple border-brand-purple text-white shadow-md ring-2 ring-brand-purple/50"
+                    : "bg-slate-800/80 border-slate-700/80 text-slate-300 hover:bg-slate-800 hover:border-slate-600"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-base">{persona.icon}</span>
+                  {isCurrent && (
+                    <span className="bg-brand-lime text-slate-950 text-[7.5px] font-black px-1.5 py-0.5 rounded uppercase">
+                      Active
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <span className="text-xs font-black block leading-tight">{persona.label}</span>
+                  <span className="text-[8.5px] text-slate-400 font-mono block mt-0.5 truncate">{persona.email}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Corporate Support and DGDA Details */}

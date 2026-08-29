@@ -10,7 +10,8 @@ interface CheckoutProps {
 }
 
 export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: CheckoutProps) {
-  const [paymentMethod, setPaymentMethod] = useState<"Cash on Delivery" | "bKash" | "Nagad">("Cash on Delivery");
+  const [paymentMethod, setPaymentMethod] = useState<"Cash on Delivery" | "bKash" | "Nagad" | "Credit Line">("Cash on Delivery");
+  const [deliverySlot, setDeliverySlot] = useState<string>("Morning Dispatch (09:00 AM - 01:00 PM)");
   const [notes, setNotes] = useState("");
   const [cartSummary, setCartSummary] = useState<any>(null);
   const [totalPurchased, setTotalPurchased] = useState(0);
@@ -55,14 +56,19 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
     setError("");
 
     try {
+      const finalNotes = [
+        `Slot: ${deliverySlot}`,
+        notes ? `Instructions: ${notes}` : ""
+      ].filter(Boolean).join(" | ");
+
       const generatedTrxId = paymentMethod !== "Cash on Delivery"
-        ? `PGW-${paymentMethod.toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+        ? (paymentMethod === "Credit Line" ? `CREDIT-${Date.now().toString().slice(-6)}` : `PGW-${paymentMethod.toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`)
         : undefined;
 
       const data = await orderService.createOrder({
         paymentMethod,
-        notes,
-        paymentStatus: paymentMethod !== "Cash on Delivery" ? "Paid" : "Pending",
+        notes: finalNotes,
+        paymentStatus: paymentMethod === "bKash" || paymentMethod === "Nagad" ? "Paid" : (paymentMethod === "Credit Line" ? "Credit Approved" : "Pending"),
         transactionId: generatedTrxId,
         ...({ deliveryAddress: pharmacy?.address || "Dhanmondi, Dhaka" } as any)
       } as any);
@@ -117,7 +123,7 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
         )}
 
         {/* Delivery Address Card */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-100">
+        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs">
           <div className="flex justify-between items-center mb-3">
             <h3 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
               <MapPin className="w-4 h-4 text-brand-purple" />
@@ -139,8 +145,59 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
           </div>
         </div>
 
+        {/* Delivery Time Slot Picker */}
+        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs space-y-2.5">
+          <h3 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+            <ShieldCheck className="w-4 h-4 text-brand-purple" />
+            Select Depot Dispatch Slot
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <label className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between ${
+              deliverySlot.includes("Morning")
+                ? "border-brand-purple bg-brand-purple/5"
+                : "border-slate-100 bg-slate-50/50 hover:bg-slate-50"
+            }`}>
+              <div className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="slot"
+                  checked={deliverySlot.includes("Morning")}
+                  onChange={() => setDeliverySlot("Morning Dispatch (09:00 AM - 01:00 PM)")}
+                  className="accent-brand-purple cursor-pointer"
+                />
+                <div>
+                  <span className="text-xs font-black text-slate-900 block">Morning Dispatch</span>
+                  <span className="text-[9px] text-slate-500 font-medium">09:00 AM – 01:00 PM</span>
+                </div>
+              </div>
+              <span className="text-[8px] bg-indigo-100 text-brand-purple font-black px-2 py-0.5 rounded uppercase">Fastest</span>
+            </label>
+
+            <label className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between ${
+              deliverySlot.includes("Evening")
+                ? "border-brand-purple bg-brand-purple/5"
+                : "border-slate-100 bg-slate-50/50 hover:bg-slate-50"
+            }`}>
+              <div className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="slot"
+                  checked={deliverySlot.includes("Evening")}
+                  onChange={() => setDeliverySlot("Evening Restock (04:00 PM - 08:00 PM)")}
+                  className="accent-brand-purple cursor-pointer"
+                />
+                <div>
+                  <span className="text-xs font-black text-slate-900 block">Evening Restock</span>
+                  <span className="text-[9px] text-slate-500 font-medium">04:00 PM – 08:00 PM</span>
+                </div>
+              </div>
+              <span className="text-[8px] bg-slate-100 text-slate-600 font-black px-2 py-0.5 rounded uppercase">Standard</span>
+            </label>
+          </div>
+        </div>
+
         {/* Payment Methods */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-100 space-y-3">
+        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs space-y-3">
           <h3 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
             <CreditCard className="w-4 h-4 text-brand-purple" />
             Select Payment Method
@@ -173,6 +230,32 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
               </div>
             </label>
 
+            {/* B2B Credit Line */}
+            <label className={`flex items-center justify-between p-3.5 rounded-xl border-2 transition-all cursor-pointer ${
+              paymentMethod === "Credit Line"
+                ? "border-brand-purple bg-brand-purple/5"
+                : "border-slate-100 bg-slate-50/50 hover:bg-slate-50"
+            }`}>
+              <div className="flex items-center gap-2.5 text-xs font-bold text-slate-800">
+                <input
+                  type="radio"
+                  name="payment"
+                  checked={paymentMethod === "Credit Line"}
+                  onChange={() => setPaymentMethod("Credit Line")}
+                  className="accent-brand-purple cursor-pointer"
+                />
+                <div className="text-left">
+                  <span>B2B Credit Line (30-Day Pay Later)</span>
+                  <p className="text-[9px] text-slate-400 mt-0.5 font-medium leading-tight">
+                    Approved wholesale credit line with net-30 terms.
+                  </p>
+                </div>
+              </div>
+              <div className="bg-purple-100 text-brand-purple text-[9px] font-black px-2 py-0.5 rounded-md uppercase">
+                ৳50,000 Limit
+              </div>
+            </label>
+
             {/* bKash */}
             <div className={`p-3.5 rounded-xl border-2 transition-all ${
               paymentMethod === "bKash"
@@ -191,7 +274,7 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
                   <span>bKash Payment Gateway</span>
                 </div>
                 <div className="bg-[#E2125D] text-white text-[9px] font-black px-2 py-0.5 rounded-md uppercase">
-                  Instant Verification
+                  Instant PGW
                 </div>
               </label>
 
@@ -233,7 +316,7 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
                   <span>Nagad Digital Wallet</span>
                 </div>
                 <div className="bg-[#F15A22] text-white text-[9px] font-black px-2 py-0.5 rounded-md uppercase">
-                  Instant Verification
+                  Instant PGW
                 </div>
               </label>
 

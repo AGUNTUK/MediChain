@@ -356,6 +356,29 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 32. Comprehensive Modern B2B Features & UX Overhaul
+- **Home Dashboard (`Home.tsx`)**:
+  - Added real-time **Active Order Live Tracker Pulse Card** with live dispatch status, delivery beacon, and instant 1-tap navigation to order tracking & handover OTP.
+  - Added **Live Wholesale Bulk Campaign Section** with direct entry into tiered manufacturer bulk pricing.
+  - Upgraded **Frequently Ordered Carousel** with vector dosage form visual fallbacks (`CategoryIcon`), active in-cart quantity counters, and 1-tap re-order.
+- **Catalog & Search (`ProductCard.tsx`, `SearchSystem.tsx`)**:
+  - Integrated dynamic **Wholesale Profit Margin %** calculated directly against MRP vs Trade Selling Price.
+  - Upgraded dosage form vector icons across all categories (Tablets, Capsules, Injections, IV Infusions, Syrups, Drops, Inhalers, Ointments, etc.).
+  - Replaced browser `alert()` popups with animated glassmorphism top-toast feedback banners.
+- **Cart & Procurement Checkout (`CartDrawer.tsx`, `Checkout.tsx`)**:
+  - Slide-over Cart Drawer with free express depot delivery progress threshold (৳10,000).
+  - Added **Depot Dispatch Slot Picker** (Morning 09:00 - 13:00 vs Evening 16:00 - 20:00).
+  - Added **B2B Credit Line (30-Day Pay Later)** payment mode alongside COD, bKash, and Nagad.
+- **Order Tracking & Consignment History (`OrderTracking.tsx`, `OrderHistory.tsx`)**:
+  - 4-Stage visual milestone timeline with real-time Socket.io updates.
+  - Dedicated **4-Digit Secure Delivery Handover OTP Card** and direct 1-tap Rider helpline.
+  - Responsive layout upgraded to `max-w-4xl` for desktop & mobile harmony.
+- **Account & Multi-Role Operations (`Account.tsx`)**:
+  - DGDA Drug License badge & verified pharmacy certification.
+  - Integrated **B2B Persona & Role Switcher Console** allowing 1-tap instant switching between Pharmacy Owner, Admin Executive, Depot Manager, and Delivery Rider for rapid operational verification.
+
+----------------------------------------
+
 ## 30. Final AI Handover
 
 **To AI Agents:**

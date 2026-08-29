@@ -535,6 +535,21 @@ export default function App() {
                   favouriteIds={favouriteIds}
                   onRefreshProfile={refreshPharmacyProfile}
                   onTriggerTab={(tab) => setActiveTab(tab as any)}
+                  onSwitchPersona={async (role) => {
+                    const roleEmailMap: Record<string, string> = {
+                      "Pharmacy Owner": "pharmacy@medichain.com",
+                      "Admin": "admin@medichain.com",
+                      "Depot Staff": "depot@medichain.com",
+                      "Delivery Staff": "delivery@medichain.com"
+                    };
+                    const targetEmail = roleEmailMap[role] || "pharmacy@medichain.com";
+                    try {
+                      const data = await authService.login(targetEmail, "123456");
+                      handleLoginSuccess(data.user, data.needsSetup);
+                    } catch (e) {
+                      console.error(e);
+                    }
+                  }}
                 />
               </Suspense>
             );
@@ -556,6 +571,15 @@ export default function App() {
                 onUpdateCartQty={handleUpdateCartQty}
                 onOpenCart={() => setIsCartDrawerOpen(true)}
                 cartCount={cartCount}
+                orders={orders}
+                onTrackOrder={(orderId) => {
+                  setTrackingOrderId(orderId);
+                  setAppStep("tracking");
+                }}
+                onOpenBulkDeals={(campaignId) => {
+                  if (campaignId) setActiveBulkCampaignId(campaignId);
+                  setAppStep("bulk_deals");
+                }}
               />
             );
         }
