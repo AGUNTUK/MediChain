@@ -239,6 +239,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - **Task 5 (Automated Testing & Full Verification):** Expanded Playwright end-to-end test coverage to include `admin_and_notifications.spec.ts`, verified full compilation (`compile_applet`), zero linter errors (`lint_applet`), and verified seamless applet stability across all views.
   - **Task 7 (Dev Server Stability & Helmet CSP Fix):** Eliminated recursive logger crash in `server.ts` and adjusted Helmet `contentSecurityPolicy` to be disabled in development mode and permissive in production, preventing Vite HMR/client script execution blockage that previously caused a blank screen. Also fixed Zod v4 `.issues` error mapping in `security.ts`.
   - **Task 8 (Dynamic Time-Wise Hero Greeting & Modernized Hero Carousel Redesign):** Implemented dynamic local time-based greetings (`Good morning`, `Good afternoon`, `Good evening`, `Working late?` / `Good night`) with contextual badges (`Morning Dispatch`, `Afternoon Restock`, `Evening Restock`, `24/7 Digital Depot`), live DGDA verified compliance badges, dispatch schedule status, and upgraded the hero section to a modern card aesthetic with ambient mesh gradient, vector supply chain watermarks, micro-interactions, and quick action chips.
+  - **Task 9 (PWA Standalone App & Service Worker Restoration):** Resolved PWA installability failure by regenerating valid, uncorrupted PNG icons (192x192, 512x512, 180x180 apple-touch, and 192/512 maskable icons with safe zones) from brand assets; removed early return in `registerServiceWorker.ts` so service workers register in all environments; added global `beforeinstallprompt` event capture; expanded `manifest.json` with W3C spec compliance (id, shortcuts, categories, explicit any/maskable icon purposes); enhanced `index.html` with mobile meta tags; updated `sw.js` with dev-server bypasses; and added manual PWA install controls in `Account.tsx`.
 
 ----------------------------------------
 
@@ -252,6 +253,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 | AI Enrichment | 95% | Yes | Medium |
 | Push Notifications | 20% | No | Medium |
 | Payment Gateway | 100% | Completed (bKash/Nagad/SSLCommerz PGW) | Completed |
+| PWA Standalone App | 100% | Completed (SW v2, Manifest, Maskable Icons) | Completed |
 
 ----------------------------------------
 
@@ -272,6 +274,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 - **Completed:** Task 6: Payment Gateway Integration (bKash, Nagad, and SSLCommerz digital wallet authorization, transaction logging, invoice settlement, and backend verification via `/api/payments/process`).
 - **Completed:** Task 7: Dev Server Stability, Helmet CSP Development Bypass & Zod v4 Error Handling.
 - **Completed:** Task 8: Dynamic Time-Wise Hero Greeting & Modernized B2B Hero Section Redesign.
+- **Completed:** Task 9: PWA Standalone App & Service Worker Restoration.
 - **Short Term:** Finish FCM Push Notifications.
 - **Long Term:** Implement multi-tenant capability.
 

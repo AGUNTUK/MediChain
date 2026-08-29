@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { User as UserIcon, Heart, Shield, RefreshCcw, LogOut, FileText, Check, ShoppingCart, LifeBuoy, Pencil, Award, Clock, AlertTriangle, Headset } from "lucide-react";
+import { User as UserIcon, Heart, Shield, RefreshCcw, LogOut, FileText, Check, ShoppingCart, LifeBuoy, Pencil, Award, Clock, AlertTriangle, Headset, Download, Smartphone, CheckCircle2 } from "lucide-react";
 import { Product, Pharmacy, User } from "../types";
 import { paymentService } from "../services/payment";
 import { productService } from "../services/product";
 import { orderService } from "../services/order";
+import { usePWAInstall } from "../pwa/usePWAInstall";
 import EditProfileScreen from "./EditProfileScreen";
 import KYCVerificationHub from "./KYCVerificationHub";
 import MediChainLogo from "./MediChainLogo";
@@ -27,6 +28,7 @@ export default function Account({
   onRefreshProfile,
   onTriggerTab
 }: AccountProps) {
+  const { isStandalone, canInstall, isIOS, install, openInstallBanner } = usePWAInstall();
   const [analytics, setAnalytics] = useState<any>(null);
   const [favProducts, setFavProducts] = useState<Product[]>([]);
   const [successId, setSuccessId] = useState<string | null>(null);
@@ -179,6 +181,53 @@ export default function Account({
       })()}
 
 
+
+      {/* PWA Standalone App Integration Card */}
+      <div className="bg-gradient-to-r from-slate-900 to-[#17121F] border border-purple-500/30 rounded-3xl p-4 shadow-sm text-white space-y-2.5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-brand-lime/10 border border-brand-lime/30 flex items-center justify-center text-brand-lime">
+              <Smartphone className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <h4 className="font-extrabold text-xs text-white">MediChain Mobile App</h4>
+                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-brand-lime/20 text-brand-lime border border-brand-lime/30">
+                  {isStandalone ? "Active PWA" : "Offline Ready"}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                {isStandalone
+                  ? "Running in Standalone Mode with local caching."
+                  : "Install for instant procurement & offline access."}
+              </p>
+            </div>
+          </div>
+
+          {!isStandalone && (
+            <button
+              onClick={() => {
+                if (canInstall) {
+                  install();
+                } else {
+                  openInstallBanner();
+                }
+              }}
+              className="bg-brand-lime hover:bg-brand-lime/90 active:scale-95 text-slate-950 text-[10px] font-black px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-md flex items-center gap-1.5 flex-shrink-0"
+            >
+              <Download className="w-3.5 h-3.5" />
+              {isIOS ? "How to Install" : "Install App"}
+            </button>
+          )}
+
+          {isStandalone && (
+            <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1.5 rounded-xl border border-emerald-500/20 flex-shrink-0">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Installed
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Savings Metric Row */}
       {analytics && (
