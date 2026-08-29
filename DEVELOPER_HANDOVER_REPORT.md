@@ -428,7 +428,23 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
-## 30. Final AI Handover
+## 36. Lively Homepage Transformation & Direct Product Catalog Integration
+- **Direct Voice & Camera Search (`src/components/Home.tsx`)**:
+  - Embedded microphone voice query input (SpeechRecognition API) and camera prescription scanning CTA directly into the primary search bar.
+  - Live query debouncing with instant filtering of the embedded products catalog without leaving the homepage.
+- **Top Pharma Manufacturer Brand Carousel / Hub**:
+  - Interactive brand cards for Bangladesh's top pharmaceutical manufacturers (*Square, Beximco, Incepta, Acme, Renata, Opsonin, Healthcare, ACI, Eskayef, Aristopharma, Radiant, General Pharma*).
+  - 1-tap manufacturer filtering with active filter badges and quick clear triggers.
+- **Wholesale Profit Margin Calculator & Savings Meter**:
+  - Dynamic gradient dashboard card highlighting average 22%–32% wholesale margins directly from manufacturer depots.
+  - Quick action chips for instant filtering to `🔥 Deals`, `⭐ Popular`, or `⚠️ Low Stock`.
+- **Complete Live Products Catalog & View Mode Toggle on Homepage**:
+  - Embedded full paginated catalog with infinite scrolling (`IntersectionObserver`) directly on the homepage.
+  - Filter tabs: `সব ওষুধ` (`all`), `🔥 সর্বোচ্চ লাভ` (`deals`), `⭐ জনপ্রিয় ওষুধ` (`frequent`), `⚠️ কম স্টকের ওষুধ` (`low_stock`).
+  - View switcher: Grid view vs Horizontal list view.
+  - Active filter badges for manufacturer, category, search query, and filter type with 1-click removal.
+
+----------------------------------------
 
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
