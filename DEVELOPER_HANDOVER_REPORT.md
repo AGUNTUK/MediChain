@@ -361,4 +361,5 @@ Do not introduce unnecessary routing libraries (react-router), it uses a custom 
 Use Tailwind v4 for all styling.
 Icons must be from `lucide-react`.
 Always respect the existing environment variables and dual-auth structure (Supabase + local proxy).
+**Mandatory Continuous Deployment:** Every time code changes or fixes are made and verified, you MUST push to GitHub (`git add .`, `git commit -m "..."`, `git push origin main`) and deploy to Vercel via CLI (`npx vercel --prod --yes`).
 **End of Report.**
