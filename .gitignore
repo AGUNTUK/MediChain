@@ -3,10 +3,14 @@ coverage/
 .DS_Store
 *.log
 *.bak
+*.orig
+*.tmp
 .env*
 !.env.example
 dist/
 playwright-report/
+public/playwright-report*.html
 test-results/
 .vercel
 .env*.local
+temp_icons/

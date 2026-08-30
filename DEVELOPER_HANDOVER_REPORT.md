@@ -243,6 +243,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - **Task 9 (PWA Standalone App & Service Worker Restoration):** Resolved PWA installability failure by regenerating valid, uncorrupted PNG icons (192x192, 512x512, 180x180 apple-touch, and 192/512 maskable icons with safe zones) from brand assets; removed early return in `registerServiceWorker.ts` so service workers register in all environments; added global `beforeinstallprompt` event capture; expanded `manifest.json` with W3C spec compliance (id, shortcuts, categories, explicit any/maskable icon purposes); enhanced `index.html` with mobile meta tags; updated `sw.js` with dev-server bypasses; and added manual PWA install controls in `Account.tsx`.
   - **Task 10 (Modern Slide-Over Cart Drawer & Clean Bottom Navigation Integration):** Removed the intrusive floating black pill (`FloatingCartBar.tsx`) that obstructed products and clashed with the bottom bar; created a high-end glassmorphic slide-over cart drawer (`CartDrawer.tsx`) with express delivery progress meter (৳10,000 threshold), live (+ / -) quantity controls, wholesale savings breakdown, and direct checkout trigger; added a dedicated Cart tab with live item count badge to the bottom navigation bar alongside Home, Products, Orders, and Account.
   - **Task 11 (Dedicated Medical Category Icon System & High-Precision Dosage Form Vector Iconography):** Replaced amateur, mismatched emoji category icons (e.g., DNA for Capsule, X-ray for Infusion, Ice cube for Gel, Wind for Inhaler) with a tailored vector SVG category icon engine (`CategoryIcon.tsx` & `getCategoryConfig`). Provides exact, DGDA/pharma-standard iconography for dosage forms (scored tablets, two-tone capsules, liquid syrup bottles, IV infusion drip bags, metered-dose asthma inhalers, topical squeeze tubes, ophthalmic droppers, nebulizers, surgical instruments, and first aid) with distinct subtle background tints and interactive hover animations across the Home categories carousel and Search product filters.
+  - **Task 12 (Repository Cleanup Pass & Automated Junk Prevention):** Conducted a comprehensive repo scan removing 30+ stray/superseded files (one-off `.cjs` and `.js` patch scripts, duplicate SQL drafts, scratch test scripts in `scripts/`, versioned `.bak` files, orphaned `assets/` and `temp_icons/` directories, and large `public/playwright-report.html` build artifacts). Enhanced `.gitignore` to prevent future recurring junk accumulation (`*.cjs`, `*.bak`, `*.orig`, `*.tmp`, `temp_icons/`, `public/playwright-report*.html`). Verified zero compile/build breakage with `tsc --noEmit` and `npm run build`.
 
 ----------------------------------------
 
@@ -259,6 +260,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 | PWA Standalone App | 100% | Completed (SW v2, Manifest, Maskable Icons) | Completed |
 | Slide-Over Cart Drawer | 100% | Completed (CartDrawer.tsx & 5-tab Nav) | Completed |
 | Medical Category Iconography | 100% | Completed (CategoryIcon.tsx & SVG dosage forms) | Completed |
+| Clean Repository Hygiene | 100% | Completed (Purged 30+ stray files, enhanced .gitignore) | Completed |
 
 ----------------------------------------
 
@@ -282,6 +284,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 - **Completed:** Task 9: PWA Standalone App & Service Worker Restoration.
 - **Completed:** Task 10: Modern Slide-Over Cart Drawer & Bottom Navigation Integration.
 - **Completed:** Task 11: Dedicated Medical Category Icon System & High-Precision Dosage Form Vector Iconography.
+- **Completed:** Task 12: Repository Cleanup Pass & Automated Junk Prevention (.gitignore).
 - **Short Term:** Finish FCM Push Notifications.
 - **Long Term:** Implement multi-tenant capability.
 
