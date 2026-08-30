@@ -2813,10 +2813,17 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
             throw new Error(fieldMsgs || data.error || "Failed to update catalog.");
           }
 
+          const data = await res.json();
+          const savedProduct = data.product || productData;
+
+          if (selectedProductForEdit) {
+            setProducts(prev => prev.map(p => p.id === selectedProductForEdit.id ? { ...p, ...savedProduct } : p));
+          }
+
           setSuccessMsg(selectedProductForEdit ? "Medicine details updated successfully." : "New medicine added to platform catalog.");
           productService.clearCache();
           setIsProductModalOpen(false);
-          refreshAllData();
+          await refreshAllData();
         }}
       />
     </div>

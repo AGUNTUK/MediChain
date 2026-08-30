@@ -576,9 +576,11 @@ const mapProduct = (p: any): Product => {
     sellingVal = mrpVal;
   }
 
-  const stockVal = p.stock_quantity !== undefined && p.stock_quantity !== null && p.stock_quantity !== ""
-    ? parseInt(p.stock_quantity, 10)
-    : (inv ? (inv.available_stock ?? 0) : (p.availableStock ?? 0));
+  const stockVal = inv && inv.available_stock !== undefined && inv.available_stock !== null
+    ? parseInt(inv.available_stock, 10)
+    : (p.stock_quantity !== undefined && p.stock_quantity !== null && p.stock_quantity !== ""
+        ? parseInt(p.stock_quantity, 10)
+        : (p.availableStock !== undefined && p.availableStock !== null ? parseInt(p.availableStock, 10) : 0));
 
   const imgUrl = p.image_url || p.imageUrl || undefined;
 
@@ -629,7 +631,6 @@ export async function getProductsRaw(limit = 1000): Promise<Product[]> {
       data = fallback.data;
     }
 
-    console.log(`[dbService] Successfully fetched ${data?.length || 0} products from Supabase products table.`);
     return data.map(mapProduct);
   } catch (err: any) {
     console.error("Exception in getProductsRaw:", err.message || err);
@@ -688,8 +689,11 @@ export async function addOrUpdateProduct(prod: Partial<Product> & { name: string
 
   const mrpVal = prod.mrp || 100;
   const sellingVal = prod.sellingPrice || (mrpVal * 0.8);
+  const stockQty = prod.availableStock !== undefined 
+    ? prod.availableStock 
+    : ((prod as any).stock_quantity !== undefined ? (prod as any).stock_quantity : 100);
 
-  const productPayload = {
+  const productPayload: any = {
     name: prod.name,
     generic_name: prod.genericName,
     company: prod.company,
@@ -699,6 +703,7 @@ export async function addOrUpdateProduct(prod: Partial<Product> & { name: string
     pack_size: prod.packSize,
     mrp: mrpVal,
     selling_price: sellingVal,
+    stock_quantity: stockQty,
     image_url: prod.imageUrl || prod.image_url || ""
   };
 
@@ -706,7 +711,7 @@ export async function addOrUpdateProduct(prod: Partial<Product> & { name: string
 
   if (prod.id) {
     // Update product
-    const { data, error } = await supabaseAdmin
+    const { data } = await supabaseAdmin
       .from("products")
       .update(productPayload)
       .eq("id", prod.id)
@@ -726,7 +731,7 @@ export async function addOrUpdateProduct(prod: Partial<Product> & { name: string
       .maybeSingle();
 
     if (duplicate) {
-      const { data, error } = await supabaseAdmin
+      const { data } = await supabaseAdmin
         .from("products")
         .update(productPayload)
         .eq("id", duplicate.id)
@@ -734,7 +739,7 @@ export async function addOrUpdateProduct(prod: Partial<Product> & { name: string
         .single();
       finalProd = data;
     } else {
-      const { data, error } = await supabaseAdmin
+      const { data } = await supabaseAdmin
         .from("products")
         .insert(productPayload)
         .select()
@@ -753,7 +758,7 @@ export async function addOrUpdateProduct(prod: Partial<Product> & { name: string
 
     const invPayload = {
       product_id: finalProd.id,
-      available_stock: prod.availableStock !== undefined ? prod.availableStock : 100,
+      available_stock: stockQty,
       reserved_stock: prod.reservedStock !== undefined ? prod.reservedStock : 0,
       sold_stock: prod.soldStock !== undefined ? prod.soldStock : 0,
       batch_number: prod.batchNumber || `B-${Math.floor(10000 + Math.random() * 90000)}`,
@@ -770,12 +775,25 @@ export async function addOrUpdateProduct(prod: Partial<Product> & { name: string
         .from("inventory")
         .insert(invPayload);
     }
+
+    const fullyMapped = await getProductById(finalProd.id);
+    if (fullyMapped) return fullyMapped;
   }
 
-  return finalProd;
+  return mapProduct(finalProd);
 }
 
 export async function updateInventoryStock(productId: string, qty: number, batchNumber?: string, expiryDate?: string) {
+  // Update products table stock_quantity as well
+  try {
+    await supabaseAdmin
+      .from("products")
+      .update({ stock_quantity: qty })
+      .eq("id", productId);
+  } catch (e) {
+    console.warn("Could not sync products.stock_quantity:", e);
+  }
+
   const { data: inv } = await supabaseAdmin
     .from("inventory")
     .select("*")
@@ -1568,6 +1586,19 @@ export async function getStockAlertSubscribers(productId: string): Promise<strin
   }
 }
 
+export async function getUserStockAlerts(userId: string) {
+  try {
+    const { data } = await supabaseAdmin
+      .from("notifications")
+      .select("*")
+      .eq("type", "stock_alert_sub")
+      .eq("user_id", userId);
+    return data || [];
+  } catch (e) {
+    return [];
+  }
+}
+
 // ==========================================
 // FAVOURITES / BOOKMARKS
 // ==========================================
@@ -1835,4 +1866,5 @@ export async function processPaymentGatewayTransaction(orderId: string, paymentM
     status: "Paid"
   };
 }
+
 

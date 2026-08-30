@@ -494,6 +494,19 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 39. Dual-Table Stock Quantity Synchronization & Catalog Cache Invalidation
+- **Root Cause of Stock Not Changing**:
+  1. `products.stock_quantity` was prioritized over `inventory.available_stock` in `mapProduct` and `/api/products`, but inventory edits only updated `inventory.available_stock` (or vice-versa), causing stale stock numbers to override fresh edits.
+  2. `server.ts` had a 60-second in-memory cache `productCache` on `GET /api/products` that was never invalidated when stock was updated or products were edited.
+  3. `addOrUpdateProduct` returned `finalProd` (raw `products` row) without mapped `availableStock`.
+- **Solution & Key Fixes**:
+  1. **Dual-Table Atomic Stock Updates**: `addOrUpdateProduct` and `updateInventoryStock` in `src/lib/dbService.ts` now simultaneously update both `products.stock_quantity` and `inventory.available_stock`.
+  2. **Inventory-First Stock Resolution**: In `mapProduct` (both in `dbService.ts` and `server.ts`), `inv.available_stock` is prioritized first, ensuring immediate reflection of live stock edits.
+  3. **Automatic Cache Invalidation (`clearProductCache()`)**: Added `clearProductCache()` helper called on `POST /api/admin/products`, `PATCH /api/admin/products/:id`, `DELETE /api/admin/products/:id`, `POST /api/admin/inventory/update`, and bulk imports.
+  4. **Optimistic UI Synchronization**: `AdminPanel.tsx` and `Inventory.tsx` immediately update local product state on save and invalidate client `productService.clearCache()`.
+
+----------------------------------------
+
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).
