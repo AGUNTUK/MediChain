@@ -93,7 +93,8 @@ export const validateBody = (schema: z.ZodType<any>) => (req: Request, res: Resp
           fieldErrors["_general"] = err.message;
         }
       });
-      return res.status(400).json({ error: "Validation failed", fields: fieldErrors });
+      const detailedError = Object.values(fieldErrors).filter(Boolean).join(". ") || "Validation failed";
+      return res.status(400).json({ error: detailedError, fields: fieldErrors });
     }
     return res.status(400).json({ error: "Invalid request payload" });
   }

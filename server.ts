@@ -2180,7 +2180,7 @@ app.post("/api/admin/products", requireRole(["Admin"]), validateBody(schemas.adm
   }
 });
 
-app.patch("/api/admin/products/:id", requireRole(["Admin"]), validateBody(schemas.adminProduct), async (req, res) => {
+app.patch("/api/admin/products/:id", requireRole(["Admin"]), async (req, res) => {
   try {
     const existing = await dbService.getProductById(req.params.id);
     if (!existing) {
@@ -2189,6 +2189,23 @@ app.patch("/api/admin/products/:id", requireRole(["Admin"]), validateBody(schema
 
     const updates = req.body;
     const merged = { ...existing, ...updates, id: req.params.id };
+
+    // Validate merged product
+    try {
+      schemas.adminProduct.parse(merged);
+    } catch (valErr: any) {
+      const fieldErrors: Record<string, string> = {};
+      const issues = valErr.issues || valErr.errors || [];
+      issues.forEach((err: any) => {
+        if (err.path && err.path.length > 0) {
+          fieldErrors[err.path[0]] = err.message;
+        } else {
+          fieldErrors["_general"] = err.message;
+        }
+      });
+      const detailedError = Object.values(fieldErrors).filter(Boolean).join(". ") || "Validation failed";
+      return res.status(400).json({ error: detailedError, fields: fieldErrors });
+    }
 
     if (updates.mrp !== undefined && updates.mrp !== existing.mrp) {
       await dbService.logPriceHistory(req.params.id, merged.name, existing.mrp, updates.mrp, existing.sellingPrice, merged.sellingPrice, req.user.name);

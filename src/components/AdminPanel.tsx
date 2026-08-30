@@ -569,8 +569,9 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
         });
 
         if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.error || "Failed to update catalog via PATCH.");
+          const data = await res.json().catch(() => ({}));
+          const fieldMsgs = data.fields ? Object.values(data.fields).filter(Boolean).join(". ") : "";
+          throw new Error(fieldMsgs || data.error || "Failed to update catalog via PATCH.");
         }
 
         const data = await res.json();
@@ -588,8 +589,9 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
         });
 
         if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.error || "Failed to update catalog.");
+          const data = await res.json().catch(() => ({}));
+          const fieldMsgs = data.fields ? Object.values(data.fields).filter(Boolean).join(". ") : "";
+          throw new Error(fieldMsgs || data.error || "Failed to update catalog.");
         }
 
         setSuccessMsg("New medicine added to platform catalog.");
@@ -2806,8 +2808,9 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
           });
 
           if (!res.ok) {
-            const data = await res.json();
-            throw new Error(data.error || "Failed to update catalog.");
+            const data = await res.json().catch(() => ({}));
+            const fieldMsgs = data.fields ? Object.values(data.fields).filter(Boolean).join(". ") : "";
+            throw new Error(fieldMsgs || data.error || "Failed to update catalog.");
           }
 
           setSuccessMsg(selectedProductForEdit ? "Medicine details updated successfully." : "New medicine added to platform catalog.");

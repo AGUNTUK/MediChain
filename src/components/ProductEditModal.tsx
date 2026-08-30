@@ -150,14 +150,39 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
-      setErrorMessage("Product name is required");
+    if (!name.trim() || name.trim().length < 2) {
+      setErrorMessage("Product Name is required (at least 2 characters).");
+      return;
+    }
+    if (!genericName.trim() || genericName.trim().length < 2) {
+      setErrorMessage("Generic Formula is required (at least 2 characters).");
+      return;
+    }
+    if (!company.trim() || company.trim().length < 2) {
+      setErrorMessage("Manufacturer / Supplier Company is required.");
       return;
     }
 
     const numMrp = typeof mrp === "number" ? mrp : parseFloat(mrp as string) || 0;
     const numSelling = typeof sellingPrice === "number" ? sellingPrice : parseFloat(sellingPrice as string) || 0;
     const numStock = typeof availableStock === "number" ? availableStock : parseInt(availableStock as string) || 0;
+
+    if (numMrp <= 0) {
+      setErrorMessage("Wholesale MRP must be a positive number greater than ৳0.");
+      return;
+    }
+    if (numSelling <= 0) {
+      setErrorMessage("Trade Price must be a positive number greater than ৳0.");
+      return;
+    }
+    if (numSelling > numMrp) {
+      setErrorMessage(`Trade Price (৳${numSelling}) cannot exceed Wholesale MRP (৳${numMrp}).`);
+      return;
+    }
+    if (numStock < 0) {
+      setErrorMessage("Available Stock cannot be a negative number.");
+      return;
+    }
 
     const discountPercentage = numMrp > 0 ? Math.round(((numMrp - numSelling) / numMrp) * 100) : 0;
 

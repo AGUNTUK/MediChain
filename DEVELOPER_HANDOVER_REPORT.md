@@ -245,6 +245,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - **Task 11 (Dedicated Medical Category Icon System & High-Precision Dosage Form Vector Iconography):** Replaced amateur, mismatched emoji category icons (e.g., DNA for Capsule, X-ray for Infusion, Ice cube for Gel, Wind for Inhaler) with a tailored vector SVG category icon engine (`CategoryIcon.tsx` & `getCategoryConfig`). Provides exact, DGDA/pharma-standard iconography for dosage forms (scored tablets, two-tone capsules, liquid syrup bottles, IV infusion drip bags, metered-dose asthma inhalers, topical squeeze tubes, ophthalmic droppers, nebulizers, surgical instruments, and first aid) with distinct subtle background tints and interactive hover animations across the Home categories carousel and Search product filters.
   - **Task 12 (Repository Cleanup Pass & Automated Junk Prevention):** Conducted a comprehensive repo scan removing 30+ stray/superseded files (one-off `.cjs` and `.js` patch scripts, duplicate SQL drafts, scratch test scripts in `scripts/`, versioned `.bak` files, orphaned `assets/` and `temp_icons/` directories, and large `public/playwright-report.html` build artifacts). Enhanced `.gitignore` to prevent future recurring junk accumulation (`*.cjs`, `*.bak`, `*.orig`, `*.tmp`, `temp_icons/`, `public/playwright-report*.html`). Verified zero compile/build breakage with `tsc --noEmit` and `npm run build`.
   - **Task 13 (Push Network Notification Broadcast Bug Fix & Realtime Socket Integration):** Resolved field mapping conflict in `/api/admin/notifications/send` and `/api/admin/notifications/broadcast` where the server required `targetType` while the frontend sent `type`, triggering an HTTP 400 rejection and a red "Failed to send notification" error banner. Standardized backend payload parsing to accept both `targetType` and `type` with a reliable fallback, integrated real-time Socket.io notification broadcasts to all active pharmacy sockets, connected browser desktop push notifications on permission grant, and expanded E2E test suite coverage.
+  - **Task 14 (Medicine Catalog Edit Validation Clarity & Error Transparency):** Enhanced `ProductEditModal.tsx`, `AdminPanel.tsx`, `server.ts`, and `security.ts` to surface detailed, field-specific error messages instead of generic `"Validation failed"`. Added client-side pre-validation for required product name, generic formula, manufacturer company, positive wholesale MRP & trade selling prices, selling price <= MRP checks, stock non-negativity, and batch/expiry constraints.
 
 ----------------------------------------
 
@@ -262,6 +263,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 | Slide-Over Cart Drawer | 100% | Completed (CartDrawer.tsx & 5-tab Nav) | Completed |
 | Medical Category Iconography | 100% | Completed (CategoryIcon.tsx & SVG dosage forms) | Completed |
 | Clean Repository Hygiene | 100% | Completed (Purged 30+ stray files, enhanced .gitignore) | Completed |
+| Product Catalog Management | 100% | Completed (Transparent Field-Level Zod Validation & Inline Editing) | Completed |
 
 ----------------------------------------
 
@@ -287,6 +289,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 - **Completed:** Task 11: Dedicated Medical Category Icon System & High-Precision Dosage Form Vector Iconography.
 - **Completed:** Task 12: Repository Cleanup Pass & Automated Junk Prevention (.gitignore).
 - **Completed:** Task 13: Push Network Notification Broadcast Bug Fix & Realtime Socket Integration.
+- **Completed:** Task 14: Medicine Catalog Edit Validation Clarity & Error Transparency.
 - **Short Term:** Finish FCM Push Notifications.
 - **Long Term:** Implement multi-tenant capability.
 
