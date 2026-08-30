@@ -2124,6 +2124,55 @@ app.post("/api/admin/export-history", requireRole(["Admin"]), async (req, res) =
   }
 });
 
+async function handleStockChangeNotifications(oldStock: number | undefined, newStock: number | undefined, product: any, ioInstance?: any) {
+  if (!product || newStock === undefined) return;
+
+  // 1. Automatic Restock Notification: Triggered when product stock is updated / added
+  const isRestock = (oldStock !== undefined && newStock > oldStock) || (oldStock === undefined && newStock > 0);
+  if (isRestock) {
+    const title = `স্টক আপডেট: ${product.name}`;
+    const message = `সম্মানিত ফার্মেসি পার্টনার, আনন্দের সাথে জানানো যাচ্ছে যে ${product.name} আমাদের ডিপো ইনভেন্টরিতে পুনরায় যুক্ত হয়েছে।`;
+    const type = "stock_restock";
+    try {
+      await dbService.sendNotification(null, title, message, type);
+      if (ioInstance) {
+        ioInstance.emit("notification", {
+          title,
+          message,
+          type,
+          pharmacyId: null,
+          created_at: new Date().toISOString()
+        });
+        ioInstance.emit("admin_order_updated");
+      }
+    } catch (e) {
+      console.warn("Restock notification broadcast error:", e);
+    }
+  }
+
+  // 2. Automatic Low-Stock Notification: Triggered when product stock drops below 11 boxes
+  const isLowStock = newStock < 11 && (oldStock === undefined || oldStock >= 11);
+  if (isLowStock) {
+    const title = `স্টক সতর্কতা: ${product.name}`;
+    const message = `দুঃখিত, ডিপোতে ${product.name} এই মুহূর্তে পাওয়া যাচ্ছে না। খুব শীঘ্রই রিস্টক করা হবে।`;
+    const type = "stock_alert";
+    try {
+      await dbService.sendNotification(null, title, message, type);
+      if (ioInstance) {
+        ioInstance.emit("notification", {
+          title,
+          message,
+          type,
+          pharmacyId: null,
+          created_at: new Date().toISOString()
+        });
+      }
+    } catch (e) {
+      console.warn("Low stock alert error:", e);
+    }
+  }
+}
+
 app.post("/api/admin/products", requireRole(["Admin"]), validateBody(schemas.adminProduct), async (req, res) => {
   const productData = req.body;
   const validation = validateProduct(productData);
@@ -2149,6 +2198,7 @@ app.post("/api/admin/products", requireRole(["Admin"]), validateBody(schemas.adm
     }
 
     const existing = await dbService.getProductById(productData.id);
+    const oldStock = existing?.availableStock;
     if (existing && existing.mrp !== productData.mrp) {
       await dbService.logPriceHistory(productData.id, productData.name, existing.mrp, productData.mrp, existing.sellingPrice, productData.sellingPrice, req.user.name);
     }
@@ -2158,7 +2208,6 @@ app.post("/api/admin/products", requireRole(["Admin"]), validateBody(schemas.adm
       const dropAmount = existing.sellingPrice - productData.sellingPrice;
       const dropPercentage = (dropAmount / existing.sellingPrice) * 100;
       
-      // Determine if it's frequently ordered (e.g., soldStock > 10)
       const isFrequentlyOrdered = (existing.soldStock || 0) > 10;
 
       if (dropPercentage >= 5 && isFrequentlyOrdered) {
@@ -2174,6 +2223,9 @@ app.post("/api/admin/products", requireRole(["Admin"]), validateBody(schemas.adm
     const saved = await dbService.addOrUpdateProduct(productData);
     await dbService.logAudit(`Product ${productData.id ? "updated" : "created"}: ${productData.name}`, "Products", saved.id, req.user.email, req.user.role);
 
+    // Trigger automatic restock/low-stock notifications
+    await handleStockChangeNotifications(oldStock, saved.availableStock, saved, req.app.get("io"));
+
     res.json({ success: true, message: "Product saved successfully.", product: saved });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -2187,6 +2239,7 @@ app.patch("/api/admin/products/:id", requireRole(["Admin"]), async (req, res) =>
       return res.status(404).json({ error: "Product not found." });
     }
 
+    const oldStock = existing.availableStock;
     const updates = req.body;
     const merged = { ...existing, ...updates, id: req.params.id };
 
@@ -2214,6 +2267,9 @@ app.patch("/api/admin/products/:id", requireRole(["Admin"]), async (req, res) =>
     const saved = await dbService.addOrUpdateProduct(merged);
     await dbService.logAudit(`Product patched: ${saved.name}`, "Products", saved.id, req.user.email, req.user.role);
 
+    // Trigger automatic restock/low-stock notifications
+    await handleStockChangeNotifications(oldStock, saved.availableStock, saved, req.app.get("io"));
+
     res.json({ success: true, message: "Product updated in place.", product: saved });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -2237,10 +2293,48 @@ app.delete("/api/admin/products/:id", requireRole(["Admin"]), async (req, res) =
 app.post("/api/admin/inventory/update", requireRole(["Admin", "Depot Staff"]), async (req, res) => {
   const { id, availableStock, batchNumber, expiryDate } = req.body;
   try {
+    const existing = await dbService.getProductById(id);
+    const oldStock = existing?.availableStock;
     await dbService.updateInventoryStock(id, availableStock, batchNumber, expiryDate);
     const updated = await dbService.getProductById(id);
     await dbService.logAudit(`Inventory updated for product ID ${id}`, "Products", id, req.user.email, req.user.role);
+
+    // Trigger automatic restock/low-stock notifications
+    await handleStockChangeNotifications(oldStock, updated?.availableStock, updated, req.app.get("io"));
+
     res.json({ success: true, product: updated });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- STOCK ALERT SUBSCRIPTIONS API ---
+
+app.post("/api/stock-alerts/subscribe", requireAuth, async (req, res) => {
+  const { productId } = req.body;
+  if (!productId) return res.status(400).json({ error: "Product ID is required." });
+  try {
+    await dbService.subscribeStockAlert(productId, req.user?.id, req.user?.pharmacyId);
+    res.json({ success: true, message: "স্টক এলার্ট সফলভাবে যুক্ত হয়েছে।" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/stock-alerts/unsubscribe", requireAuth, async (req, res) => {
+  const { productId } = req.body;
+  if (!productId) return res.status(400).json({ error: "Product ID is required." });
+  try {
+    await dbService.unsubscribeStockAlert(productId, req.user?.id);
+    res.json({ success: true, message: "স্টক এলার্ট বাতিল করা হয়েছে।" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/stock-alerts", requireAuth, async (req, res) => {
+  try {
+    res.json({ success: true, subscriptions: [] });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

@@ -14,6 +14,7 @@ import {
   Tag
 } from "lucide-react";
 import { Product } from "../types";
+import StockAlertButton from "./StockAlertButton";
 import MediChainLogo from "./MediChainLogo";
 
 interface CartDrawerProps {
@@ -176,80 +177,107 @@ export default function CartDrawer({
 
                 {/* 3. Cart Items List */}
                 <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-                  {items.map(({ product, quantity }) => (
-                    <div
-                      key={product.id}
-                      className="bg-white border border-slate-100 hover:border-slate-200/90 rounded-2xl p-3.5 flex gap-3.5 relative shadow-xs transition-all group"
-                    >
-                      {/* Product Thumbnail */}
-                      <div className="w-16 h-16 rounded-xl bg-slate-50 border border-slate-100 flex-shrink-0 overflow-hidden flex items-center justify-center p-1">
-                        {product.imageUrl || product.image_url ? (
-                          <img
-                            src={product.imageUrl || product.image_url}
-                            alt={product.name}
-                            className="w-full h-full object-contain"
-                            referrerPolicy="no-referrer"
-                          />
-                        ) : (
-                          <Package className="w-6 h-6 text-slate-300" />
+                  {items.map(({ product, quantity }) => {
+                    const isItemStockout = (product.availableStock !== undefined && product.availableStock <= 0);
+                    return (
+                      <div
+                        key={product.id}
+                        className={`bg-white border rounded-2xl p-3.5 flex flex-col gap-2 relative shadow-xs transition-all group ${
+                          isItemStockout ? "border-rose-300 bg-rose-50/20" : "border-slate-100 hover:border-slate-200/90"
+                        }`}
+                      >
+                        <div className="flex gap-3.5 items-start">
+                          {/* Product Thumbnail */}
+                          <div className="w-16 h-16 rounded-xl bg-slate-50 border border-slate-100 flex-shrink-0 overflow-hidden flex items-center justify-center p-1">
+                            {product.imageUrl || product.image_url ? (
+                              <img
+                                src={product.imageUrl || product.image_url}
+                                alt={product.name}
+                                className="w-full h-full object-contain"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <Package className="w-6 h-6 text-slate-300" />
+                            )}
+                          </div>
+
+                          {/* Product Details */}
+                          <div className="flex-1 min-w-0 pr-6">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] font-extrabold bg-brand-purple/10 text-brand-purple px-1.5 py-0.5 rounded uppercase">
+                                {product.category}
+                              </span>
+                              <span className="text-[10px] font-bold text-slate-400 truncate">
+                                {product.company}
+                              </span>
+                            </div>
+
+                            <h4 className="text-xs font-black text-slate-900 truncate mt-1">
+                              {product.name} <span className="text-[10px] font-semibold text-slate-400">{product.strength}</span>
+                            </h4>
+
+                            <div className="flex items-baseline gap-2 mt-1.5">
+                              <span className="text-[11px] font-bold text-slate-500 font-mono">
+                                ৳{product.sellingPrice} / বক্স
+                              </span>
+                              <span className="text-slate-300 text-[10px]">•</span>
+                              <span className="text-xs font-black text-brand-purple font-mono">
+                                ৳{(product.sellingPrice * quantity).toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Remove Button */}
+                          <button
+                            onClick={() => onRemoveItem(product.id)}
+                            className="absolute top-3 right-3 text-slate-300 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="ওষুধটি বাদ দিন"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between mt-1 pt-1.5 border-t border-slate-50">
+                          {isItemStockout ? (
+                            <span className="text-[10px] text-rose-600 font-bold">বর্তমানে স্টক শেষ</span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400">পরিমাণ: {quantity} বক্স</span>
+                          )}
+
+                          {/* Quantity Controls */}
+                          <div className="flex items-center gap-1.5 bg-slate-100 rounded-xl p-1 border border-slate-200/60">
+                            <button
+                              onClick={() => onUpdateCartQty(product.id, quantity, -1)}
+                              className="w-6 h-6 rounded-lg bg-white text-slate-600 hover:text-rose-600 flex items-center justify-center shadow-xs hover:bg-slate-50 transition-all cursor-pointer"
+                            >
+                              <Minus className="w-3 h-3" />
+                            </button>
+                            <span className="w-6 text-center text-xs font-black text-slate-800 font-mono">
+                              {quantity}
+                            </span>
+                            <button
+                              onClick={() => onUpdateCartQty(product.id, quantity, 1)}
+                              className="w-6 h-6 rounded-lg bg-brand-purple text-white hover:bg-brand-purple/90 flex items-center justify-center shadow-xs transition-all cursor-pointer"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Stockout message & button */}
+                        {isItemStockout && (
+                          <div className="mt-1 p-2 bg-rose-50 rounded-xl border border-rose-200/80 flex flex-col gap-1.5">
+                            <p className="text-[10.5px] text-rose-800 font-bold leading-snug">
+                              বর্তমানে স্টক শেষ। নতুন স্টক আসার তাৎক্ষণিক নোটিফিকেশন পেতে 'স্টক এলার্ট' বাটনে ট্যাপ করুন।
+                            </p>
+                            <div className="self-end">
+                              <StockAlertButton productId={product.id} productName={product.name} compact={true} />
+                            </div>
+                          </div>
                         )}
                       </div>
-
-                      {/* Product Details */}
-                      <div className="flex-1 min-w-0 pr-6">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[9px] font-extrabold bg-brand-purple/10 text-brand-purple px-1.5 py-0.5 rounded uppercase">
-                            {product.category}
-                          </span>
-                          <span className="text-[10px] font-bold text-slate-400 truncate">
-                            {product.company}
-                          </span>
-                        </div>
-
-                        <h4 className="text-xs font-black text-slate-900 truncate mt-1">
-                          {product.name} <span className="text-[10px] font-semibold text-slate-400">{product.strength}</span>
-                        </h4>
-
-                        <div className="flex items-baseline gap-2 mt-1.5">
-                          <span className="text-[11px] font-bold text-slate-500 font-mono">
-                            ৳{product.sellingPrice} / বক্স
-                          </span>
-                          <span className="text-slate-300 text-[10px]">•</span>
-                          <span className="text-xs font-black text-brand-purple font-mono">
-                            ৳{(product.sellingPrice * quantity).toLocaleString()}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Remove Button */}
-                      <button
-                        onClick={() => onRemoveItem(product.id)}
-                        className="absolute top-3 right-3 text-slate-300 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                        title="ওষুধটি বাদ দিন"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-
-                      {/* Quantity Controls */}
-                      <div className="flex items-center gap-1.5 bg-slate-100 rounded-xl p-1 border border-slate-200/60 self-end">
-                        <button
-                          onClick={() => onUpdateCartQty(product.id, quantity, -1)}
-                          className="w-6 h-6 rounded-lg bg-white text-slate-600 hover:text-rose-600 flex items-center justify-center shadow-xs hover:bg-slate-50 transition-all cursor-pointer"
-                        >
-                          <Minus className="w-3 h-3" />
-                        </button>
-                        <span className="w-6 text-center text-xs font-black text-slate-800 font-mono">
-                          {quantity}
-                        </span>
-                        <button
-                          onClick={() => onUpdateCartQty(product.id, quantity, 1)}
-                          className="w-6 h-6 rounded-lg bg-brand-purple text-white hover:bg-brand-purple/90 flex items-center justify-center shadow-xs transition-all cursor-pointer"
-                        >
-                          <Plus className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* 4. Financial Summary & Checkout CTA Footer */}

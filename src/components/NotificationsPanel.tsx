@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { X, Bell, CheckCheck, RefreshCw, Sparkles, Tag, Package, Coins } from "lucide-react";
+import { X, Bell, CheckCheck, RefreshCw, Sparkles, Tag, Package, Coins, PackageCheck, AlertTriangle } from "lucide-react";
 import { Notification } from "../types";
 import { notificationService } from "../services";
 
@@ -52,7 +52,12 @@ export default function NotificationsPanel({ onClose, onRefreshNotifications }: 
 
   const getIcon = (type: string) => {
     switch (type) {
+      case "stock_restock":
+        return <PackageCheck className="w-4 h-4 text-emerald-600" />;
+      case "stock_alert":
+        return <AlertTriangle className="w-4 h-4 text-amber-500" />;
       case "price_drop":
+      case "offer":
         return <Tag className="w-4 h-4 text-brand-purple" />;
       case "order_update":
         return <Package className="w-4 h-4 text-brand-lime" />;

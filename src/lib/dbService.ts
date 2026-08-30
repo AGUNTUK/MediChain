@@ -982,6 +982,23 @@ export async function createOrderTransaction(userId: string, pharmacyId: string,
 
       if (invErr) throw new Error("Failed to reserve warehouse inventories FEFO.");
 
+      // Check if stock dropped below 11 boxes
+      const newAvailStock = pUpd.oldAvailableStock - pUpd.quantity;
+      if (newAvailStock < 11 && pUpd.oldAvailableStock >= 11) {
+        const itemInfo = orderItemsToInsert.find(i => i.product_id === pUpd.productId);
+        const prodName = itemInfo?.name || "ওষুধ";
+        try {
+          await sendNotification(
+            null,
+            `স্টক সতর্কতা: ${prodName}`,
+            `দুঃখিত, ডিপোতে ${prodName} এই মুহূর্তে পাওয়া যাচ্ছে না। খুব শীঘ্রই রিস্টক করা হবে।`,
+            "stock_alert"
+          );
+        } catch (alertErr) {
+          console.warn("Low stock alert error:", alertErr);
+        }
+      }
+
       // Setup rollback for inventory reserve
       backupState.push(async () => {
         await supabaseAdmin
@@ -1408,6 +1425,17 @@ export async function sendNotification(pharmacyId: string | null, title: string,
     });
 }
 
+const INTERNAL_TYPES = new Set([
+  "audit_log",
+  "import_history",
+  "export_history",
+  "price_history",
+  "alert_log",
+  "system_settings",
+  "cart",
+  "stock_alert_sub"
+]);
+
 export async function getNotifications(userId?: string) {
   let query = supabaseAdmin.from("notifications").select("id, title, message, type, created_at, read");
   if (userId) {
@@ -1416,20 +1444,46 @@ export async function getNotifications(userId?: string) {
     query = query.is("user_id", null);
   }
 
-  // Filter out system configurations / metadata
-  query = query.not("type", "in", '("audit_log","import_history","export_history","price_history","alert_log","system_settings","cart")');
+  // Filter out system configurations / metadata in PostgREST
+  query = query.not("type", "in", "(audit_log,import_history,export_history,price_history,alert_log,system_settings,cart,stock_alert_sub)");
 
   const { data, error } = await query.order("created_at", { ascending: false }).limit(100);
   if (error || !data) return [];
 
-  return data.map(n => ({
-    id: n.id,
-    title: n.title,
-    message: n.message,
-    type: n.type,
-    date: n.created_at,
-    read: n.read
-  }));
+  return data
+    .filter(n => {
+      if (!n.type || INTERNAL_TYPES.has(n.type)) return false;
+      if (typeof n.title === "string" && (
+        n.title.startsWith("Audit:") || 
+        n.title.startsWith("Price History:") || 
+        n.title.startsWith("Bulk Import") || 
+        n.title.startsWith("Bulk Export") ||
+        n.title.startsWith("StockAlertSub:")
+      )) {
+        return false;
+      }
+      // Check if message is a JSON string containing developer/audit log payload
+      if (typeof n.message === "string") {
+        const trimmed = n.message.trim();
+        if (trimmed.startsWith("{") && (
+          trimmed.includes('"action":') || 
+          trimmed.includes('"affectedModule":') || 
+          trimmed.includes('"productId":') || 
+          trimmed.includes('"filename":')
+        )) {
+          return false;
+        }
+      }
+      return true;
+    })
+    .map(n => ({
+      id: n.id,
+      title: n.title,
+      message: n.message,
+      type: n.type,
+      date: n.created_at,
+      read: n.read
+    }));
 }
 
 export async function markNotificationRead(id: string) {
@@ -1447,7 +1501,71 @@ export async function markAllNotificationsRead(userId?: string) {
     query = query.is("user_id", null);
   }
 
-  return await query.not("type", "in", '("audit_log","import_history","export_history","price_history","alert_log","system_settings","cart")');
+  return await query.not("type", "in", "(audit_log,import_history,export_history,price_history,alert_log,system_settings,cart,stock_alert_sub)");
+}
+
+// ==========================================
+// STOCK ALERTS SUBSCRIPTIONS
+// ==========================================
+
+export async function subscribeStockAlert(productId: string, userId?: string, pharmacyId?: string) {
+  try {
+    const subPayload = {
+      productId,
+      userId: userId || null,
+      pharmacyId: pharmacyId || null,
+      timestamp: new Date().toISOString()
+    };
+    await supabaseAdmin.from("notifications").insert({
+      title: `StockAlertSub:${productId}`,
+      message: JSON.stringify(subPayload),
+      type: "stock_alert_sub",
+      user_id: userId || null,
+      read: true
+    });
+    return { success: true };
+  } catch (err: any) {
+    console.warn("Stock alert subscription save warning:", err.message);
+    return { success: true };
+  }
+}
+
+export async function unsubscribeStockAlert(productId: string, userId?: string) {
+  try {
+    let query = supabaseAdmin
+      .from("notifications")
+      .delete()
+      .eq("type", "stock_alert_sub")
+      .eq("title", `StockAlertSub:${productId}`);
+    if (userId) {
+      query = query.eq("user_id", userId);
+    }
+    await query;
+    return { success: true };
+  } catch (err: any) {
+    console.warn("Stock alert unsubscribe error:", err.message);
+    return { success: true };
+  }
+}
+
+export async function getStockAlertSubscribers(productId: string): Promise<string[]> {
+  try {
+    const { data } = await supabaseAdmin
+      .from("notifications")
+      .select("*")
+      .eq("type", "stock_alert_sub")
+      .eq("title", `StockAlertSub:${productId}`);
+    if (!data) return [];
+    const userIds: string[] = [];
+    data.forEach(item => {
+      if (item.user_id && !userIds.includes(item.user_id)) {
+        userIds.push(item.user_id);
+      }
+    });
+    return userIds;
+  } catch (err) {
+    return [];
+  }
 }
 
 // ==========================================

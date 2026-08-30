@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { X, ShieldCheck, AlertCircle, Calendar, Truck, Layers, Coins, Bell, BellRing, Check, ArrowRight, Sparkles } from "lucide-react";
+import { X, ShieldCheck, AlertCircle, Calendar, Truck, Layers, Coins, Sparkles } from "lucide-react";
 import { Product } from "../types";
 import { formatProductPriceLabel } from "../lib/utils";
 import { useCartFeedback } from "../context/FlyToCartContext";
 import { productService } from "../services/product";
+import StockAlertButton from "./StockAlertButton";
 
 interface ProductDetailsProps {
   product: Product | null;
@@ -16,14 +17,9 @@ export default function ProductDetails({ product, onClose, onAddToCart, onSelect
   const { triggerCartFeedback, triggerButtonFeedback } = useCartFeedback();
   const [genericAlternatives, setGenericAlternatives] = useState<Product[]>([]);
   const [loadingAlternatives, setLoadingAlternatives] = useState(false);
-  const [hasRestockAlert, setHasRestockAlert] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!product) return;
-
-    // Check restock alert subscription
-    setHasRestockAlert(productService.hasRestockAlert(product.id));
 
     // Fetch generic alternatives
     if (product.genericName) {
@@ -46,20 +42,6 @@ export default function ProductDetails({ product, onClose, onAddToCart, onSelect
     onClose();
   };
 
-  const handleToggleRestock = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const isSubscribed = productService.toggleRestockAlert(product.id);
-    setHasRestockAlert(isSubscribed);
-
-    if (isSubscribed) {
-      setToastMessage("রিস্টক এলার্ট সেট হয়েছে! ডিপোতে নতুন স্টক আসামাত্র নোটিফিকেশন পাবেন।");
-    } else {
-      setToastMessage("রিস্টক এলার্ট বন্ধ করা হয়েছে।");
-    }
-
-    setTimeout(() => setToastMessage(null), 3500);
-  };
-
   const profitMarginPercent = product.mrp > 0 && product.sellingPrice > 0
     ? Math.round(((product.mrp - product.sellingPrice) / product.mrp) * 100)
     : 0;
@@ -68,14 +50,6 @@ export default function ProductDetails({ product, onClose, onAddToCart, onSelect
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-end z-50 select-none animate-fade-in">
-      {/* Toast alert */}
-      {toastMessage && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-2xl shadow-xl border border-white/10 flex items-center gap-2 animate-slide-down max-w-sm text-center">
-          <Check className="w-4 h-4 text-brand-lime shrink-0" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
       <div className="w-full bg-brand-bg rounded-t-3xl p-6 border-t border-slate-200 shadow-2xl overflow-y-auto max-h-[90%] animate-slide-up max-w-2xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-start mb-4">
@@ -271,30 +245,11 @@ export default function ProductDetails({ product, onClose, onAddToCart, onSelect
 
         {/* Order Actions / Restock Notification Button */}
         {isOutOfStock ? (
-          <div className="space-y-2">
-            <button
-              onClick={handleToggleRestock}
-              className={`w-full py-3.5 rounded-2xl font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md ${
-                hasRestockAlert
-                  ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                  : "bg-brand-purple hover:bg-indigo-700 text-white shadow-brand-purple/20"
-              }`}
-            >
-              {hasRestockAlert ? (
-                <>
-                  <BellRing className="w-4 h-4 text-brand-lime animate-bounce" />
-                  <span>✓ রিস্টক এলার্ট সক্রিয় (Restock Alert Active)</span>
-                </>
-              ) : (
-                <>
-                  <Bell className="w-4 h-4 text-brand-lime" />
-                  <span>🔔 স্টকে আসলে নোটিফাই করুন (Notify When Restocked)</span>
-                </>
-              )}
-            </button>
-            <p className="text-[10px] text-slate-400 text-center font-medium">
-              ডিপোতে এই ওষুধের নতুন লট আসামাত্র অ্যাপের মাধ্যমে নোটিফিকেশন পেয়ে যাবেন।
+          <div className="space-y-3 bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl">
+            <p className="text-xs text-amber-900 font-bold leading-relaxed">
+              বর্তমানে স্টক শেষ। নতুন স্টক আসার তাৎক্ষণিক নোটিফিকেশন পেতে 'স্টক এলার্ট' বাটনে ট্যাপ করুন।
             </p>
+            <StockAlertButton productId={product.id} productName={product.name} />
           </div>
         ) : (
           <div className="space-y-2.5">

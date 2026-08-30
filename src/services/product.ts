@@ -213,7 +213,7 @@ export const productService = {
   },
 
   /**
-   * Toggles restock alert for an out-of-stock product. Returns new state.
+   * Toggles restock alert for an out-of-stock product. Returns new state and syncs with server.
    */
   toggleRestockAlert(productId: string): boolean {
     const alerts = this.getRestockAlerts();
@@ -223,9 +223,21 @@ export const productService = {
     if (alerts.includes(productId)) {
       updated = alerts.filter(id => id !== productId);
       isSubscribed = false;
+      // Sync unsubscribe to backend in background
+      fetch("/api/stock-alerts/unsubscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId })
+      }).catch(err => console.warn("Stock alert unsubscribe sync:", err));
     } else {
       updated = [...alerts, productId];
       isSubscribed = true;
+      // Sync subscribe to backend in background
+      fetch("/api/stock-alerts/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId })
+      }).catch(err => console.warn("Stock alert subscribe sync:", err));
     }
 
     try {

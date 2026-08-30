@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { ArrowLeft, MapPin, CreditCard, ShieldCheck, RefreshCw, AlertCircle, Check, Smartphone, X, Lock } from "lucide-react";
 import { Pharmacy } from "../types";
 import { orderService, paymentService } from "../services";
+import StockAlertButton from "./StockAlertButton";
 
 interface CheckoutProps {
   onBackToCart: () => void;
@@ -114,6 +115,31 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
           </button>
           <h2 className="text-sm font-black text-brand-charcoal">অর্ডার নিশ্চিতকরণ (Checkout)</h2>
         </div>
+
+        {/* Out of stock warning banner if cart contains stockout items */}
+        {cartSummary.items && cartSummary.items.some(({ product }: any) => product.availableStock !== undefined && product.availableStock <= 0) && (
+          <div className="bg-rose-50 border-2 border-rose-200 rounded-2xl p-4 space-y-3">
+            <div className="flex items-start gap-2 text-rose-800">
+              <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-xs font-black text-rose-900">স্টক সতর্কতা (Out of Stock Notice)</h4>
+                <p className="text-[11px] font-bold text-rose-700 mt-0.5 leading-relaxed">
+                  বর্তমানে স্টক শেষ। নতুন স্টক আসার তাৎক্ষণিক নোটিফিকেশন পেতে 'স্টক এলার্ট' বাটনে ট্যাপ করুন।
+                </p>
+              </div>
+            </div>
+            <div className="divide-y divide-rose-100 bg-white/80 rounded-xl p-2.5 space-y-1.5">
+              {cartSummary.items
+                .filter(({ product }: any) => product.availableStock !== undefined && product.availableStock <= 0)
+                .map(({ product }: any) => (
+                  <div key={product.id} className="pt-1.5 first:pt-0 flex items-center justify-between gap-2">
+                    <span className="text-xs font-black text-slate-800 truncate">{product.name} <span className="text-[10px] font-normal text-slate-400">({product.strength})</span></span>
+                    <StockAlertButton productId={product.id} productName={product.name} compact={true} />
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="flex items-start gap-2 bg-rose-50 border border-rose-200 text-rose-700 text-xs p-3 rounded-xl font-semibold leading-relaxed">

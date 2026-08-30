@@ -10,6 +10,46 @@ const NOTIF_CACHE_TTL = 10000; // 10 seconds TTL
  * Manages flash discount deals, price drops alerts, and active order shipment status logs.
  */
 
+const INTERNAL_TYPES = new Set([
+  "audit_log",
+  "import_history",
+  "export_history",
+  "price_history",
+  "alert_log",
+  "system_settings",
+  "cart",
+  "stock_alert_sub"
+]);
+
+function filterUserFacingNotifications(items: any[]): Notification[] {
+  if (!Array.isArray(items)) return [];
+  return items.filter(n => {
+    if (!n) return false;
+    if (n.type && INTERNAL_TYPES.has(n.type)) return false;
+    if (typeof n.title === "string" && (
+      n.title.startsWith("Audit:") || 
+      n.title.startsWith("Price History:") || 
+      n.title.startsWith("Bulk Import") || 
+      n.title.startsWith("Bulk Export") ||
+      n.title.startsWith("StockAlertSub:")
+    )) {
+      return false;
+    }
+    if (typeof n.message === "string") {
+      const trimmed = n.message.trim();
+      if (trimmed.startsWith("{") && (
+        trimmed.includes('"action":') || 
+        trimmed.includes('"affectedModule":') || 
+        trimmed.includes('"productId":') || 
+        trimmed.includes('"filename":')
+      )) {
+        return false;
+      }
+    }
+    return true;
+  });
+}
+
 export const notificationService = {
   clearCache(): void {
     cachedNotifications = null;
@@ -33,8 +73,9 @@ export const notificationService = {
           return cachedNotifications?.data || [];
         }
         const data = await res.json();
-        cachedNotifications = { data, timestamp: Date.now() };
-        return data;
+        const filtered = filterUserFacingNotifications(data);
+        cachedNotifications = { data: filtered, timestamp: Date.now() };
+        return filtered;
       } catch (err) {
         console.warn("Failed to load notifications (network/transient):", err);
         return cachedNotifications?.data || [];

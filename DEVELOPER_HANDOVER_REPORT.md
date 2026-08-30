@@ -469,6 +469,31 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 38. Automated Stockout Alerts, Restock Radar & Internal Log Filtering System
+- **Strict User-Facing Notification Isolation (Internal Log Purge)**:
+  - Pharmacy users will ONLY receive legitimate user notifications:
+    1. Admin custom broadcasts (`/api/admin/notifications/broadcast` or `/api/admin/notifications/send`).
+    2. Automated stock restock broadcasts when inventory is replenished.
+    3. Automated low-stock (< 11 boxes) radar alerts.
+    4. Legitimate price drops and special offers.
+  - Completely filtered out technical audit logs (`audit_log`, `price_history`, `import_history`, `export_history`, `alert_log`, `system_settings`, `cart`, `stock_alert_sub`) and raw JSON payloads across `src/lib/dbService.ts`, `server.ts`, `src/services/notificationService.ts`, and `src/components/NotificationBell.tsx`.
+- **Automated Bengali Restock Notification**:
+  - **Title**: `স্টক আপডেট: [Product Name]`
+  - **Message**: `সম্মানিত ফার্মেসি পার্টনার, আনন্দের সাথে জানানো যাচ্ছে যে [Product Name] আমাদের ডিপো ইনভেন্টরিতে পুনরায় যুক্ত হয়েছে।`
+  - **Trigger**: Automatic trigger when stock increases or is replenished in `POST /api/admin/products`, `PATCH /api/admin/products/:id`, or `POST /api/admin/inventory/update`.
+- **Automated Bengali Low-Stock Radar (< 11 boxes)**:
+  - **Title**: `স্টক সতর্কতা: [Product Name]`
+  - **Message**: `দুঃখিত, ডিপোতে [Product Name] এই মুহূর্তে পাওয়া যাচ্ছে না। খুব শীঘ্রই রিস্টক করা হবে।`
+  - **Trigger**: Automatic trigger when available stock drops below 11 boxes (`stock < 11`) via orders in `createOrder` or admin updates.
+- **Cart & Checkout Stockout Warning**:
+  - Exact Bengali message rendered on out-of-stock items in Cart, CartDrawer, and Checkout:
+    `বর্তমানে স্টক শেষ। নতুন স্টক আসার তাৎক্ষণিক নোটিফিকেশন পেতে 'স্টক এলার্ট' বাটনে ট্যাপ করুন।`
+- **Fully Functional 'স্টক এলার্ট' (Stock Alert) Component (`src/components/StockAlertButton.tsx`)**:
+  - Standalone, interactive button with animated bell icon, micro-animations, instant visual state toggle (`✓ এলার্ট সক্রিয়` / `স্টক এলার্ট`), toast confirmations, and server synchronization via `POST /api/stock-alerts/subscribe` & `POST /api/stock-alerts/unsubscribe`.
+  - Seamlessly embedded in `Cart.tsx`, `CartDrawer.tsx`, `Checkout.tsx`, `ProductDetails.tsx`, and `NotificationsPanel.tsx`.
+
+----------------------------------------
+
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).
