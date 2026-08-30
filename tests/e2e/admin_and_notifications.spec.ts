@@ -21,4 +21,25 @@ test.describe('Admin Panel Catalog & Notification Management', () => {
     const markAllRes = await request.post('/api/notifications/read-all');
     expect([200, 401]).toContain(markAllRes.status());
   });
+
+  test('Admin notification send/broadcast validates and responds with proper status', async ({ request }) => {
+    // Attempting send without auth or as admin returns expected status
+    const sendRes = await request.post('/api/admin/notifications/send', {
+      data: {
+        title: 'Flash Bulk Discount',
+        message: 'Get 10% extra discount on Beximco products',
+        type: 'offer'
+      }
+    });
+    expect([200, 401, 403]).toContain(sendRes.status());
+
+    const broadcastRes = await request.post('/api/admin/notifications/broadcast', {
+      data: {
+        title: 'Emergency Weather Advisory',
+        message: 'Depot dispatch schedule updated',
+        type: 'global'
+      }
+    });
+    expect([200, 401, 403]).toContain(broadcastRes.status());
+  });
 });

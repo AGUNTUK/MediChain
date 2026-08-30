@@ -66,13 +66,22 @@ export const notificationService = {
     return res.json();
   },
 
-  async sendNotification(notification: Omit<Notification, 'id' | 'is_read' | 'created_at'>): Promise<void> {
+  async sendNotification(notification: Omit<Notification, 'id' | 'is_read' | 'created_at'> & { targetType?: string; pharmacyId?: string | null }): Promise<void> {
     this.clearCache();
     const res = await fetch("/api/admin/notifications/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(notification),
+      body: JSON.stringify({
+        title: notification.title,
+        message: notification.message,
+        type: notification.type || notification.targetType || "global",
+        targetType: notification.targetType || notification.type || "global",
+        pharmacyId: notification.pharmacyId || null,
+      }),
     });
-    if (!res.ok) throw new Error("Failed to send notification.");
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `Server responded with status ${res.status}`);
+    }
   }
 };

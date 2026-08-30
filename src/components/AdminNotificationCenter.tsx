@@ -15,7 +15,7 @@ import {
   Trash2,
   Filter
 } from "lucide-react";
-import { Notification } from "../types";
+import type { Notification } from "../types";
 import { notificationService } from "../services";
 
 interface AdminNotificationCenterProps {
@@ -70,8 +70,20 @@ export default function AdminNotificationCenter({
       await notificationService.sendNotification({
         title: broadcastTitle,
         message: broadcastMessage,
-        type: broadcastType
+        type: broadcastType,
+        targetType: broadcastType
       });
+
+      if ("Notification" in window && Notification.permission === "granted") {
+        try {
+          new window.Notification(broadcastTitle, {
+            body: broadcastMessage,
+            icon: "/logo.png"
+          });
+        } catch (e) {
+          // ignore
+        }
+      }
 
       setBroadcastSuccess("Broadcast alert successfully published to all pharmacy partners across Bangladesh!");
       setBroadcastTitle("");

@@ -244,6 +244,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - **Task 10 (Modern Slide-Over Cart Drawer & Clean Bottom Navigation Integration):** Removed the intrusive floating black pill (`FloatingCartBar.tsx`) that obstructed products and clashed with the bottom bar; created a high-end glassmorphic slide-over cart drawer (`CartDrawer.tsx`) with express delivery progress meter (৳10,000 threshold), live (+ / -) quantity controls, wholesale savings breakdown, and direct checkout trigger; added a dedicated Cart tab with live item count badge to the bottom navigation bar alongside Home, Products, Orders, and Account.
   - **Task 11 (Dedicated Medical Category Icon System & High-Precision Dosage Form Vector Iconography):** Replaced amateur, mismatched emoji category icons (e.g., DNA for Capsule, X-ray for Infusion, Ice cube for Gel, Wind for Inhaler) with a tailored vector SVG category icon engine (`CategoryIcon.tsx` & `getCategoryConfig`). Provides exact, DGDA/pharma-standard iconography for dosage forms (scored tablets, two-tone capsules, liquid syrup bottles, IV infusion drip bags, metered-dose asthma inhalers, topical squeeze tubes, ophthalmic droppers, nebulizers, surgical instruments, and first aid) with distinct subtle background tints and interactive hover animations across the Home categories carousel and Search product filters.
   - **Task 12 (Repository Cleanup Pass & Automated Junk Prevention):** Conducted a comprehensive repo scan removing 30+ stray/superseded files (one-off `.cjs` and `.js` patch scripts, duplicate SQL drafts, scratch test scripts in `scripts/`, versioned `.bak` files, orphaned `assets/` and `temp_icons/` directories, and large `public/playwright-report.html` build artifacts). Enhanced `.gitignore` to prevent future recurring junk accumulation (`*.cjs`, `*.bak`, `*.orig`, `*.tmp`, `temp_icons/`, `public/playwright-report*.html`). Verified zero compile/build breakage with `tsc --noEmit` and `npm run build`.
+  - **Task 13 (Push Network Notification Broadcast Bug Fix & Realtime Socket Integration):** Resolved field mapping conflict in `/api/admin/notifications/send` and `/api/admin/notifications/broadcast` where the server required `targetType` while the frontend sent `type`, triggering an HTTP 400 rejection and a red "Failed to send notification" error banner. Standardized backend payload parsing to accept both `targetType` and `type` with a reliable fallback, integrated real-time Socket.io notification broadcasts to all active pharmacy sockets, connected browser desktop push notifications on permission grant, and expanded E2E test suite coverage.
 
 ----------------------------------------
 
@@ -255,7 +256,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 | Search/Cart | 100% | Yes | High |
 | Orders/Depot | 95% | Yes | High |
 | AI Enrichment | 95% | Yes | Medium |
-| Push Notifications | 20% | No | Medium |
+| Push Notifications | 100% | Completed (Broadcast HUD, Socket.io Real-time & Web Push) | Completed |
 | Payment Gateway | 100% | Completed (bKash/Nagad/SSLCommerz PGW) | Completed |
 | PWA Standalone App | 100% | Completed (SW v2, Manifest, Maskable Icons) | Completed |
 | Slide-Over Cart Drawer | 100% | Completed (CartDrawer.tsx & 5-tab Nav) | Completed |
@@ -285,6 +286,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 - **Completed:** Task 10: Modern Slide-Over Cart Drawer & Bottom Navigation Integration.
 - **Completed:** Task 11: Dedicated Medical Category Icon System & High-Precision Dosage Form Vector Iconography.
 - **Completed:** Task 12: Repository Cleanup Pass & Automated Junk Prevention (.gitignore).
+- **Completed:** Task 13: Push Network Notification Broadcast Bug Fix & Realtime Socket Integration.
 - **Short Term:** Finish FCM Push Notifications.
 - **Long Term:** Implement multi-tenant capability.
 

@@ -2230,14 +2230,33 @@ app.post("/api/admin/inventory/update", requireRole(["Admin", "Depot Staff"]), a
 });
 
 app.post("/api/admin/notifications/broadcast", requireRole(["Admin"]), async (req, res) => {
-  const { title, message, type } = req.body;
+  const { title, message, type, targetType } = req.body;
+  const notifType = type || targetType || "global";
   if (!title || !message) {
     return res.status(400).json({ error: "Title and message are required." });
   }
   try {
-    await dbService.sendNotification(null, title, message, type || "system");
+    const { error } = await dbService.sendNotification(null, title, message, notifType);
+    if (error) {
+      log.error("Failed to broadcast notification to DB:", error);
+      return res.status(500).json({ error: error.message || "Database insert failed." });
+    }
+
+    const ioInstance = req.app.get("io");
+    if (ioInstance) {
+      ioInstance.emit("notification", {
+        title,
+        message,
+        type: notifType,
+        pharmacyId: null,
+        created_at: new Date().toISOString()
+      });
+      ioInstance.emit("admin_order_updated");
+    }
+
     res.json({ success: true });
   } catch (err: any) {
+    log.error("Exception in /api/admin/notifications/broadcast:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -2378,14 +2397,33 @@ app.get("/api/admin/notifications", requireRole(["Admin"]), async (req, res) => 
 });
 
 app.post("/api/admin/notifications/send", requireRole(["Admin"]), async (req, res) => {
-  const { title, message, targetType, pharmacyId } = req.body;
-  if (!title || !message || !targetType) {
-    return res.status(400).json({ error: "Title, message, and targetType are required." });
+  const { title, message, targetType, type, pharmacyId } = req.body;
+  const notifType = targetType || type || "global";
+  if (!title || !message) {
+    return res.status(400).json({ error: "Title and message are required." });
   }
   try {
-    await dbService.sendNotification(pharmacyId, title, message, targetType);
+    const { error } = await dbService.sendNotification(pharmacyId || null, title, message, notifType);
+    if (error) {
+      log.error("Failed to insert notification to DB:", error);
+      return res.status(500).json({ error: error.message || "Database insert failed." });
+    }
+
+    const ioInstance = req.app.get("io");
+    if (ioInstance) {
+      ioInstance.emit("notification", {
+        title,
+        message,
+        type: notifType,
+        pharmacyId: pharmacyId || null,
+        created_at: new Date().toISOString()
+      });
+      ioInstance.emit("admin_order_updated");
+    }
+
     res.json({ success: true });
   } catch (err: any) {
+    log.error("Exception in /api/admin/notifications/send:", err);
     res.status(500).json({ error: err.message });
   }
 });
