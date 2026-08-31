@@ -29,6 +29,7 @@ import { formatRefId, formatProductPriceLabel } from "../lib/utils";
 import { useCartFeedback } from "../context/FlyToCartContext";
 import ProductCardSkeleton from "./ProductCardSkeleton";
 import CategoryIcon from "./CategoryIcon";
+import { ALL_CATEGORY_VALUES } from "../constants/categories";
 
 interface SearchSystemProps {
   onAddToCart: (productId: string, qty: number) => Promise<boolean>;
@@ -86,7 +87,7 @@ export default function SearchSystem({
   const [addedSuccess, setAddedSuccess] = useState<Record<string, boolean>>({});
   const [dbCategories, setDbCategories] = useState<string[]>([]);
 
-  const defaultCategories = ["All", "Tablet", "Capsule", "Syrup", "Suspension", "Drops", "Injection", "Infusion", "Inhaler", "Cream", "Ointment", "Gel", "Lotion", "Powder", "Sachet", "Oral Solution", "Oral Saline", "Eye Drop", "Eye Ointment", "Ear Drop", "Nasal Spray", "Suppository", "Pessary", "Patch", "Insulin", "Vaccine", "Medical Devices", "Surgical Items", "Dressing", "Bandage", "Gloves", "Masks", "Test Kits", "Nebulizer Solution", "Herbal", "Ayurvedic", "Homeopathic", "Vitamins", "Supplements", "Baby Care", "Personal Care", "Diabetic Care", "First Aid", "Others"];
+  const defaultCategories = ["All", ...ALL_CATEGORY_VALUES];
 
   const categories = Array.from(new Set([
     "All",

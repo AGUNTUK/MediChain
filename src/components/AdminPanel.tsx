@@ -6,6 +6,7 @@ import ProductEditModal from "./ProductEditModal";
 import AIEnrichmentPanel from "./AIEnrichmentPanel";
 import AdminHeroCarouselManager from "./AdminHeroCarouselManager";
 import BulkDealsAdmin from "./BulkDealsAdmin";
+import { CATEGORY_GROUPS } from "../constants/categories";
 import { 
   LayoutDashboard, 
   Pill, 
@@ -1758,12 +1759,15 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                         className="bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-semibold text-slate-700 focus:outline-none focus:border-indigo-500 cursor-pointer"
                       >
                         <option value="">All Categories</option>
-                        <option value="Tablet">Tablet</option>
-                        <option value="Capsule">Capsule</option>
-                        <option value="Syrup">Syrup</option>
-                        <option value="Injection">Injection</option>
-                        <option value="Cream">Cream</option>
-                        <option value="Supplement">Supplement</option>
+                        {CATEGORY_GROUPS.map((group) => (
+                          <optgroup key={group.groupName} label={`${group.groupName} (${group.groupNameBn})`}>
+                            {group.items.map((item) => (
+                              <option key={item.value} value={item.value}>
+                                {item.label} ({item.labelBn})
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
                       </select>
 
                       <select

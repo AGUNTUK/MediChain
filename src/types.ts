@@ -8,7 +8,7 @@ export interface Product {
   name: string;
   genericName: string;
   company: string;
-  category: "Tablet" | "Capsule" | "Syrup" | "Injection" | "Cream" | "Supplement";
+  category: string;
   strength: string;
   packSize: string;
   mrp: number; // Maximum Retail Price

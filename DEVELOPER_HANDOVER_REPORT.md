@@ -246,6 +246,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - **Task 12 (Repository Cleanup Pass & Automated Junk Prevention):** Conducted a comprehensive repo scan removing 30+ stray/superseded files (one-off `.cjs` and `.js` patch scripts, duplicate SQL drafts, scratch test scripts in `scripts/`, versioned `.bak` files, orphaned `assets/` and `temp_icons/` directories, and large `public/playwright-report.html` build artifacts). Enhanced `.gitignore` to prevent future recurring junk accumulation (`*.cjs`, `*.bak`, `*.orig`, `*.tmp`, `temp_icons/`, `public/playwright-report*.html`). Verified zero compile/build breakage with `tsc --noEmit` and `npm run build`.
   - **Task 13 (Push Network Notification Broadcast Bug Fix & Realtime Socket Integration):** Resolved field mapping conflict in `/api/admin/notifications/send` and `/api/admin/notifications/broadcast` where the server required `targetType` while the frontend sent `type`, triggering an HTTP 400 rejection and a red "Failed to send notification" error banner. Standardized backend payload parsing to accept both `targetType` and `type` with a reliable fallback, integrated real-time Socket.io notification broadcasts to all active pharmacy sockets, connected browser desktop push notifications on permission grant, and expanded E2E test suite coverage.
   - **Task 14 (Medicine Catalog Edit Validation Clarity & Error Transparency):** Enhanced `ProductEditModal.tsx`, `AdminPanel.tsx`, `server.ts`, and `security.ts` to surface detailed, field-specific error messages instead of generic `"Validation failed"`. Added client-side pre-validation for required product name, generic formula, manufacturer company, positive wholesale MRP & trade selling prices, selling price <= MRP checks, stock non-negativity, and batch/expiry constraints.
+  - **Task 15 (Comprehensive Pharmaceutical Categories & Dosage Form System):** Expanded the restricted 6-category dropdown into a comprehensive, standardized Bangladeshi DGDA/pharma-compliant catalog classification system (`src/constants/categories.ts`). Grouped dosage forms into clear, bilingual optgroups (Oral Solids, Oral Liquids, Injectables & Infusions, Respiratory & Inhalation, Topicals & Dermatological, Eye/Ear/Nasal, Suppositories, Supplements/Nutrition, and Medical Devices/Surgical) across `ProductEditModal.tsx`, `AdminPanel.tsx`, `SearchSystem.tsx`, `Home.tsx`, and `types.ts`, backed by high-precision vector iconography in `CategoryIcon.tsx`.
 
 ----------------------------------------
 
@@ -264,6 +265,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 | Medical Category Iconography | 100% | Completed (CategoryIcon.tsx & SVG dosage forms) | Completed |
 | Clean Repository Hygiene | 100% | Completed (Purged 30+ stray files, enhanced .gitignore) | Completed |
 | Product Catalog Management | 100% | Completed (Transparent Field-Level Zod Validation & Inline Editing) | Completed |
+| Pharmaceutical Category System | 100% | Completed (40+ Dosage Forms & Grouped Bilingual Selectors) | Completed |
 
 ----------------------------------------
 
@@ -290,6 +292,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 - **Completed:** Task 12: Repository Cleanup Pass & Automated Junk Prevention (.gitignore).
 - **Completed:** Task 13: Push Network Notification Broadcast Bug Fix & Realtime Socket Integration.
 - **Completed:** Task 14: Medicine Catalog Edit Validation Clarity & Error Transparency.
+- **Completed:** Task 15: Comprehensive Pharmaceutical Category System & Grouped Dosage Form Selectors.
 - **Short Term:** Finish FCM Push Notifications.
 - **Long Term:** Implement multi-tenant capability.
 

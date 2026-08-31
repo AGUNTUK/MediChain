@@ -16,6 +16,7 @@ import {
   Trash2
 } from "lucide-react";
 import { Product } from "../types";
+import { CATEGORY_GROUPS, ALL_CATEGORY_VALUES } from "../constants/categories";
 
 interface ProductEditModalProps {
   product?: Product | null;
@@ -33,7 +34,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [name, setName] = useState("");
   const [genericName, setGenericName] = useState("");
   const [company, setCompany] = useState("");
-  const [category, setCategory] = useState<Product["category"]>("Tablet");
+  const [category, setCategory] = useState<string>("Tablet");
   const [strength, setStrength] = useState("");
   const [packSize, setPackSize] = useState("");
   const [mrp, setMrp] = useState<number | "">("");
@@ -415,17 +416,29 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               </label>
               <select
                 value={category}
-                onChange={(e) => setCategory(e.target.value as any)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-3 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-3 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
                 required
               >
-                <option value="Tablet">Tablet</option>
-                <option value="Capsule">Capsule</option>
-                <option value="Syrup">Syrup</option>
-                <option value="Injection">Injection</option>
-                <option value="Cream">Cream</option>
-                <option value="Supplement">Supplement</option>
-                <option value="Medical Device">Medical Device</option>
+                {/* Fallback for any existing custom category not in predefined list */}
+                {category && !ALL_CATEGORY_VALUES.includes(category) && (
+                  <option value={category} className="bg-slate-950 text-white font-bold">
+                    {category} (Current)
+                  </option>
+                )}
+                {CATEGORY_GROUPS.map((group) => (
+                  <optgroup
+                    key={group.groupName}
+                    label={`--- ${group.groupName} (${group.groupNameBn}) ---`}
+                    className="bg-slate-900 text-emerald-400 font-bold py-1"
+                  >
+                    {group.items.map((item) => (
+                      <option key={item.value} value={item.value} className="bg-slate-950 text-slate-200 py-1 font-normal">
+                        {item.label} ({item.labelBn})
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
             </div>
           </div>

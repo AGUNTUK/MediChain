@@ -41,6 +41,7 @@ import { useCartFeedback } from "../context/FlyToCartContext";
 import PrescriptionScanner from "./PrescriptionScanner";
 import HeroCarousel from "./HeroCarousel";
 import CategoryIcon, { getCategoryConfig } from "./CategoryIcon";
+import { ALL_CATEGORY_VALUES } from "../constants/categories";
 import { useDebounce } from "../hooks/useDebounce";
 
 interface HomeProps {
@@ -122,41 +123,7 @@ export default function Home({
   const [catalogTotalProducts, setCatalogTotalProducts] = useState(0);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
 
-  const DEFAULT_CATEGORIES = [
-    "Tablet",
-    "Capsule",
-    "Syrup",
-    "Suspension",
-    "Drops",
-    "Injection",
-    "Infusion",
-    "Inhaler",
-    "Cream",
-    "Ointment",
-    "Gel",
-    "Lotion",
-    "Powder",
-    "Sachet",
-    "Nasal Spray",
-    "Suppository",
-    "Patch",
-    "Insulin",
-    "Vaccine",
-    "Medical Devices",
-    "Surgical Items",
-    "Dressing",
-    "Bandage",
-    "Gloves",
-    "Masks",
-    "Test Kits",
-    "Herbal",
-    "Ayurvedic",
-    "Vitamins",
-    "Supplements",
-    "Baby Care",
-    "Diabetic Care",
-    "First Aid"
-  ];
+  const DEFAULT_CATEGORIES = ALL_CATEGORY_VALUES;
 
   const fetchHomeWidgets = async () => {
     try {

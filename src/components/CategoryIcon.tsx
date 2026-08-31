@@ -16,8 +16,8 @@ interface CategoryStyle {
 export function getCategoryConfig(name: string): CategoryStyle {
   const norm = (name || "").trim().toLowerCase();
 
-  // 1. Tablet (Round scored tablet)
-  if (norm.includes("tablet") || norm.includes("tab")) {
+  // 1. Tablet (Round scored tablet, Chewable, Effervescent)
+  if (norm.includes("tablet") || norm.includes("tab") || norm.includes("bolus") || norm.includes("pill")) {
     return {
       bg: "bg-rose-50 hover:bg-rose-100/80",
       border: "border-rose-200/70",
@@ -31,8 +31,8 @@ export function getCategoryConfig(name: string): CategoryStyle {
     };
   }
 
-  // 2. Capsule (Oblong two-tone medicine capsule)
-  if (norm.includes("capsule") || norm.includes("cap")) {
+  // 2. Capsule (Oblong two-tone medicine capsule, Softgel, Rotacaps)
+  if (norm.includes("capsule") || norm.includes("cap") || norm.includes("softgel") || norm.includes("rotacap")) {
     return {
       bg: "bg-purple-50 hover:bg-purple-100/80",
       border: "border-purple-200/70",
@@ -47,7 +47,7 @@ export function getCategoryConfig(name: string): CategoryStyle {
   }
 
   // 3. Syrup (Liquid bottle with measuring spoon)
-  if (norm.includes("syrup") || norm.includes("oral liquid")) {
+  if (norm.includes("syrup") || norm.includes("oral liquid") || norm.includes("elixir") || norm.includes("mixture")) {
     return {
       bg: "bg-amber-50 hover:bg-amber-100/80",
       border: "border-amber-200/70",
@@ -63,8 +63,8 @@ export function getCategoryConfig(name: string): CategoryStyle {
     };
   }
 
-  // 4. Suspension (Flask / medicinal suspension bottle)
-  if (norm.includes("suspension")) {
+  // 4. Suspension & Solution (Flask / medicinal suspension bottle)
+  if (norm.includes("suspension") || norm.includes("solution") || norm.includes("saline") || norm.includes("emulsion")) {
     return {
       bg: "bg-orange-50 hover:bg-orange-100/80",
       border: "border-orange-200/70",
@@ -98,7 +98,7 @@ export function getCategoryConfig(name: string): CategoryStyle {
   }
 
   // 6. Injection (Hypodermic syringe)
-  if (norm.includes("injection") || norm.includes("inj")) {
+  if (norm.includes("injection") || norm.includes("inj") || norm.includes("syringe") || norm.includes("ampoule") || norm.includes("vial")) {
     return {
       bg: "bg-cyan-50 hover:bg-cyan-100/80",
       border: "border-cyan-200/70",
@@ -117,7 +117,7 @@ export function getCategoryConfig(name: string): CategoryStyle {
   }
 
   // 7. Infusion / IV Drip (Intravenous drip bag with tubing & chamber)
-  if (norm.includes("infusion") || norm.includes("iv drip") || norm.includes("saline")) {
+  if (norm.includes("infusion") || norm.includes("iv drip") || norm.includes("iv saline") || norm.includes("drip")) {
     return {
       bg: "bg-blue-50 hover:bg-blue-100/80",
       border: "border-blue-200/70",
@@ -141,8 +141,8 @@ export function getCategoryConfig(name: string): CategoryStyle {
     };
   }
 
-  // 8. Inhaler (Asthma respiratory puff inhaler)
-  if (norm.includes("inhaler") || norm.includes("aerosol") || norm.includes("rotahaler")) {
+  // 8. Inhaler & Nebulizer (Asthma respiratory puff inhaler)
+  if (norm.includes("inhaler") || norm.includes("aerosol") || norm.includes("rotahaler") || norm.includes("nebulizer")) {
     return {
       bg: "bg-teal-50 hover:bg-teal-100/80",
       border: "border-teal-200/70",
@@ -163,8 +163,8 @@ export function getCategoryConfig(name: string): CategoryStyle {
     };
   }
 
-  // 9. Cream / Ointment / Gel (Topical medicine tube)
-  if (norm.includes("cream") || norm.includes("ointment") || norm.includes("gel") || norm.includes("lotion")) {
+  // 9. Cream / Ointment / Gel / Lotion (Topical medicine tube)
+  if (norm.includes("cream") || norm.includes("ointment") || norm.includes("gel") || norm.includes("lotion") || norm.includes("scalp") || norm.includes("shampoo")) {
     return {
       bg: "bg-emerald-50 hover:bg-emerald-100/80",
       border: "border-emerald-200/70",
@@ -184,7 +184,7 @@ export function getCategoryConfig(name: string): CategoryStyle {
   }
 
   // 10. Powder / Sachet (Medicinal powder packet)
-  if (norm.includes("powder") || norm.includes("sachet") || norm.includes("ors")) {
+  if (norm.includes("powder") || norm.includes("sachet") || norm.includes("ors") || norm.includes("granule")) {
     return {
       bg: "bg-yellow-50 hover:bg-yellow-100/80",
       border: "border-yellow-200/70",
@@ -199,7 +199,7 @@ export function getCategoryConfig(name: string): CategoryStyle {
     };
   }
 
-  // 11. Nasal Spray
+  // 11. Nasal Spray & Topical Spray
   if (norm.includes("nasal") || norm.includes("spray")) {
     return {
       bg: "bg-indigo-50 hover:bg-indigo-100/80",
@@ -218,8 +218,8 @@ export function getCategoryConfig(name: string): CategoryStyle {
     };
   }
 
-  // 12. Suppository / Pessary
-  if (norm.includes("suppository") || norm.includes("pessary")) {
+  // 12. Suppository / Pessary / Enema
+  if (norm.includes("suppository") || norm.includes("pessary") || norm.includes("enema")) {
     return {
       bg: "bg-fuchsia-50 hover:bg-fuchsia-100/80",
       border: "border-fuchsia-200/70",
