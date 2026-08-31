@@ -631,7 +631,12 @@ export async function getProductsRaw(limit = 1000): Promise<Product[]> {
       data = fallback.data;
     }
 
-    return data.map(mapProduct);
+    const mapped = data.map(mapProduct);
+    return mapped.sort((a, b) => {
+      const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
+      const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
+      return bInStock - aInStock;
+    });
   } catch (err: any) {
     console.error("Exception in getProductsRaw:", err.message || err);
     return [];

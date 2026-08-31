@@ -618,9 +618,22 @@ app.get("/api/products", publicLimiter, async (req, res) => {
       };
     });
 
-    if (filter === "frequent") {
-      mappedProducts.sort((a, b) => b.soldStock - a.soldStock);
-    }
+    // Universal In-Stock Priority Sorting: Products in stock always appear first
+    mappedProducts.sort((a, b) => {
+      const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
+      const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
+      if (aInStock !== bInStock) {
+        return bInStock - aInStock; // In-stock (1) comes before Out-of-stock (0)
+      }
+      if (filter === "deals") {
+        return (b.discountPercentage ?? 0) - (a.discountPercentage ?? 0);
+      } else if (filter === "frequent") {
+        return (b.soldStock ?? 0) - (a.soldStock ?? 0);
+      } else if (filter === "low_stock") {
+        return (a.availableStock ?? 0) - (b.availableStock ?? 0);
+      }
+      return 0;
+    });
 
     let responseData: any;
     if (paginate === "true" || page || limit) {

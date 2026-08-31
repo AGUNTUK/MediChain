@@ -263,19 +263,46 @@ export function performSearch(
       }
     });
 
-    // Sort by weighted relevance score
-    scoredList.sort((a, b) => b.score - a.score);
+    // Sort by weighted relevance score with in-stock products taking absolute priority
+    scoredList.sort((a, b) => {
+      const aInStock = (a.product.availableStock ?? 0) > 0 ? 1 : 0;
+      const bInStock = (b.product.availableStock ?? 0) > 0 ? 1 : 0;
+      if (aInStock !== bInStock) return bInStock - aInStock;
+      return b.score - a.score;
+    });
     list = scoredList.map(s => s.product);
   }
 
-  // 4. Sort Filters
+  // 4. Sort Filters with in-stock priority
   if (options.filter === "deals") {
-    // Keep high matches first, but sub-sort matches by discount percentage
-    list = list.sort((a, b) => b.discountPercentage - a.discountPercentage);
+    list = list.sort((a, b) => {
+      const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
+      const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
+      if (aInStock !== bInStock) return bInStock - aInStock;
+      return (b.discountPercentage ?? 0) - (a.discountPercentage ?? 0);
+    });
   } else if (options.filter === "frequent") {
-    list = list.sort((a, b) => b.soldStock - a.soldStock);
+    list = list.sort((a, b) => {
+      const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
+      const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
+      if (aInStock !== bInStock) return bInStock - aInStock;
+      return (b.soldStock ?? 0) - (a.soldStock ?? 0);
+    });
   } else if (options.filter === "low_stock") {
-    list = list.filter(p => p.availableStock <= 150);
+    list = list.filter(p => (p.availableStock ?? 0) <= 150);
+    list = list.sort((a, b) => {
+      const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
+      const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
+      if (aInStock !== bInStock) return bInStock - aInStock;
+      return (a.availableStock ?? 0) - (b.availableStock ?? 0);
+    });
+  } else {
+    // Default catalog: always keep in-stock products first
+    list = list.sort((a, b) => {
+      const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
+      const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
+      return bInStock - aInStock;
+    });
   }
 
   // 5. Generate spelling suggestions from dataset if none or very few results found

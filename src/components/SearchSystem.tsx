@@ -115,10 +115,16 @@ export default function SearchSystem({
       })
       .catch(console.error);
 
-    // Load popular/frequently ordered items
+    // Load popular/frequently ordered items (in-stock first)
     productService.getProducts({ filter: "frequent" })
       .then(data => {
-        setFrequentProducts(data.slice(0, 4));
+        const sorted = [...data].sort((a, b) => {
+          const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
+          const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
+          if (aInStock !== bInStock) return bInStock - aInStock;
+          return (b.soldStock ?? 0) - (a.soldStock ?? 0);
+        });
+        setFrequentProducts(sorted.slice(0, 4));
       })
       .catch(err => console.error("Error loading frequent products:", err));
   }, []);
@@ -159,13 +165,24 @@ export default function SearchSystem({
 
         if (!isActive) return; // Ignore outdated response
 
+        const sortedList = [...response.products].sort((a, b) => {
+          const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
+          const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
+          return bInStock - aInStock;
+        });
+
         if (page === 1) {
-          setProducts(response.products);
+          setProducts(sortedList);
         } else {
           setProducts(prev => {
             // Deduplicate products based on ID to avoid duplicate rendering issues on double fetch
-            const newProducts = response.products.filter(p => !prev.some(existing => existing.id === p.id));
-            return [...prev, ...newProducts];
+            const newProducts = sortedList.filter(p => !prev.some(existing => existing.id === p.id));
+            const merged = [...prev, ...newProducts];
+            return [...merged].sort((a, b) => {
+              const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
+              const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
+              return bInStock - aInStock;
+            });
           });
         }
         setTotalProducts(response.total);

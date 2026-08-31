@@ -247,6 +247,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - **Task 13 (Push Network Notification Broadcast Bug Fix & Realtime Socket Integration):** Resolved field mapping conflict in `/api/admin/notifications/send` and `/api/admin/notifications/broadcast` where the server required `targetType` while the frontend sent `type`, triggering an HTTP 400 rejection and a red "Failed to send notification" error banner. Standardized backend payload parsing to accept both `targetType` and `type` with a reliable fallback, integrated real-time Socket.io notification broadcasts to all active pharmacy sockets, connected browser desktop push notifications on permission grant, and expanded E2E test suite coverage.
   - **Task 14 (Medicine Catalog Edit Validation Clarity & Error Transparency):** Enhanced `ProductEditModal.tsx`, `AdminPanel.tsx`, `server.ts`, and `security.ts` to surface detailed, field-specific error messages instead of generic `"Validation failed"`. Added client-side pre-validation for required product name, generic formula, manufacturer company, positive wholesale MRP & trade selling prices, selling price <= MRP checks, stock non-negativity, and batch/expiry constraints.
   - **Task 15 (Comprehensive Pharmaceutical Categories & Dosage Form System):** Expanded the restricted 6-category dropdown into a comprehensive, standardized Bangladeshi DGDA/pharma-compliant catalog classification system (`src/constants/categories.ts`). Grouped dosage forms into clear, bilingual optgroups (Oral Solids, Oral Liquids, Injectables & Infusions, Respiratory & Inhalation, Topicals & Dermatological, Eye/Ear/Nasal, Suppositories, Supplements/Nutrition, and Medical Devices/Surgical) across `ProductEditModal.tsx`, `AdminPanel.tsx`, `SearchSystem.tsx`, `Home.tsx`, and `types.ts`, backed by high-precision vector iconography in `CategoryIcon.tsx`.
+  - **Task 16 (In-Stock Products Priority Ordering & Dynamic Profit Margin Meter):** Enforced a universal in-stock priority rule across all product listings (`server.ts`, `dbService.ts`, `searchService.ts`, `productService.ts`, `Home.tsx`, `SearchSystem.tsx`) ensuring in-stock medicines (`availableStock > 0`) always render ahead of out-of-stock items. Dynamically connected the homepage Daily Wholesale Profit Margin Meter card ("দৈনিক পাইকারি মুনাফা মিটার") to calculate live lowest and highest discount percentage ranges exclusively from in-stock inventory.
 
 ----------------------------------------
 
@@ -266,6 +267,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 | Clean Repository Hygiene | 100% | Completed (Purged 30+ stray files, enhanced .gitignore) | Completed |
 | Product Catalog Management | 100% | Completed (Transparent Field-Level Zod Validation & Inline Editing) | Completed |
 | Pharmaceutical Category System | 100% | Completed (40+ Dosage Forms & Grouped Bilingual Selectors) | Completed |
+| In-Stock Catalog Priority & Profit Meter | 100% | Completed (In-Stock First Everywhere & Dynamic Profit Range) | Completed |
 
 ----------------------------------------
 
@@ -293,6 +295,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 - **Completed:** Task 13: Push Network Notification Broadcast Bug Fix & Realtime Socket Integration.
 - **Completed:** Task 14: Medicine Catalog Edit Validation Clarity & Error Transparency.
 - **Completed:** Task 15: Comprehensive Pharmaceutical Category System & Grouped Dosage Form Selectors.
+- **Completed:** Task 16: In-Stock Priority Ordering Everywhere & Dynamic Live Wholesale Profit Margin Calculation.
 - **Short Term:** Finish FCM Push Notifications.
 - **Long Term:** Implement multi-tenant capability.
 

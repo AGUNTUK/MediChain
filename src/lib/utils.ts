@@ -62,3 +62,11 @@ export function formatProductPriceLabel(mrp: number, packSize: string): string {
   }
   return `/ Box`;
 }
+
+/**
+ * Converts standard numbers/strings to localized Bengali numeral digits (০-৯)
+ */
+export function toBengaliNumber(num: number | string): string {
+  const bengaliDigits = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
+  return String(num).replace(/[0-9]/g, (w) => bengaliDigits[+w]);
+}

@@ -35,7 +35,7 @@ import NotificationBell from "./NotificationBell";
 import ProductCard from "./ProductCard";
 import ProductCardSkeleton from "./ProductCardSkeleton";
 import ErrorState from "./ErrorState";
-import { formatProductPriceLabel } from "../lib/utils";
+import { formatProductPriceLabel, toBengaliNumber } from "../lib/utils";
 import { apiCache } from "../lib/apiCache";
 import { useCartFeedback } from "../context/FlyToCartContext";
 import PrescriptionScanner from "./PrescriptionScanner";
@@ -122,8 +122,34 @@ export default function Home({
   const [catalogTotalPages, setCatalogTotalPages] = useState(1);
   const [catalogTotalProducts, setCatalogTotalProducts] = useState(0);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
+  const [profitMarginRange, setProfitMarginRange] = useState<{ min: number; max: number }>({ min: 22, max: 32 });
 
   const DEFAULT_CATEGORIES = ALL_CATEGORY_VALUES;
+
+  // Helper to ensure in-stock products always appear first
+  const prioritizeInStock = (products: Product[]): Product[] => {
+    return [...products].sort((a, b) => {
+      const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
+      const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
+      if (aInStock !== bInStock) return bInStock - aInStock;
+      return 0;
+    });
+  };
+
+  // Helper to dynamically calculate lowest & highest discount % from in-stock items
+  const updateProfitMarginFromInStock = (products: Product[]) => {
+    const inStockWithDiscount = products.filter(
+      p => (p.availableStock ?? 0) > 0 && (p.discountPercentage ?? 0) > 0
+    );
+    if (inStockWithDiscount.length > 0) {
+      const discounts = inStockWithDiscount.map(p => Math.round(p.discountPercentage));
+      const min = Math.min(...discounts);
+      const max = Math.max(...discounts);
+      if (min > 0 && max >= min) {
+        setProfitMarginRange({ min, max });
+      }
+    }
+  };
 
   const fetchHomeWidgets = async () => {
     try {
@@ -140,15 +166,30 @@ export default function Home({
       }
 
       // 1. Fetch Deals
-      const dataDeals = await productService.getProducts({ filter: "deals" });
-      setBestDeals(dataDeals.slice(0, 3));
-      setHighestDiscounts(dataDeals.slice(0, 4));
+      const dataDeals = await productService.getProducts({ filter: "deals", limit: 60 });
+      const inStockDeals = [...dataDeals].sort((a, b) => {
+        const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
+        const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
+        if (aInStock !== bInStock) return bInStock - aInStock;
+        return (b.discountPercentage ?? 0) - (a.discountPercentage ?? 0);
+      });
+      setBestDeals(inStockDeals.slice(0, 3));
+      setHighestDiscounts(inStockDeals.slice(0, 4));
 
       // 2. Fetch Frequently ordered
-      const dataFreq = await productService.getProducts({ filter: "frequent" });
-      setFrequentProducts(dataFreq.slice(0, 4));
+      const dataFreq = await productService.getProducts({ filter: "frequent", limit: 30 });
+      const inStockFreq = [...dataFreq].sort((a, b) => {
+        const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
+        const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
+        if (aInStock !== bInStock) return bInStock - aInStock;
+        return (b.soldStock ?? 0) - (a.soldStock ?? 0);
+      });
+      setFrequentProducts(inStockFreq.slice(0, 4));
 
-      // 3. Fetch Live Campaign
+      // 3. Compute dynamic wholesale profit margin meter from available in-stock inventory
+      updateProfitMarginFromInStock(dataDeals);
+
+      // 4. Fetch Live Campaign
       const { bulkDealsService } = await import("../services");
       const activeCampaign = await bulkDealsService.getLiveCampaign();
       setLiveCampaign(activeCampaign);
@@ -184,16 +225,19 @@ export default function Home({
         limit: 24
       });
 
+      const prioritizedList = prioritizeInStock(response.products);
+
       if (isNewQuery) {
-        setCatalogProducts(response.products);
+        setCatalogProducts(prioritizedList);
         setCatalogPage(1);
       } else {
         setCatalogProducts(prev => {
-          const newItems = response.products.filter(p => !prev.some(e => e.id === p.id));
-          return [...prev, ...newItems];
+          const newItems = prioritizedList.filter(p => !prev.some(e => e.id === p.id));
+          return prioritizeInStock([...prev, ...newItems]);
         });
       }
 
+      updateProfitMarginFromInStock(prioritizedList);
       setCatalogTotalProducts(response.total);
       setCatalogTotalPages(response.pages || 1);
     } catch (err) {
@@ -453,7 +497,13 @@ export default function Home({
 
                 <div>
                   <h3 className="text-base sm:text-lg font-black text-white leading-snug">
-                    আজকের পাইকারি অর্ডারে গড়ে <span className="text-brand-lime font-mono">২২% – ৩২%</span> পর্যন্ত সর্বোচ্চ লাভ!
+                    আজকের পাইকারি অর্ডারে গড়ে{" "}
+                    <span className="text-brand-lime font-mono">
+                      {profitMarginRange.min === profitMarginRange.max
+                        ? `${toBengaliNumber(profitMarginRange.max)}%`
+                        : `${toBengaliNumber(profitMarginRange.min)}% – ${toBengaliNumber(profitMarginRange.max)}%`}
+                    </span>{" "}
+                    পর্যন্ত সর্বোচ্চ লাভ!
                   </h3>
                   <p className="text-xs text-purple-200/90 font-medium mt-0.5">
                     মেডিচেইন ডিপো থেকে সরাসরি ক্রয়ে কোনো মধ্যস্বত্বভোগী নেই, তাই ফার্মেসির মুনাফা থাকে সর্বোচ্চ।

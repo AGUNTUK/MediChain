@@ -34,7 +34,12 @@ export const productService = {
       const res = await fetch(`/api/products${queryStr}`);
       if (!res.ok) return [];
       const data = await res.json();
-      return Array.isArray(data) ? data : (data.products || []);
+      const list: Product[] = Array.isArray(data) ? data : (data.products || []);
+      return [...list].sort((a, b) => {
+        const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
+        const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
+        return bInStock - aInStock;
+      });
     });
   },
 
@@ -84,7 +89,15 @@ export const productService = {
       if (!res.ok) {
         throw new Error("Failed to fetch paginated product list from MediChain catalog.");
       }
-      return res.json();
+      const result = await res.json();
+      if (result && Array.isArray(result.products)) {
+        result.products = [...result.products].sort((a, b) => {
+          const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
+          const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
+          return bInStock - aInStock;
+        });
+      }
+      return result;
     });
   },
 
