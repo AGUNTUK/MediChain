@@ -69,8 +69,9 @@ export default function NotificationsPanel({ onClose, onRefreshNotifications }: 
   };
 
   return (
-    <div className="absolute inset-0 bg-black/60 flex items-end z-50 select-none animate-fade-in">
-      <div className="w-full bg-brand-bg rounded-t-3xl p-5 border-t border-slate-200 shadow-2xl overflow-y-auto max-h-[80%] animate-slide-up flex flex-col justify-between">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 z-[70] select-none animate-fade-in">
+      <div className="absolute inset-0" onClick={onClose} />
+      <div className="relative w-full max-w-xl bg-brand-bg rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 border-t sm:border border-slate-200 shadow-2xl overflow-y-auto max-h-[85vh] sm:max-h-[80vh] animate-slide-up flex flex-col justify-between z-10">
         {/* Header */}
         <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-50">
           <div>

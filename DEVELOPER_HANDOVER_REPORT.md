@@ -550,6 +550,17 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 41. ProductDetails & Overlays Sticky Action Footer & Z-Index Layering
+- **Root Cause of Button Cutoff**:
+  - `ProductDetails.tsx` and `NotificationsPanel.tsx` had `z-50` while the persistent mobile/desktop bottom navigation bar also had `z-50`. Because the bottom bar was rendered after `renderMobileContent()`, it sat directly on top of the bottom portion of the modal.
+  - Furthermore, on desktop and mobile, `ProductDetails` didn't have a sticky action bar, allowing the quick-add / stock alert buttons to get pushed below the visible viewport fold when generic alternatives or descriptions expanded.
+- **Solution & Key Fixes**:
+  1. **Elevated Z-Index Layering (`z-[70]`)**: ProductDetails and NotificationsPanel overlays now utilize `z-[70]` with backdrop click dismissal, cleanly hovering above the persistent bottom navigation bar (`z-50`).
+  2. **Sticky Bottom Action Footer**: Created a dedicated `sticky bottom-0 bg-white/95 backdrop-blur-md` footer container with safe-area padding (`pb-[max(16px,env(safe-area-inset-bottom))]`) inside the modal. The order quantity buttons ("১ বক্স", "৫ বক্স", "১০ বক্স") and "স্টক এলার্ট" buttons are always pinned and 100% visible without requiring scrolling.
+  3. **Responsive Centered Modal on Desktop**: Updated outer container to `flex items-end sm:items-center justify-center p-0 sm:p-4` with `max-h-[92vh] sm:max-h-[85vh]` and `rounded-t-3xl sm:rounded-3xl` for a centered dialog look on desktop and seamless bottom-sheet feel on mobile.
+
+----------------------------------------
+
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).
