@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { User as UserIcon, Heart, Shield, RefreshCcw, LogOut, FileText, Check, ShoppingCart, LifeBuoy, Pencil, Award, Clock, AlertTriangle, Headset, Download, Smartphone, CheckCircle2 } from "lucide-react";
-import { Product, Pharmacy, User } from "../types";
+import { User as UserIcon, Heart, Shield, RefreshCcw, LogOut, FileText, Check, ShoppingCart, LifeBuoy, Pencil, Award, Clock, AlertTriangle, Headset, Download, Smartphone, CheckCircle2, BellRing, Bell } from "lucide-react";
+import { Product, Pharmacy, User, RestockRequest } from "../types";
 import { paymentService } from "../services/payment";
 import { productService } from "../services/product";
+import { restockService } from "../services/restockService";
 import { orderService } from "../services/order";
 import { authService } from "../services/auth";
 import { usePWAInstall } from "../pwa/usePWAInstall";
@@ -34,6 +35,7 @@ export default function Account({
   const { isStandalone, canInstall, isIOS, install, openInstallBanner } = usePWAInstall();
   const [analytics, setAnalytics] = useState<any>(null);
   const [favProducts, setFavProducts] = useState<Product[]>([]);
+  const [myRestockRequests, setMyRestockRequests] = useState<RestockRequest[]>([]);
   const [successId, setSuccessId] = useState<string | null>(null);
   const [totalPurchased, setTotalPurchased] = useState(0);
 
@@ -50,6 +52,10 @@ export default function Account({
       // Fetch favourites
       const dataFav = await productService.getFavourites();
       setFavProducts(dataFav);
+
+      // Fetch restock alerts
+      const requests = await restockService.getMyRestockRequests();
+      setMyRestockRequests(requests);
 
       // Fetch completed orders to calculate eligibility
       const orders = await orderService.getOrders();
@@ -346,6 +352,71 @@ export default function Account({
           </div>
         )}
       </div>
+
+      {/* Pharmacy Stock Alerts & Restock Requests List */}
+      {myRestockRequests.length > 0 && (
+        <div className="bg-white rounded-3xl p-5 border border-slate-100 space-y-3.5 shadow-sm">
+          <div className="flex justify-between items-center">
+            <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+              <BellRing className="w-4 h-4 text-brand-purple" />
+              আমার স্টক এলার্ট ও রিস্টক রিকোয়েস্ট ({myRestockRequests.length})
+            </h3>
+            <span className="text-[10px] font-bold text-slate-400 font-mono">
+              {myRestockRequests.filter(r => r.status === "pending").length} অপেক্ষমাণ
+            </span>
+          </div>
+
+          <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+            {myRestockRequests.map(req => {
+              const isRestocked = req.status === "restocked";
+              const isPending = req.status === "pending";
+              return (
+                <div
+                  key={req.id}
+                  className="flex justify-between items-center bg-slate-50/70 p-3 rounded-2xl border border-slate-100 text-sm hover:border-slate-200 transition-all gap-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold text-slate-800 text-sm truncate flex items-center gap-1.5">
+                      <span>{req.product?.name || `Product #${req.productId.substring(0, 8)}`}</span>
+                      {req.product?.strength && (
+                        <span className="text-xs text-slate-500 font-normal">({req.product.strength})</span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-slate-400 font-mono mt-0.5 flex items-center gap-2">
+                      <span>রিকোয়েস্ট: {new Date(req.createdAt).toLocaleDateString("bn-BD")}</span>
+                      <span>•</span>
+                      <span>পরিমাণ: {req.requestedQuantity || 1} বক্স</span>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 flex items-center gap-2">
+                    <span className={`text-[10px] font-black px-2.5 py-1 rounded-xl uppercase tracking-wider ${
+                      isRestocked
+                        ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                        : isPending
+                        ? "bg-amber-100 text-amber-800 border border-amber-200"
+                        : "bg-slate-100 text-slate-600"
+                    }`}>
+                      {isRestocked ? "✓ স্টকে এসেছে" : isPending ? "⏳ অপেক্ষমাণ" : "বাতিল"}
+                    </span>
+
+                    {isRestocked && req.product && (
+                      <button
+                        onClick={() => handleQuickReorder(req.product!.id)}
+                        className="py-1.5 px-3 rounded-xl text-xs font-black bg-brand-lime hover:bg-brand-lime-dark text-slate-950 transition-all flex items-center gap-1 cursor-pointer shadow-xs"
+                      >
+                        <ShoppingCart className="w-3 h-3" />
+                        <span>অর্ডার</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
 
       {/* Corporate Support and DGDA Details */}
       <div className="bg-white rounded-3xl p-5 border border-slate-100 space-y-3.5 shadow-sm">

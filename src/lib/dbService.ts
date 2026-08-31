@@ -1872,4 +1872,461 @@ export async function processPaymentGatewayTransaction(orderId: string, paymentM
   };
 }
 
+// ==========================================
+// RESTOCK REQUESTS & STOCK ALERTS SYSTEM
+// ==========================================
+
+const localRestockStore = new Map<string, any>();
+
+/**
+ * Creates an idempotent restock request for a pharmacy.
+ * If an active pending request already exists for this product and pharmacy, returns the existing record.
+ */
+export async function createRestockRequest(
+  productId: string,
+  pharmacyId: string,
+  userId: string,
+  requestedQuantity: number = 1
+): Promise<{ request: any; isExisting: boolean }> {
+  const cleanProdId = String(productId).trim();
+  const cleanPharmId = String(pharmacyId).trim();
+  const cleanUserId = String(userId).trim();
+
+  // 1. Check database for existing active pending request
+  try {
+    const { data: existing, error: findError } = await supabaseAdmin
+      .from("restock_requests")
+      .select("*")
+      .eq("product_id", cleanProdId)
+      .eq("pharmacy_id", cleanPharmId)
+      .eq("status", "pending")
+      .maybeSingle();
+
+    if (existing && !findError) {
+      return { request: existing, isExisting: true };
+    }
+
+    // 2. Insert new pending restock request
+    const payload = {
+      product_id: cleanProdId,
+      pharmacy_id: cleanPharmId,
+      requested_by_user_id: cleanUserId,
+      requested_quantity: Math.max(1, requestedQuantity),
+      status: "pending",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabaseAdmin
+      .from("restock_requests")
+      .insert(payload)
+      .select()
+      .single();
+
+    if (!error && data) {
+      return { request: data, isExisting: false };
+    }
+
+    if (error) {
+      // If error is unique constraint violation on partial index (race condition), fetch existing
+      if (error.code === "23505" || error.message?.includes("idx_unique_active_restock_request")) {
+        const { data: raceExisting } = await supabaseAdmin
+          .from("restock_requests")
+          .select("*")
+          .eq("product_id", cleanProdId)
+          .eq("pharmacy_id", cleanPharmId)
+          .eq("status", "pending")
+          .maybeSingle();
+        if (raceExisting) {
+          return { request: raceExisting, isExisting: true };
+        }
+      }
+      console.warn("Supabase restock_requests insert fallback to local store:", error.message);
+    }
+  } catch (err: any) {
+    console.warn("Exception in createRestockRequest DB query:", err.message);
+  }
+
+  // Fallback in-memory store
+  const localKey = `${cleanProdId}_${cleanPharmId}_pending`;
+  if (localRestockStore.has(localKey)) {
+    return { request: localRestockStore.get(localKey), isExisting: true };
+  }
+
+  const fallbackRequest = {
+    id: "req-" + Math.random().toString(36).substring(2, 10),
+    product_id: cleanProdId,
+    pharmacy_id: cleanPharmId,
+    requested_by_user_id: cleanUserId,
+    requested_quantity: requestedQuantity,
+    status: "pending",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+
+  localRestockStore.set(localKey, fallbackRequest);
+  return { request: fallbackRequest, isExisting: false };
+}
+
+/**
+ * Retrieves all restock requests for a specific pharmacy with product details.
+ */
+export async function getPharmacyRestockRequests(pharmacyId: string): Promise<any[]> {
+  const cleanPharmId = String(pharmacyId).trim();
+  let rawRequests: any[] = [];
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("restock_requests")
+      .select("*")
+      .eq("pharmacy_id", cleanPharmId)
+      .order("created_at", { ascending: false });
+
+    if (!error && data) {
+      rawRequests = data;
+    }
+  } catch (err) {
+    console.warn("Error fetching pharmacy restock requests:", err);
+  }
+
+  if (rawRequests.length === 0) {
+    // Check local store
+    for (const [_, req] of localRestockStore.entries()) {
+      if (req.pharmacy_id === cleanPharmId) {
+        rawRequests.push(req);
+      }
+    }
+  }
+
+  // Enrich with product details
+  const allProducts = await getProductsRaw();
+  const productMap = new Map<string, Product>();
+  allProducts.forEach(p => productMap.set(String(p.id).trim(), p));
+
+  return rawRequests.map(r => ({
+    id: r.id,
+    productId: r.product_id,
+    pharmacyId: r.pharmacy_id,
+    requestedByUserId: r.requested_by_user_id,
+    requestedQuantity: r.requested_quantity || 1,
+    status: r.status || "pending",
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+    resolvedAt: r.resolved_at || null,
+    notificationSentAt: r.notification_sent_at || null,
+    product: productMap.get(String(r.product_id).trim()) || null
+  }));
+}
+
+/**
+ * Retrieves aggregated product demand and grouped pharmacy requesters for Admin Panel.
+ */
+export async function getAdminRestockRequestsGrouped(filters?: {
+  search?: string;
+  status?: string;
+  sortBy?: "most_requested" | "most_recent" | "oldest" | "name";
+}): Promise<{ demand: any[]; metrics: any }> {
+  let allRequests: any[] = [];
+
+  try {
+    let query = supabaseAdmin
+      .from("restock_requests")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (filters?.status && filters.status !== "all") {
+      query = query.eq("status", filters.status);
+    }
+
+    const { data, error } = await query;
+    if (!error && data) {
+      allRequests = data;
+    }
+  } catch (err) {
+    console.warn("Error fetching admin restock requests:", err);
+  }
+
+  // Include in-memory requests if database is empty/mocking
+  for (const [_, req] of localRestockStore.entries()) {
+    if (!allRequests.some(r => r.id === req.id)) {
+      if (!filters?.status || filters.status === "all" || req.status === filters.status) {
+        allRequests.push(req);
+      }
+    }
+  }
+
+  // Fetch all products and pharmacies for enrichment
+  const [allProducts, allPharmacies] = await Promise.all([
+    getProductsRaw(2000),
+    getAllPharmacies(1, 2000)
+  ]);
+
+  const productMap = new Map<string, Product>();
+  allProducts.forEach(p => productMap.set(String(p.id).trim(), p));
+
+  const pharmacyMap = new Map<string, Pharmacy>();
+  allPharmacies.forEach(ph => pharmacyMap.set(String(ph.id).trim(), ph));
+
+  // Group requests by product_id
+  const groupMap = new Map<string, {
+    product: Product;
+    requests: any[];
+    uniquePharmacies: Set<string>;
+    pendingCount: number;
+    resolvedCount: number;
+    latestRequestAt: string;
+    earliestRequestAt: string;
+  }>();
+
+  allRequests.forEach(req => {
+    const prodId = String(req.product_id).trim();
+    let product = productMap.get(prodId);
+    if (!product) {
+      // Fallback synthetic product representation if deleted/not in standard catalog
+      product = {
+        id: prodId,
+        name: `Product #${prodId.substring(0, 8)}`,
+        genericName: "Generic Compound",
+        company: "Pharmaceutical Partner",
+        category: "Tablet",
+        strength: "Standard",
+        packSize: "Box",
+        mrp: 0,
+        sellingPrice: 0,
+        discountPercentage: 0,
+        availableStock: 0,
+        reservedStock: 0,
+        soldStock: 0,
+        batchNumber: "B-MCH",
+        expiryDate: "2027-12-31"
+      };
+    }
+
+    if (!groupMap.has(prodId)) {
+      groupMap.set(prodId, {
+        product,
+        requests: [],
+        uniquePharmacies: new Set<string>(),
+        pendingCount: 0,
+        resolvedCount: 0,
+        latestRequestAt: req.created_at,
+        earliestRequestAt: req.created_at
+      });
+    }
+
+    const group = groupMap.get(prodId)!;
+    group.requests.push(req);
+    group.uniquePharmacies.add(String(req.pharmacy_id).trim());
+
+    if (req.status === "pending") group.pendingCount++;
+    if (req.status === "restocked") group.resolvedCount++;
+
+    if (new Date(req.created_at) > new Date(group.latestRequestAt)) {
+      group.latestRequestAt = req.created_at;
+    }
+    if (new Date(req.created_at) < new Date(group.earliestRequestAt)) {
+      group.earliestRequestAt = req.created_at;
+    }
+  });
+
+  // Transform grouped map into final array
+  let demandList = Array.from(groupMap.values()).map(g => {
+    const requesters = g.requests.map(r => {
+      const ph = pharmacyMap.get(String(r.pharmacy_id).trim());
+      return {
+        requestId: r.id,
+        pharmacyId: r.pharmacy_id,
+        pharmacyName: ph?.pharmacyName || `Pharmacy #${String(r.pharmacy_id).substring(0, 6)}`,
+        ownerName: ph?.ownerName || "Licensed Chemist",
+        phone: ph?.phone || "N/A",
+        city: ph?.city || ph?.area || "Bangladesh",
+        requestedQuantity: r.requested_quantity || 1,
+        requestedAt: r.created_at,
+        status: r.status || "pending",
+        resolvedAt: r.resolved_at || null
+      };
+    });
+
+    // Determine group overall status
+    let groupStatus: "pending" | "partially_resolved" | "restocked" | "cancelled" = "pending";
+    if (g.pendingCount === 0 && g.resolvedCount > 0) {
+      groupStatus = "restocked";
+    } else if (g.pendingCount > 0 && g.resolvedCount > 0) {
+      groupStatus = "partially_resolved";
+    } else if (g.pendingCount === 0 && g.requests.every(r => r.status === "cancelled")) {
+      groupStatus = "cancelled";
+    }
+
+    return {
+      product: g.product,
+      totalRequests: g.requests.length,
+      uniquePharmaciesCount: g.uniquePharmacies.size,
+      pendingRequestsCount: g.pendingCount,
+      latestRequestAt: g.latestRequestAt,
+      earliestRequestAt: g.earliestRequestAt,
+      status: groupStatus,
+      requesters: requesters.sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime())
+    };
+  });
+
+  // Apply Search Filter (by Product Name, Generic, Company, or Requesting Pharmacy)
+  if (filters?.search && filters.search.trim()) {
+    const qLower = filters.search.toLowerCase().trim();
+    demandList = demandList.filter(item => {
+      const matchProduct = 
+        item.product.name.toLowerCase().includes(qLower) ||
+        item.product.genericName.toLowerCase().includes(qLower) ||
+        item.product.company.toLowerCase().includes(qLower);
+      const matchPharmacy = item.requesters.some(r => 
+        r.pharmacyName.toLowerCase().includes(qLower) ||
+        r.ownerName.toLowerCase().includes(qLower) ||
+        r.phone.toLowerCase().includes(qLower)
+      );
+      return matchProduct || matchPharmacy;
+    });
+  }
+
+  // Apply Sorting
+  const sortBy = filters?.sortBy || "most_requested";
+  demandList.sort((a, b) => {
+    if (sortBy === "most_requested") {
+      if (b.uniquePharmaciesCount !== a.uniquePharmaciesCount) {
+        return b.uniquePharmaciesCount - a.uniquePharmaciesCount;
+      }
+      return b.pendingRequestsCount - a.pendingRequestsCount;
+    } else if (sortBy === "most_recent") {
+      return new Date(b.latestRequestAt).getTime() - new Date(a.latestRequestAt).getTime();
+    } else if (sortBy === "oldest") {
+      return new Date(a.earliestRequestAt).getTime() - new Date(b.earliestRequestAt).getTime();
+    } else if (sortBy === "name") {
+      return a.product.name.localeCompare(b.product.name);
+    }
+    return 0;
+  });
+
+  // Calculate high-level metrics
+  const totalPending = allRequests.filter(r => r.status === "pending").length;
+  const uniqueProducts = new Set(allRequests.filter(r => r.status === "pending").map(r => r.product_id)).size;
+  const uniquePharmacies = new Set(allRequests.filter(r => r.status === "pending").map(r => r.pharmacy_id)).size;
+  const totalResolved = allRequests.filter(r => r.status === "restocked").length;
+
+  let mostRequestedProduct: any = null;
+  if (demandList.length > 0) {
+    const topItem = demandList[0];
+    mostRequestedProduct = {
+      productId: topItem.product.id,
+      productName: topItem.product.name,
+      genericName: topItem.product.genericName,
+      company: topItem.product.company,
+      requestCount: topItem.totalRequests,
+      pharmaciesCount: topItem.uniquePharmaciesCount,
+      currentStock: topItem.product.availableStock
+    };
+  }
+
+  const metrics = {
+    totalPendingRequests: totalPending,
+    uniqueProductsRequested: uniqueProducts,
+    totalRequestingPharmacies: uniquePharmacies,
+    mostRequestedProduct,
+    totalResolvedCount: totalResolved
+  };
+
+  return { demand: demandList, metrics };
+}
+
+/**
+ * Resolves all pending restock requests for a replenished product.
+ * Returns the list of affected pharmacy IDs for notification triggers.
+ */
+export async function resolveRestockRequestsForProduct(productId: string): Promise<{ resolvedCount: number; pharmacyIds: string[] }> {
+  const cleanProdId = String(productId).trim();
+  const resolvedAt = new Date().toISOString();
+  const pharmacyIdsSet = new Set<string>();
+  let resolvedCount = 0;
+
+  try {
+    // 1. Fetch pending requests to identify target pharmacies
+    const { data: pending, error: findError } = await supabaseAdmin
+      .from("restock_requests")
+      .select("id, pharmacy_id")
+      .eq("product_id", cleanProdId)
+      .eq("status", "pending");
+
+    if (!findError && pending && pending.length > 0) {
+      pending.forEach(p => pharmacyIdsSet.add(p.pharmacy_id));
+      resolvedCount = pending.length;
+
+      // 2. Update status to 'restocked'
+      await supabaseAdmin
+        .from("restock_requests")
+        .update({
+          status: "restocked",
+          resolved_at: resolvedAt,
+          updated_at: resolvedAt
+        })
+        .eq("product_id", cleanProdId)
+        .eq("status", "pending");
+    }
+  } catch (err) {
+    console.warn("Error resolving restock requests in Supabase:", err);
+  }
+
+  // Update in-memory fallback
+  for (const [k, req] of localRestockStore.entries()) {
+    if (req.product_id === cleanProdId && req.status === "pending") {
+      req.status = "restocked";
+      req.resolved_at = resolvedAt;
+      req.updated_at = resolvedAt;
+      pharmacyIdsSet.add(req.pharmacy_id);
+      resolvedCount++;
+    }
+  }
+
+  return {
+    resolvedCount,
+    pharmacyIds: Array.from(pharmacyIdsSet)
+  };
+}
+
+/**
+ * Updates an individual restock request status.
+ */
+export async function updateRestockRequestStatus(requestId: string, status: "pending" | "restocked" | "cancelled"): Promise<any> {
+  const updatedAt = new Date().toISOString();
+  const resolvedAt = status === "restocked" ? updatedAt : null;
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("restock_requests")
+      .update({
+        status,
+        updated_at: updatedAt,
+        ...(status === "restocked" ? { resolved_at: resolvedAt } : {})
+      })
+      .eq("id", requestId)
+      .select()
+      .maybeSingle();
+
+    if (!error && data) {
+      return data;
+    }
+  } catch (err) {
+    console.warn("Error updating restock request status in Supabase:", err);
+  }
+
+  // Fallback in-memory
+  for (const [_, req] of localRestockStore.entries()) {
+    if (req.id === requestId) {
+      req.status = status;
+      req.updated_at = updatedAt;
+      if (status === "restocked") req.resolved_at = updatedAt;
+      return req;
+    }
+  }
+
+  return { id: requestId, status, updated_at: updatedAt };
+}
+
+
 

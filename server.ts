@@ -2148,13 +2148,32 @@ app.post("/api/admin/export-history", requireRole(["Admin"]), async (req, res) =
 async function handleStockChangeNotifications(oldStock: number | undefined, newStock: number | undefined, product: any, ioInstance?: any) {
   if (!product || newStock === undefined) return;
 
-  // 1. Automatic Restock Notification: Triggered when product stock is updated / added
-  const isRestock = (oldStock !== undefined && newStock > oldStock) || (oldStock === undefined && newStock > 0);
+  // 1. Automatic Restock Notification & Request Resolution: Triggered when product stock is replenished
+  const isRestock = (oldStock !== undefined && oldStock <= 0 && newStock > 0) || (oldStock === undefined && newStock > 0) || (oldStock !== undefined && newStock > oldStock && oldStock <= 10);
   if (isRestock) {
     const title = `স্টক আপডেট: ${product.name}`;
     const message = `সম্মানিত ফার্মেসি পার্টনার, আনন্দের সাথে জানানো যাচ্ছে যে ${product.name} আমাদের ডিপো ইনভেন্টরিতে পুনরায় যুক্ত হয়েছে।`;
     const type = "stock_restock";
     try {
+      // 1a. Auto-resolve pending restock requests for this product
+      const { resolvedCount, pharmacyIds } = await dbService.resolveRestockRequestsForProduct(product.id);
+      if (resolvedCount > 0) {
+        log.info(`[Restock Automation] Resolved ${resolvedCount} pending restock requests for ${product.name} across ${pharmacyIds.length} pharmacies.`);
+      }
+
+      // 1b. Send targeted notification to each requesting pharmacy
+      if (pharmacyIds.length > 0) {
+        for (const pharmId of pharmacyIds) {
+          await dbService.sendNotification(
+            pharmId,
+            `🎉 Back in Stock: ${product.name}`,
+            `Good news! ${product.name} is now available in depot inventory. Place your wholesale order now.`,
+            "stock_restock"
+          );
+        }
+      }
+
+      // 1c. Global broadcast
       await dbService.sendNotification(null, title, message, type);
       if (ioInstance) {
         ioInstance.emit("notification", {
@@ -2165,6 +2184,7 @@ async function handleStockChangeNotifications(oldStock: number | undefined, newS
           created_at: new Date().toISOString()
         });
         ioInstance.emit("admin_order_updated");
+        ioInstance.emit("restock_demand_updated", { productId: product.id, resolvedCount });
       }
     } catch (e) {
       console.warn("Restock notification broadcast error:", e);
@@ -2506,6 +2526,149 @@ app.post("/api/admin/trigger-new-offer", requireRole(["Admin"]), async (req, res
   try {
     await dbService.sendNotification(null, title || "Exclusive Offer!", message || "Save up to 15% on wholesale select drugs.", "offer");
     res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- RESTOCK REQUESTS & STOCK ALERT API ENDPOINTS ---
+
+// 1. Pharmacy Endpoint: Create or verify restock request for out-of-stock product
+app.post("/api/stock-alerts/request", requireAuth, async (req, res) => {
+  const { productId, requestedQuantity } = req.body;
+  if (!productId) {
+    return res.status(400).json({ error: "Missing required productId parameter." });
+  }
+
+  try {
+    // Resolve pharmacy profile securely from authenticated user session
+    let pharmacyId = req.user.pharmacy_id;
+    if (!pharmacyId) {
+      const pharmacy = await dbService.getPharmacyProfile(req.user.id);
+      pharmacyId = pharmacy ? pharmacy.id : `ph-${req.user.id}`;
+    }
+
+    const { request, isExisting } = await dbService.createRestockRequest(
+      productId,
+      pharmacyId,
+      req.user.id,
+      requestedQuantity || 1
+    );
+
+    // Notify socket rooms of new demand update
+    const ioInstance = req.app.get("io");
+    if (ioInstance) {
+      ioInstance.emit("restock_demand_updated", { productId, pharmacyId });
+    }
+
+    res.json({
+      success: true,
+      request,
+      isExisting,
+      message: isExisting 
+        ? "You already have an active stock alert for this product." 
+        : "Restock request submitted. We will notify you as soon as this item is replenished."
+    });
+  } catch (err: any) {
+    console.error("Restock request error:", err);
+    res.status(500).json({ error: err.message || "Failed to process restock request." });
+  }
+});
+
+// Backward-compatible subscribe endpoint
+app.post("/api/stock-alerts/subscribe", requireAuth, async (req, res) => {
+  const { productId } = req.body;
+  if (!productId) return res.status(400).json({ error: "Missing productId." });
+  try {
+    let pharmacyId = req.user.pharmacy_id;
+    if (!pharmacyId) {
+      const pharmacy = await dbService.getPharmacyProfile(req.user.id);
+      pharmacyId = pharmacy ? pharmacy.id : `ph-${req.user.id}`;
+    }
+    const { request, isExisting } = await dbService.createRestockRequest(productId, pharmacyId, req.user.id, 1);
+    res.json({ success: true, request, isExisting });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. Pharmacy Endpoint: Get logged in pharmacy's restock requests
+app.get("/api/stock-alerts/my-requests", requireAuth, async (req, res) => {
+  try {
+    let pharmacyId = req.user.pharmacy_id;
+    if (!pharmacyId) {
+      const pharmacy = await dbService.getPharmacyProfile(req.user.id);
+      pharmacyId = pharmacy ? pharmacy.id : `ph-${req.user.id}`;
+    }
+
+    const requests = await dbService.getPharmacyRestockRequests(pharmacyId);
+    res.json({ success: true, requests });
+  } catch (err: any) {
+    console.error("Fetch my-requests error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. Admin Endpoint: Get aggregated product demand list
+app.get("/api/admin/restock-requests", requireRole(["Admin", "Depot Staff"]), async (req, res) => {
+  const { search, status, sortBy } = req.query;
+  try {
+    const { demand, metrics } = await dbService.getAdminRestockRequestsGrouped({
+      search: search as string,
+      status: status as string,
+      sortBy: sortBy as any
+    });
+    res.json({ success: true, demand, metrics });
+  } catch (err: any) {
+    console.error("Admin get restock requests error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. Admin Endpoint: Get restock summary metrics
+app.get("/api/admin/restock-requests/metrics", requireRole(["Admin", "Depot Staff"]), async (req, res) => {
+  try {
+    const { metrics } = await dbService.getAdminRestockRequestsGrouped();
+    res.json(metrics);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. Admin Endpoint: Update individual restock request status
+app.post("/api/admin/restock-requests/:id/status", requireRole(["Admin", "Depot Staff"]), async (req, res) => {
+  const { status } = req.body;
+  if (!status || !["pending", "restocked", "cancelled"].includes(status)) {
+    return res.status(400).json({ error: "Invalid status value (must be pending, restocked, or cancelled)." });
+  }
+
+  try {
+    const updated = await dbService.updateRestockRequestStatus(req.params.id, status);
+    res.json({ success: true, request: updated });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 6. Admin Endpoint: Manually resolve all requests for a product
+app.post("/api/admin/restock-requests/product/:productId/resolve", requireRole(["Admin", "Depot Staff"]), async (req, res) => {
+  try {
+    const { resolvedCount, pharmacyIds } = await dbService.resolveRestockRequestsForProduct(req.params.productId);
+    const prod = await dbService.getProductById(req.params.productId);
+
+    // Trigger targeted notifications
+    if (prod && pharmacyIds.length > 0) {
+      for (const phId of pharmacyIds) {
+        await dbService.sendNotification(
+          phId,
+          `🎉 Back in Stock: ${prod.name}`,
+          `Good news! ${prod.name} has been marked as restocked and is available for ordering.`,
+          "stock_restock"
+        );
+      }
+    }
+
+    res.json({ success: true, resolvedCount });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

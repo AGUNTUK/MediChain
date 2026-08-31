@@ -188,3 +188,61 @@ export interface BulkCampaignProduct {
   product?: Product;
 }
 
+export type RestockRequestStatus = "pending" | "restocked" | "cancelled";
+
+export interface RestockRequest {
+  id: string;
+  productId: string;
+  pharmacyId: string;
+  requestedByUserId: string;
+  requestedQuantity?: number;
+  status: RestockRequestStatus;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string | null;
+  notificationSentAt?: string | null;
+  product?: Product;
+  pharmacy?: Pharmacy;
+}
+
+export interface RestockRequester {
+  requestId: string;
+  pharmacyId: string;
+  pharmacyName: string;
+  ownerName: string;
+  phone: string;
+  city: string;
+  requestedQuantity: number;
+  requestedAt: string;
+  status: RestockRequestStatus;
+  resolvedAt?: string | null;
+}
+
+export interface GroupedProductDemand {
+  product: Product;
+  totalRequests: number;
+  uniquePharmaciesCount: number;
+  pendingRequestsCount: number;
+  latestRequestAt: string;
+  earliestRequestAt: string;
+  status: "pending" | "partially_resolved" | "restocked" | "cancelled";
+  requesters: RestockRequester[];
+}
+
+export interface RestockMetrics {
+  totalPendingRequests: number;
+  uniqueProductsRequested: number;
+  totalRequestingPharmacies: number;
+  mostRequestedProduct: {
+    productId: string;
+    productName: string;
+    genericName?: string;
+    company?: string;
+    requestCount: number;
+    pharmaciesCount: number;
+    currentStock: number;
+  } | null;
+  totalResolvedCount: number;
+}
+
+

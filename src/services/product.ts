@@ -1,5 +1,6 @@
 import { Product } from "../types";
 import { apiCache } from "../lib/apiCache";
+import { restockService } from "./restockService";
 
 /**
  * MediChain Product Catalog Service
@@ -226,39 +227,34 @@ export const productService = {
   },
 
   /**
-   * Toggles restock alert for an out-of-stock product. Returns new state and syncs with server.
+   * Submits restock request / stock alert for an out-of-stock product. Returns new state and syncs with server.
    */
-  toggleRestockAlert(productId: string): boolean {
+  async toggleRestockAlert(productId: string, requestedQuantity: number = 1): Promise<boolean> {
     const alerts = this.getRestockAlerts();
     let updated: string[];
     let isSubscribed: boolean;
 
     if (alerts.includes(productId)) {
-      updated = alerts.filter(id => id !== productId);
-      isSubscribed = false;
-      // Sync unsubscribe to backend in background
-      fetch("/api/stock-alerts/unsubscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId })
-      }).catch(err => console.warn("Stock alert unsubscribe sync:", err));
+      // Keep optimistic state active since pending requests remain active until resolved by admin/replenishment
+      isSubscribed = true;
+      updated = alerts;
     } else {
       updated = [...alerts, productId];
       isSubscribed = true;
-      // Sync subscribe to backend in background
-      fetch("/api/stock-alerts/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId })
-      }).catch(err => console.warn("Stock alert subscribe sync:", err));
+      try {
+        localStorage.setItem("medichain_restock_alerts", JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
     }
 
     try {
-      localStorage.setItem("medichain_restock_alerts", JSON.stringify(updated));
-    } catch (e) {
-      console.error(e);
+      await restockService.requestStockAlert(productId, requestedQuantity);
+    } catch (err) {
+      console.warn("Stock alert backend sync:", err);
     }
 
     return isSubscribed;
   },
 };
+

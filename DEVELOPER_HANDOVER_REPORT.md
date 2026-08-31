@@ -513,6 +513,43 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 40. Production-Ready Restock Request & Stock Alert Demand Management System
+- **Feature Overview**:
+  - Out-of-stock items allow licensed pharmacies to request stock alerts.
+  - Admins can aggregate demand by product, inspect individual requesting pharmacies, and make procurement/restock decisions.
+  - Restocking a product automatically resolves pending requests and delivers targeted in-app & WebSocket notifications to requesting pharmacies.
+- **Database Architecture (`supabase-migrations/03_restock_requests_schema.sql`)**:
+  - `restock_requests` table with fields: `id` (UUID PK), `product_id`, `pharmacy_id`, `requested_by_user_id`, `requested_quantity`, `status` (`pending`, `restocked`, `cancelled`), `created_at`, `updated_at`, `resolved_at`, `notification_sent_at`.
+  - Partial unique index: `idx_unique_active_restock_request` on `(product_id, pharmacy_id) WHERE status = 'pending'` preventing duplicate active requests while permitting subsequent requests after restocking.
+  - Dedicated indexes on `product_id`, `pharmacy_id`, `status`, and `created_at`.
+  - RLS policies ensuring pharmacies can view and insert only their own requests, with full admin management bypass.
+- **Backend API Routes (`server.ts` & `src/lib/dbService.ts`)**:
+  - `POST /api/stock-alerts/request`: Authenticated pharmacy endpoint that automatically resolves `pharmacy_id` from user session and idempotently inserts or returns existing pending requests.
+  - `GET /api/stock-alerts/my-requests`: Returns all active and resolved requests for the logged-in pharmacy with enriched product details.
+  - `GET /api/admin/restock-requests`: Admin endpoint supporting search (by product, generic, company, or pharmacy name), status filters (`all`, `pending`, `restocked`, `cancelled`), and sorting (`most_requested`, `most_recent`, `oldest`, `name`).
+  - `GET /api/admin/restock-requests/metrics`: Top-level demand intelligence metrics (Total Pending Requests, Unique Products In Demand, Requesting Pharmacies, Top Demanded Medicine).
+  - `POST /api/admin/restock-requests/:id/status`: Admin status toggle endpoint.
+  - `POST /api/admin/restock-requests/product/:productId/resolve`: One-click manual resolution of all pending requests for a specific product.
+- **Automated Inventory Replenishment Hook**:
+  - `handleStockChangeNotifications` in `server.ts` detects when available stock transitions from `<= 0` to `> 0` across product creation, edits, inventory log updates, or bulk imports.
+  - Automatically invokes `resolveRestockRequestsForProduct(product.id)`, setting requests to `status = 'restocked'` and `resolved_at = now()`.
+  - Dispatches targeted notifications to each requesting pharmacy: `🎉 Back in Stock: [Product Name] is now available in depot inventory. Place your wholesale order now.`
+  - Emits real-time WebSocket event `restock_demand_updated` and `notification` to connected clients.
+- **Frontend Components & Interfaces**:
+  - `src/components/StockAlertButton.tsx`: Async, optimistic component showing `🔔 স্টক এলার্ট` (Stock Alert) and `✓ রিকোয়েস্ট সক্রিয়` (Alert Requested) with micro-animations and feedback toasts.
+  - `src/components/ProductCard.tsx`: Out-of-stock products cleanly render compact `StockAlertButton` while preserving the exact "Add to Cart" and "Order Now" flow for in-stock medicines.
+  - `src/components/ProductDetails.tsx`: Out-of-stock banner with stock alert submission and generic alternative links.
+  - `src/components/Account.tsx`: "আমার স্টক এলার্ট ও রিস্টক রিকোয়েস্ট" section with active status pills and one-click re-order buttons for replenished items.
+  - `src/components/AdminRestockRequests.tsx`: Comprehensive administrative management suite featuring:
+    - 4 Top Summary KPI Cards (Pending Demands, SKU Shortages, Active Buyers, Top Desired Medicine).
+    - Multi-criteria Search & Status Tabs with Sort Selector.
+    - Grouped Product Demand Accordion showing SKU specs, stock, and total requesting pharmacies count.
+    - Expandable Table of Requesting Pharmacies with contact phone links, date, quantity, and status actions.
+    - Quick "Add Stock" and "Resolve All" action buttons.
+  - `src/components/AdminPanel.tsx`: Added `/admin/restock-requests` route, sidebar navigation link with live pending requests badge, and dashboard HUD demand stat card.
+
+----------------------------------------
+
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

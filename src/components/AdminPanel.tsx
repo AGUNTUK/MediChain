@@ -42,17 +42,19 @@ import {
   History,
   CircleDollarSign,
   ClipboardList,
-  Menu
+  Menu,
+  BellRing
 } from "lucide-react";
 
 import * as XLSX from "xlsx";
 import { Product, Order, Pharmacy, Notification, User, OrderStatus } from "../types";
-import { productService, orderService, notificationService } from "../services";
+import { productService, orderService, notificationService, restockService } from "../services";
 import { storageService } from "../services/storage";
 import NotificationBell from "./NotificationBell";
 import PharmacyVerificationPanel from "./PharmacyVerificationPanel";
 import AdminNotificationCenter from "./AdminNotificationCenter";
 import AuditLogPanel from "./AuditLogPanel";
+import AdminRestockRequests from "./AdminRestockRequests";
 
 interface AdminPanelProps {
   currentUser: User;
@@ -67,9 +69,12 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
     "/admin/inventory" | 
     "/admin/orders" | 
     "/admin/pharmacies" | 
+    "/admin/restock-requests" |
     "/admin/notifications" | 
-    "/admin/settings" | "/admin/ai-enrichment" | "/admin/bulk-deals"
+    "/admin/settings" | "/admin/ai-enrichment" | "/admin/bulk-deals" | "/admin/audit-logs" | "/admin/finance"
   >("/admin/dashboard");
+
+  const [pendingRestockCount, setPendingRestockCount] = useState(0);
 
   // Sync state with URL if user visits directly or refreshes
   useEffect(() => {
@@ -82,10 +87,13 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
         "/admin/inventory",
         "/admin/orders",
         "/admin/pharmacies",
+        "/admin/restock-requests",
         "/admin/notifications",
         "/admin/settings",
         "/admin/ai-enrichment",
-        "/admin/bulk-deals"
+        "/admin/bulk-deals",
+        "/admin/audit-logs",
+        "/admin/finance"
       ];
       if (validRoutes.includes(matched)) {
         setActiveRoute(matched);
@@ -309,6 +317,14 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
         const notifHistData = await notifHistRes.json();
         setNotifHistory(notifHistData.history || []);
       }
+
+      // Fetch Restock Demands Metric
+      try {
+        const rMetrics = await restockService.getAdminMetrics();
+        setPendingRestockCount(rMetrics?.totalPendingRequests || 0);
+      } catch (e) {
+        // Silent fallback
+      }
     } catch (err: any) {
       console.warn("Admin refresh network warning:", err);
       setErrorMsg("Failed to synchronize B2B ledger and medicine catalogs.");
@@ -330,6 +346,13 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
     socket.on("admin_order_updated", () => {
       // Refresh the orders non-obtrusively
       refreshAllData();
+    });
+
+    socket.on("restock_demand_updated", () => {
+      // Refresh restock requests and demand
+      restockService.getAdminMetrics()
+        .then(m => setPendingRestockCount(m?.totalPendingRequests || 0))
+        .catch(() => {});
     });
 
     return () => {
@@ -1353,6 +1376,21 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
             </button>
 
             <button
+              onClick={() => navigateTo("/admin/restock-requests")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all relative ${
+                activeRoute === "/admin/restock-requests" ? "bg-indigo-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <BellRing className="w-4 h-4" />
+              <span>Restock Requests</span>
+              {pendingRestockCount > 0 && (
+                <span className="absolute right-3 bg-purple-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">
+                  {pendingRestockCount}
+                </span>
+              )}
+            </button>
+
+            <button
               onClick={() => navigateTo("/admin/notifications")}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all ${
                 activeRoute === "/admin/notifications" ? "bg-indigo-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
@@ -1418,22 +1456,22 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
         {/* User profile logout */}
         <div className="p-6 border-t border-slate-900 bg-white/60 flex items-center justify-between flex-shrink-0">
           <div className="truncate pr-2">
-            <p className="text-xs font-bold text-slate-900 truncate">{currentUser.name}</p>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Super Administrator</p>
+            <span className="text-xs font-bold text-slate-900 block truncate">{currentUser.name}</span>
+            <span className="text-[10px] text-slate-500 font-mono block truncate">{currentUser.phone}</span>
           </div>
           <button 
             onClick={onLogout}
             title="Sign Out"
-            className="p-2 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 cursor-pointer transition-all"
+            className="p-2 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 cursor-pointer transition-all shrink-0"
           >
-            <LogOut className="w-4.5 h-4.5" />
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </aside>
 
-      {/* Main Workspace Area */}
-      <main className="flex-1 flex flex-col min-w-0 bg-slate-50 overflow-y-auto min-h-0">
-        {/* Top Header Panel */}
+      {/* Main Administrative Workplace Stream */}
+      <main className="flex-1 flex flex-col min-w-0 bg-slate-50">
+        {/* Fixed Header Toolbar */}
         <header className="hidden lg:flex min-h-14 border-b border-slate-200 bg-white/40 px-6 lg:px-8 py-3 items-center justify-between gap-3 flex-shrink-0">
           <div>
             <h2 className="text-xs sm:text-sm font-bold text-slate-900 tracking-wider uppercase">
@@ -1442,6 +1480,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
               {activeRoute === "/admin/inventory" && "STOCK LOGISTICS DISPATCH"}
               {activeRoute === "/admin/orders" && "B2B WHOLESALE PROCUREMENTS"}
               {activeRoute === "/admin/pharmacies" && "B2B PHARMACY REGISTRY"}
+              {activeRoute === "/admin/restock-requests" && "RESTOCK REQUESTS & DEMAND"}
               {activeRoute === "/admin/notifications" && "ALERTS BROADCAST RADAR"}
               {activeRoute === "/admin/finance" && "FINANCE ACCOUNTING"}
               {activeRoute === "/admin/audit-logs" && "SYSTEM TRANSACTION AUDIT LOGS"}
@@ -1502,7 +1541,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                   {dashboardSubTab === "hud" ? (
                     <>
                       {/* Stats Grid */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
                         <div 
                           onClick={() => navigateTo("/admin/products")}
                           className="bg-white/60 border border-slate-200 rounded-2xl p-5 shadow-lg relative overflow-hidden hover:scale-[1.02] hover:shadow-xl hover:border-indigo-400 transition-all cursor-pointer group"
@@ -1511,7 +1550,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                           <span className="text-[9px] uppercase font-bold text-slate-500 tracking-widest block mb-1 group-hover:text-indigo-600 transition-colors">Catalog Medicines</span>
                           <span className="text-2xl font-black text-slate-900">{totalProducts}</span>
                           <p className="text-[10px] text-indigo-400 font-bold mt-1.5 flex items-center justify-between">
-                            <span className="flex items-center gap-1"><Pill className="w-3 h-3" /> Fully Audited Formulas</span>
+                            <span className="flex items-center gap-1"><Pill className="w-3 h-3" /> Fully Audited</span>
                             <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-indigo-600" />
                           </p>
                         </div>
@@ -1550,8 +1589,21 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                           <span className="text-[9px] uppercase font-bold text-slate-500 tracking-widest block mb-1 group-hover:text-blue-600 transition-colors">Total B2B Orders</span>
                           <span className="text-2xl font-black text-slate-900">{totalOrders}</span>
                           <p className="text-[10px] text-blue-400 font-bold mt-1.5 flex items-center justify-between">
-                            <span className="flex items-center gap-1"><ShoppingCart className="w-3 h-3" /> Pipeline Procurement</span>
+                            <span className="flex items-center gap-1"><ShoppingCart className="w-3 h-3" /> Orders</span>
                             <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-blue-600" />
+                          </p>
+                        </div>
+
+                        <div 
+                          onClick={() => navigateTo("/admin/restock-requests")}
+                          className="bg-white/60 border border-slate-200 rounded-2xl p-5 shadow-lg relative overflow-hidden hover:scale-[1.02] hover:shadow-xl hover:border-purple-400 transition-all cursor-pointer group"
+                          title="Click to view restock requests from pharmacies"
+                        >
+                          <span className="text-[9px] uppercase font-bold text-slate-500 tracking-widest block mb-1 group-hover:text-purple-600 transition-colors">Restock Demands</span>
+                          <span className="text-2xl font-black text-brand-purple">{pendingRestockCount}</span>
+                          <p className="text-[10px] text-purple-600 font-bold mt-1.5 flex items-center justify-between">
+                            <span className="flex items-center gap-1"><BellRing className="w-3 h-3" /> Active Alerts</span>
+                            <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-purple-600" />
                           </p>
                         </div>
 
@@ -1560,7 +1612,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                             setInventoryLowStockOnly(true);
                             navigateTo("/admin/inventory");
                           }}
-                          className="bg-white/60 border border-slate-200 rounded-2xl p-5 shadow-lg relative overflow-hidden sm:col-span-2 md:col-span-1 hover:scale-[1.02] hover:shadow-xl hover:border-rose-400 transition-all cursor-pointer group"
+                          className="bg-white/60 border border-slate-200 rounded-2xl p-5 shadow-lg relative overflow-hidden hover:scale-[1.02] hover:shadow-xl hover:border-rose-400 transition-all cursor-pointer group"
                           title="Click to inspect low stock & expiring warnings"
                         >
                           <span className="text-[9px] uppercase font-bold text-rose-400 tracking-widest block mb-1 group-hover:text-rose-600 transition-colors">Warnings Checklist</span>
@@ -2686,6 +2738,16 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
 
 
               
+              {/* SCREEN 7: RESTOCK REQUESTS & DEMAND */}
+              {activeRoute === "/admin/restock-requests" && (
+                <AdminRestockRequests 
+                  onOpenProductEditor={(prod) => {
+                    setSelectedProductForEdit(prod);
+                    setIsProductModalOpen(true);
+                  }}
+                />
+              )}
+
               {/* SCREEN 8: AI ENRICHMENT */}
               {activeRoute === "/admin/ai-enrichment" && (
                 <AIEnrichmentPanel />

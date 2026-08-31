@@ -4,6 +4,7 @@ import { Product } from "../types";
 import { formatProductPriceLabel } from "../lib/utils";
 import { useCartFeedback } from "../context/FlyToCartContext";
 import CategoryIcon, { getCategoryConfig } from "./CategoryIcon";
+import StockAlertButton from "./StockAlertButton";
 
 interface ProductCardProps {
   product: Product;
@@ -196,17 +197,9 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
                 পাইকারি রেট
               </div>
               {isOutOfStock ? (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpenDetails?.(product);
-                  }}
-                  className="py-2 px-3.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shrink-0 bg-purple-50 text-brand-purple border border-purple-200 hover:bg-brand-purple hover:text-white"
-                >
-                  <Bell className="w-3.5 h-3.5" />
-                  <span>নোটিফাই</span>
-                </button>
+                <div onClick={(e) => e.stopPropagation()}>
+                  <StockAlertButton productId={product.id} productName={product.name} compact={true} />
+                </div>
               ) : (
                 <button
                   type="button"
@@ -392,17 +385,14 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
 
             {/* Add to Cart Button or Out of Stock Notify */}
             {isOutOfStock ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenDetails?.(product);
-                }}
-                className="flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer bg-purple-50 text-brand-purple border border-purple-200/80 hover:bg-brand-purple hover:text-white shadow-2xs"
-              >
-                <Bell className="w-3.5 h-3.5" />
-                <span>স্টকে আসলে জানান</span>
-              </button>
+              <div className="flex-1" onClick={(e) => e.stopPropagation()}>
+                <StockAlertButton 
+                  productId={product.id} 
+                  productName={product.name} 
+                  compact={true} 
+                  className="w-full justify-center py-2"
+                />
+              </div>
             ) : (
               <button
                 type="button"
