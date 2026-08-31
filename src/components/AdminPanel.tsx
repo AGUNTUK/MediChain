@@ -1302,11 +1302,11 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
 
       {/* Admin Sidebar HUD (responsive drawer on mobile, static on desktop) */}
       <aside className={`
-        fixed lg:static inset-y-0 left-0 z-50 w-72 lg:w-64 bg-white border-r border-slate-200 flex flex-col justify-between
+        fixed lg:static inset-y-0 left-0 z-50 w-72 lg:w-64 bg-white border-r border-slate-200 flex flex-col justify-between h-full shrink-0
         transform transition-transform duration-200 ease-in-out
         ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
       `}>
-        <div className="p-6 overflow-y-auto">
+        <div className="p-6 overflow-y-auto flex-1 min-h-0">
           <div className="flex items-center justify-between mb-8 select-none">
           <div className="flex items-center gap-2">
             <MediChainLogo size="sm" withText={true} textColor="dark" />
@@ -1470,7 +1470,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
       </aside>
 
       {/* Main Administrative Workplace Stream */}
-      <main className="flex-1 flex flex-col min-w-0 bg-slate-50">
+      <main className="flex-1 flex flex-col min-w-0 bg-slate-50 h-full overflow-hidden">
         {/* Fixed Header Toolbar */}
         <header className="hidden lg:flex min-h-14 border-b border-slate-200 bg-white/40 px-6 lg:px-8 py-3 items-center justify-between gap-3 flex-shrink-0">
           <div>
@@ -1507,7 +1507,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
         </header>
 
         {/* Content Screens Router */}
-        <div className="p-4 sm:p-6 lg:p-8 flex-1">
+        <div className="p-4 sm:p-6 lg:p-8 flex-1 overflow-y-auto min-h-0">
           {loading && products.length === 0 ? (
             <div className="h-full flex flex-col justify-center items-center gap-3">
               <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin" />

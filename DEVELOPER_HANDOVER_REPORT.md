@@ -561,6 +561,18 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 42. Admin Panel Page Scrolling & Viewport Architecture
+- **Root Cause of Admin Pages Not Scrolling**:
+  - The root wrapper in `AdminPanel.tsx` is defined with `h-screen w-screen overflow-hidden`.
+  - The inner `<main>` container was missing `h-full overflow-hidden`, and the Content Screens Router container `<div className="p-4 sm:p-6 lg:p-8 flex-1">` lacked `overflow-y-auto min-h-0`.
+  - Because `flex-1` defaults to `min-height: auto` in flexbox layouts without an explicit overflow handler, tall pages (e.g. Operations HUD, Medicine Registry catalog, Inventory logs, B2B Orders, Restock Requests, Broadcasts, Settings) extended beyond viewport boundaries and were clipped without triggering scroll behavior.
+- **Solution & Key Fixes**:
+  1. **Scrollable Content Viewport**: Configured `<main className="flex-1 flex flex-col min-w-0 bg-slate-50 h-full overflow-hidden">` and `<div className="p-4 sm:p-6 lg:p-8 flex-1 overflow-y-auto min-h-0">`.
+  2. **Fixed Header & Sticky Sidebar**: The top admin header bar (`hidden lg:flex min-h-14 ... flex-shrink-0`) and mobile header bar stay pinned at the top while all page content smoothly scrolls vertically on desktop, tablet, and mobile.
+  3. **Sidebar Independence**: The admin sidebar has `overflow-y-auto flex-1 min-h-0` ensuring navigation items scroll gracefully on lower-height laptop screens without displacing the bottom user profile card.
+
+----------------------------------------
+
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).
