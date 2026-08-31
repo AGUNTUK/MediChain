@@ -41,7 +41,7 @@ CREATE POLICY "Pharmacies can view own restock requests"
 ON restock_requests 
 FOR SELECT 
 USING (
-  pharmacy_id IN (SELECT id::text FROM pharmacies WHERE user_id = auth.uid()::text) 
+  pharmacy_id IN (SELECT id::text FROM pharmacies WHERE user_id::text = auth.uid()::text) 
   OR requested_by_user_id = auth.uid()::text
 );
 
@@ -51,7 +51,7 @@ CREATE POLICY "Pharmacies can insert own restock requests"
 ON restock_requests 
 FOR INSERT 
 WITH CHECK (
-  pharmacy_id IN (SELECT id::text FROM pharmacies WHERE user_id = auth.uid()::text) 
+  pharmacy_id IN (SELECT id::text FROM pharmacies WHERE user_id::text = auth.uid()::text) 
   OR requested_by_user_id = auth.uid()::text
 );
 
