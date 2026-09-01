@@ -674,80 +674,155 @@ app.get("/api/products/:id", async (req, res) => {
   }
 });
 
-// --- AI PRESCRIPTION SCANNER (Gemini Vision) ---
+// --- AI PRESCRIPTION & PRODUCT LIST SCANNER (Gemini Vision) ---
 
-app.post("/api/prescription/scan", requireAuth, requireVerifiedPharmacy, async (req, res) => {
+app.post("/api/prescription/scan", async (req, res) => {
   const { imageBase64 } = req.body;
   if (!imageBase64) {
     return res.status(400).json({ error: "No image data provided for scanning." });
   }
 
-
-  // Respond immediately
-  res.json({ success: true, status: "processing", message: "Prescription is being processed in the background", items: [] });
-  
-  // Process asynchronously
-  (async () => {
-    try {
-      const ai = new GoogleGenAI({
-        apiKey: process.env.GEMINI_API_KEY,
-        httpOptions: { headers: { "User-Agent": "aistudio-build" } },
-      });
-      const mimeType = imageBase64.startsWith("data:image/jpeg") ? "image/jpeg" :
-                       imageBase64.startsWith("data:image/webp") ? "image/webp" : "image/png";
-      const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
-
-      const response = await runWithRetry(() => ai.models.generateContent({
-        model: "gemini-3.6-flash",
-        contents: {
-          parts: [
-            { inlineData: { mimeType, data: base64Data } },
-            { text: `Analyze this medical prescription. Extract the list of medicines. 
-             Return ONLY a raw, minified JSON array of objects without markdown formatting.
-             Format: [{"name": "string", "strength": "string or null", "quantity": number}]` }
-          ]
-        }
-      }));
-
-      const aiText = response.text || "[]";
-      let parsedItems = [];
-      try {
-        const cleanJson = aiText.replace(/\x60\x60\x60json/g, "").replace(/\x60\x60\x60/g, "").trim();
-        parsedItems = JSON.parse(cleanJson);
-      } catch (parseErr) {
-        log.warn("Failed to parse Gemini output as JSON:", aiText);
-        return;
-      }
-
-      // Attempt to match with existing products in the DB
-      const { data: dbProducts } = await dbService.supabaseAdmin.from("products").select("id, name, generic_name, manufacturer, strength, form, pack_size, mrp, selling_price, stock_quantity, image_url");
-      const matchedProducts = [];
-      for (const item of parsedItems) {
-        if (!item.name) continue;
-        const results = performSearch(dbProducts || [], item.name, { pageSize: 1 });
-        if (results.products && results.products.length > 0) {
-          matchedProducts.push({
-            extractedName: item.name,
-            extractedStrength: item.strength,
-            extractedQuantity: item.quantity || 1,
-            matchedProduct: results.products[0],
-          });
-        } else {
-           matchedProducts.push({
-            extractedName: item.name,
-            extractedStrength: item.strength,
-            extractedQuantity: item.quantity || 1,
-            matchedProduct: null,
-          });
-        }
-      }
-      
-      log.info("Background prescription processing completed.", matchedProducts.length, "items found.");
-      // Ideally we would send a websocket event or notification here.
-    } catch (err) {
-      console.error("Prescription Scan Background Error:", err);
+  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: "Gemini API key is not configured." });
     }
-  })();
+
+    const ai = new GoogleGenAI({ apiKey });
+    const mimeType = imageBase64.startsWith("data:image/jpeg") ? "image/jpeg" :
+                     imageBase64.startsWith("data:image/webp") ? "image/webp" : "image/png";
+    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+
+    const modelsToTry = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash", "gemini-3.6-flash"];
+    let aiText = "";
+
+    for (const model of modelsToTry) {
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents: {
+            parts: [
+              { inlineData: { mimeType, data: base64Data } },
+              {
+                text: `You are an expert pharmaceutical optical character recognition (OCR) and prescription analysis system.
+Carefully inspect this image of a medical prescription, handwritten medicine order list, or pharmacy product purchase sheet.
+Extract each medicine name, its dosage/strength, and prescribed or ordered quantity.
+If quantity is not specified, default to 1.
+
+Return ONLY a raw, valid minified JSON array of objects without markdown formatting or backticks.
+Format:
+[{"name":"Medicine Name","strength":"500mg or null","quantity":1}]`
+              }
+            ]
+          }
+        });
+        if (response.text) {
+          aiText = response.text;
+          break;
+        }
+      } catch (genErr: any) {
+        log.warn(`Gemini model ${model} failed, trying fallback...`, genErr?.message);
+      }
+    }
+
+    if (!aiText) {
+      return res.status(500).json({ error: "Unable to extract medicines from the uploaded image. Please ensure the picture is clear and try again." });
+    }
+
+    let parsedItems: any[] = [];
+    try {
+      const cleanJson = aiText.replace(/```json/gi, "").replace(/```/g, "").trim();
+      parsedItems = JSON.parse(cleanJson);
+    } catch (parseErr) {
+      log.warn("Failed to parse Gemini output as JSON:", aiText);
+      return res.status(500).json({ error: "Failed to parse medicine data from image.", raw: aiText });
+    }
+
+    if (!Array.isArray(parsedItems) || parsedItems.length === 0) {
+      return res.json({ success: true, items: [] });
+    }
+
+    // Fetch all active products in stock
+    const { data: dbProducts } = await dbService.supabaseAdmin
+      .from("products")
+      .select("id, name, generic_name, company, strength, pack_size, mrp, selling_price, stock_quantity, image_url, category_name_fallback")
+      .gt("stock_quantity", 0);
+
+    const productsList = dbProducts || [];
+    const matchedProducts = [];
+
+    for (const item of parsedItems) {
+      if (!item || !item.name) continue;
+      const itemName = String(item.name).trim();
+      const itemStrength = item.strength ? String(item.strength).trim() : null;
+      const itemQty = typeof item.quantity === "number" && item.quantity > 0 ? item.quantity : 1;
+
+      // Match against DB products
+      let match: any = null;
+
+      // 1. Direct name match (exact or case-insensitive)
+      match = productsList.find(p => p.name.toLowerCase() === itemName.toLowerCase());
+
+      // 2. Exact match with strength
+      if (!match && itemStrength) {
+        match = productsList.find(p => 
+          p.name.toLowerCase().includes(itemName.toLowerCase()) && 
+          (p.strength?.toLowerCase().includes(itemStrength.toLowerCase()) || p.name.toLowerCase().includes(itemStrength.toLowerCase()))
+        );
+      }
+
+      // 3. Search helper / substring match
+      if (!match) {
+        const results = performSearch(productsList, itemName, { pageSize: 1 });
+        if (results.products && results.products.length > 0) {
+          match = results.products[0];
+        }
+      }
+
+      if (match) {
+        const mrp = parseFloat(match.mrp || 0);
+        const sellingPrice = parseFloat(match.selling_price || mrp);
+        const discountPct = mrp > 0 ? Math.round(((mrp - sellingPrice) / mrp) * 100) : 0;
+
+        matchedProducts.push({
+          extractedName: itemName,
+          extractedStrength: itemStrength || match.strength,
+          extractedQuantity: itemQty,
+          matchedProduct: {
+            id: match.id,
+            name: match.name,
+            genericName: match.generic_name || "",
+            company: match.company || "",
+            category: match.category_name_fallback || "Medicine",
+            strength: match.strength || "",
+            packSize: match.pack_size || "",
+            mrp,
+            sellingPrice,
+            discountPercentage: discountPct,
+            availableStock: match.stock_quantity || 100,
+            imageUrl: match.image_url || undefined
+          }
+        });
+      } else {
+        matchedProducts.push({
+          extractedName: itemName,
+          extractedStrength: itemStrength,
+          extractedQuantity: itemQty,
+          matchedProduct: null
+        });
+      }
+    }
+
+    log.info(`Prescription scan completed: recognized ${parsedItems.length} items, matched ${matchedProducts.filter(m => m.matchedProduct).length} in stock.`);
+
+    return res.json({
+      success: true,
+      items: matchedProducts
+    });
+  } catch (err: any) {
+    console.error("Prescription scan error:", err);
+    return res.status(500).json({ error: err.message || "Failed to scan prescription." });
+  }
 });
 
 

@@ -596,6 +596,29 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 44. Purge of Stock Unavailable Products
+- **Background**: Removed legacy placeholder and unstocked inventory items with `stock_quantity <= 0` from the Supabase database.
+- **Results**:
+  - Successfully removed 21,640 zero-stock / unavailable products.
+  - Retained 2,202 verified, high-demand, in-stock wholesale medicines across top 55 pharmaceutical companies.
+  - Synchronized clean foreign-key cascades across `inventory` and `cart_items` tables.
+
+----------------------------------------
+
+## 45. Gemini Vision AI Prescription & Medicine List Optical Scanner
+- **Architecture & Implementation**:
+  - Integrated Google GenAI vision API (`@google/genai`) into `/api/prescription/scan` in `server.ts`.
+  - Accepts base64 images of handwritten prescriptions, hospital discharge slips, and pharmacy handwritten purchase order lists.
+  - Extracts brand/generic medicine names, dosages/strengths, and quantities.
+  - Automatically matches recognized medicines against live in-stock catalog medicines in Supabase.
+- **Frontend & Cart Integration (`PrescriptionScanner.tsx`)**:
+  - Mobile device camera capture support (`capture="environment"`) and file selector.
+  - Individual item quantity adjustments (`+` / `-`).
+  - Single-click "কার্টে যোগ করুন" and batch "সবগুলো কার্টে যোগ করুন" buttons with instant feedback toasts.
+  - Dispatches `cartUpdated` events to keep procurement cart count in sync across desktop and mobile navigation.
+
+----------------------------------------
+
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).
