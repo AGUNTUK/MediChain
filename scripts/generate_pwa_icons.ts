@@ -1,3 +1,14 @@
+/**
+ * MediChain PWA Icon & Favicon Generator
+ * 
+ * Reusable utility to generate all required square and maskable PWA icons, 
+ * Apple touch icons, and favicons from the base logo (public/logo.png).
+ * 
+ * Usage:
+ *   npx tsx scripts/generate_pwa_icons.ts
+ *   or: npm run generate:icons
+ */
+
 import { Jimp } from 'jimp';
 import fs from 'fs';
 import path from 'path';

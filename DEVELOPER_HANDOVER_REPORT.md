@@ -619,6 +619,20 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 46. Repository Cleanup & Utility Standardisation
+- **Cleanup Pass Results**:
+  - Removed throwaway scratch directory (`scratch/`) and 22 temporary sync/test scripts.
+  - Purged obsolete one-off batch files from `scripts/` (`process_medicines_*.ts`, `update_products_batch*.ts`, `catalog_sync_progress.json`).
+  - Purged redundant `bun.lock` file.
+- **Preserved & Documented Reusable CLI Utilities**:
+  1. `scripts/import_products.ts` (`npm run import:products` / `npx tsx scripts/import_products.ts <path-to-csv>`): Validates and imports manufacturer product catalogs into Supabase using `importService.ts` and `dbService.ts`.
+  2. `scripts/generate_pwa_icons.ts` (`npm run generate:icons`): Generates all required responsive, maskable, and square PWA icons directly from `public/logo.png`.
+  3. `scripts/fetch_product_images.ts` (`npm run fetch:images`): Automated Google Custom Search image enrichment utility.
+- **Recurrence Prevention**:
+  - Updated `.gitignore` to explicitly ignore `scratch/`, `extracted_medicines/`, `products-zip/`, `bun.lock`, and temporary build/test artifacts.
+
+----------------------------------------
+
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

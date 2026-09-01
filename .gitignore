@@ -14,3 +14,7 @@ test-results/
 .vercel
 .env*.local
 temp_icons/
+scratch/
+extracted_medicines/
+products-zip/
+bun.lock
