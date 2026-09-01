@@ -233,6 +233,7 @@ export default function SmartOrderModal({ onClose, onOpenCart }: SmartOrderModal
     try {
       await smartOrderService.batchAddToCart(selectedList);
       window.dispatchEvent(new Event("cartUpdated"));
+      window.dispatchEvent(new Event("cart-updated"));
       setCartSuccess(true);
       
       setTimeout(() => {
@@ -240,7 +241,7 @@ export default function SmartOrderModal({ onClose, onOpenCart }: SmartOrderModal
         if (onOpenCart) {
           onOpenCart();
         }
-      }, 1200);
+      }, 900);
     } catch (err: any) {
       alert(err.message || "কার্টে যোগ করতে সমস্যা হয়েছে।");
     } finally {

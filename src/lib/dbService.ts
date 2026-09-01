@@ -832,46 +832,69 @@ export async function updateInventoryStock(productId: string, qty: number, batch
 // ==========================================
 
 export async function getCart(userId: string) {
-  const { data } = await supabaseAdmin
-    .from("notifications")
-    .select("message")
-    .eq("user_id", userId)
-    .eq("type", "cart")
-    .maybeSingle();
+  if (!userId) return [];
+  try {
+    const { data } = await supabaseAdmin
+      .from("notifications")
+      .select("id, message")
+      .eq("user_id", userId)
+      .eq("type", "cart")
+      .order("created_at", { ascending: false })
+      .limit(1);
 
-  if (data) {
-    try {
-      return JSON.parse(data.message);
-    } catch (e) {
-      return [];
+    if (data && data.length > 0 && data[0]?.message) {
+      try {
+        const parsed = JSON.parse(data[0].message);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        return [];
+      }
     }
+  } catch (err) {
+    console.error("Error fetching cart from DB:", err);
   }
   return [];
 }
 
 export async function saveCart(userId: string, cartItems: any[]) {
-  const { data: existing } = await supabaseAdmin
-    .from("notifications")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("type", "cart")
-    .maybeSingle();
+  if (!userId) return;
+  try {
+    const { data: existingList } = await supabaseAdmin
+      .from("notifications")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("type", "cart")
+      .order("created_at", { ascending: false });
 
-  if (existing) {
-    await supabaseAdmin
-      .from("notifications")
-      .update({ message: JSON.stringify(cartItems) })
-      .eq("id", existing.id);
-  } else {
-    await supabaseAdmin
-      .from("notifications")
-      .insert({
-        user_id: userId,
-        title: "Procurement Cart",
-        message: JSON.stringify(cartItems),
-        type: "cart",
-        read: true
-      });
+    const safeItems = Array.isArray(cartItems) ? cartItems : [];
+    const payload = JSON.stringify(safeItems);
+
+    if (existingList && existingList.length > 0) {
+      const [primary, ...duplicates] = existingList;
+      await supabaseAdmin
+        .from("notifications")
+        .update({ message: payload })
+        .eq("id", primary.id);
+
+      if (duplicates.length > 0) {
+        await supabaseAdmin
+          .from("notifications")
+          .delete()
+          .in("id", duplicates.map(d => d.id));
+      }
+    } else {
+      await supabaseAdmin
+        .from("notifications")
+        .insert({
+          user_id: userId,
+          title: "Procurement Cart",
+          message: payload,
+          type: "cart",
+          read: true
+        });
+    }
+  } catch (err) {
+    console.error("Error saving cart to DB:", err);
   }
 }
 

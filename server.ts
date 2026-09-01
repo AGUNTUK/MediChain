@@ -881,21 +881,18 @@ app.get("/api/cart", requireAuth, async (req, res) => {
   try {
     const cartItemsInDb = await dbService.getCart(req.user.id);
     const cartItems: any[] = [];
-    let cartModified = false;
     
-    if (cartItemsInDb.length > 0) {
-      const productIds = cartItemsInDb.map((item: any) => item.productId);
+    if (cartItemsInDb && cartItemsInDb.length > 0) {
+      const productIds = cartItemsInDb.map((item: any) => String(item.productId || "").trim()).filter(Boolean);
       
       const { data: dbProducts, error } = await dbService.supabaseAdmin
         .from('products')
         .select('*, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date)')
         .in('id', productIds);
         
-      if (!error && dbProducts) {
-        // Map them
+      if (!error && dbProducts && dbProducts.length > 0) {
         const productMap = new Map();
         dbProducts.forEach((p: any) => {
-          // map it just like getProductById does
           const mrpVal = p.mrp !== undefined && p.mrp !== null ? parseFloat(p.mrp) : 0;
           let sellingVal = 0;
           if (p.selling_price !== undefined && p.selling_price !== null && p.selling_price !== "") {
@@ -911,7 +908,7 @@ app.get("/api/cart", requireAuth, async (req, res) => {
             ? parseInt(p.stock_quantity, 10)
             : (inv ? (inv.available_stock ?? 0) : (p.availableStock ?? 0));
 
-          productMap.set(p.id, {
+          const mapped = {
             id: String(p.id).trim(),
             name: p.name,
             genericName: p.generic_name || p.genericName || "Generic Medicine",
@@ -928,33 +925,43 @@ app.get("/api/cart", requireAuth, async (req, res) => {
             batchNumber: p.batch_number || (inv ? (inv.batch_number || "") : "") || "B-MCH2026",
             expiryDate: p.expiry_date || (inv ? (inv.expiry_date || "") : "") || "2027-12-31",
             imageUrl: p.image_url || p.imageUrl || undefined,
-          });
+          };
+
+          productMap.set(String(p.id).trim().toLowerCase(), mapped);
+          productMap.set(String(p.id).trim(), mapped);
         });
         
         for (const item of cartItemsInDb) {
-          const product = productMap.get(item.productId);
+          const itemKey = String(item.productId || "").trim().toLowerCase();
+          const product = productMap.get(itemKey) || productMap.get(String(item.productId || "").trim());
           if (product) {
             cartItems.push({
               product,
-              quantity: item.quantity
+              quantity: Math.max(1, parseInt(item.quantity, 10) || 1)
             });
-          } else {
-            cartModified = true;
           }
         }
       } else {
-        cartModified = true;
+        // Fallback to sequential getProductById if bulk query fails
+        for (const item of cartItemsInDb) {
+          try {
+            const p = await dbService.getProductById(String(item.productId || "").trim());
+            if (p) {
+              cartItems.push({
+                product: p,
+                quantity: Math.max(1, parseInt(item.quantity, 10) || 1)
+              });
+            }
+          } catch (e) {
+            // Ignore individual fetch failure
+          }
+        }
       }
     }
-    
-    if (cartModified) {
-      // Clean up the DB cart to remove orphaned/deleted products
-      await dbService.saveCart(req.user.id, cartItems.map(c => ({ productId: c.product.id, quantity: c.quantity })));
-    }
 
-    const totalMrp = cartItems.reduce((acc, item) => acc + (item.product.mrp * item.quantity), 0);
-    const totalAmount = cartItems.reduce((acc, item) => acc + (item.product.sellingPrice * item.quantity), 0);
-    const totalSavings = totalMrp - totalAmount;
+    const totalMrp = cartItems.reduce((acc, item) => acc + ((item.product.mrp || 0) * item.quantity), 0);
+    const totalAmount = cartItems.reduce((acc, item) => acc + ((item.product.sellingPrice || item.product.mrp || 0) * item.quantity), 0);
+    const totalSavings = Math.max(0, totalMrp - totalAmount);
 
     res.json({
       items: cartItems,
@@ -1011,30 +1018,52 @@ app.post("/api/smart-order/cart-all", requireAuth, requireVerifiedPharmacy, asyn
     }
 
     // Retrieve live products from Supabase to validate existence and stock
-    const { data: dbProducts, error } = await dbService.supabaseAdmin
+    const { data: dbProducts } = await dbService.supabaseAdmin
       .from("products")
       .select("id, name, selling_price, mrp, stock_quantity")
       .in("id", productIds);
 
-    if (error || !dbProducts || dbProducts.length === 0) {
+    const prodLookup = new Map<string, any>();
+    (dbProducts || []).forEach((p: any) => {
+      prodLookup.set(String(p.id).trim().toLowerCase(), p);
+      prodLookup.set(String(p.id).trim(), p);
+    });
+
+    // Fallback: If any product was not found in batch, fetch individually
+    for (const pId of productIds) {
+      const lower = pId.toLowerCase();
+      if (!prodLookup.has(lower)) {
+        try {
+          const individualProd = await dbService.getProductById(pId);
+          if (individualProd) {
+            prodLookup.set(lower, individualProd);
+            prodLookup.set(pId, individualProd);
+          }
+        } catch (e) {
+          // Ignore
+        }
+      }
+    }
+
+    if (prodLookup.size === 0) {
       return res.status(404).json({ error: "নির্বাচিত ওষুধগুলো ক্যাটালগে পাওয়া যায়নি।" });
     }
 
-    const dbProdMap = new Map(dbProducts.map(p => [p.id, p]));
     const dbCart = await dbService.getCart(req.user.id);
 
     let addedCount = 0;
     for (const item of items) {
       const pId = String(item.productId || "").trim();
       const qty = Math.max(1, parseInt(item.quantity, 10) || 1);
-      const prod = dbProdMap.get(pId);
+      const prod = prodLookup.get(pId.toLowerCase()) || prodLookup.get(pId);
       if (!prod) continue;
 
-      const existingIndex = dbCart.findIndex((c: any) => c.productId === pId);
+      const targetId = prod.id ? String(prod.id).trim() : pId;
+      const existingIndex = dbCart.findIndex((c: any) => String(c.productId || "").trim().toLowerCase() === targetId.toLowerCase());
       if (existingIndex >= 0) {
         dbCart[existingIndex].quantity = (dbCart[existingIndex].quantity || 0) + qty;
       } else {
-        dbCart.push({ productId: pId, quantity: qty });
+        dbCart.push({ productId: targetId, quantity: qty });
       }
       addedCount++;
     }

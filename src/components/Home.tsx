@@ -503,7 +503,13 @@ export default function Home({
             </div>
 
             {isScannerOpen && (
-              <PrescriptionScanner onClose={() => setIsScannerOpen(false)} />
+              <PrescriptionScanner 
+                onClose={() => setIsScannerOpen(false)} 
+                onOpenCart={() => {
+                  setIsScannerOpen(false);
+                  if (onOpenCart) onOpenCart();
+                }}
+              />
             )}
 
             {/* MediChain SmartOrder Card (Write it. Scan it. Cart it.) */}

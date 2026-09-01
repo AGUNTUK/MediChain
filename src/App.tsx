@@ -245,6 +245,23 @@ export default function App() {
     }
   }, [currentUser?.id, pharmacy?.id]);
 
+  // Global synchronization listener for Cart updates (SmartOrder, batch adds, multi-tabs)
+  useEffect(() => {
+    const handleCartSync = () => {
+      refreshCartCounter();
+    };
+
+    window.addEventListener("cartUpdated", handleCartSync);
+    window.addEventListener("cart-updated", handleCartSync);
+    window.addEventListener("storage", handleCartSync);
+
+    return () => {
+      window.removeEventListener("cartUpdated", handleCartSync);
+      window.removeEventListener("cart-updated", handleCartSync);
+      window.removeEventListener("storage", handleCartSync);
+    };
+  }, []);
+
   // Synchronize auth state changes to localStorage
   useEffect(() => {
     if (currentUser) {
@@ -505,7 +522,10 @@ export default function App() {
                   orders={orders}
                   cartQuantities={cartQuantities}
                   onUpdateCartQty={handleUpdateCartQty}
-                  onOpenCart={() => setIsCartDrawerOpen(true)}
+                  onOpenCart={() => {
+                    refreshCartCounter();
+                    setIsCartDrawerOpen(true);
+                  }}
                   cartCount={cartCount}
                 />
               </Suspense>
@@ -570,7 +590,10 @@ export default function App() {
                 unreadNotificationsCount={unreadNotificationsCount}
                 cartQuantities={cartQuantities}
                 onUpdateCartQty={handleUpdateCartQty}
-                onOpenCart={() => setIsCartDrawerOpen(true)}
+                onOpenCart={() => {
+                  refreshCartCounter();
+                  setIsCartDrawerOpen(true);
+                }}
                 cartCount={cartCount}
                 orders={orders}
                 onTrackOrder={(orderId) => {
@@ -706,7 +729,10 @@ export default function App() {
 
               {/* Center Prominent Cart Action Button */}
               <button
-                onClick={() => setIsCartDrawerOpen(true)}
+                onClick={() => {
+                  refreshCartCounter();
+                  setIsCartDrawerOpen(true);
+                }}
                 className="flex flex-col items-center gap-1 cursor-pointer transition-all relative text-slate-400 hover:text-brand-purple group"
                 title="কার্ট দেখুন"
               >
