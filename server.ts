@@ -691,39 +691,46 @@ app.post("/api/prescription/scan", async (req, res) => {
     }
 
     const ai = new GoogleGenAI({ apiKey });
-    const mimeType = imageBase64.startsWith("data:image/jpeg") ? "image/jpeg" :
-                     imageBase64.startsWith("data:image/webp") ? "image/webp" : "image/png";
-    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+    
+    // Detect mime type cleanly
+    let mimeType = "image/jpeg";
+    const mimeMatch = imageBase64.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,/);
+    if (mimeMatch && mimeMatch[1]) {
+      mimeType = mimeMatch[1];
+    }
+    const base64Data = imageBase64.replace(/^data:[^;]+;base64,/, "");
 
-    const modelsToTry = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash", "gemini-3.6-flash"];
+    const promptText = `You are an expert pharmaceutical optical character recognition (OCR) and prescription analysis system for Bangladesh pharmacies.
+Carefully inspect this image of a medical prescription, handwritten doctor's slip, medicine order list, or pharmacy procurement memo.
+Accurately read and transcribe each medicine name, its dosage/strength, and prescribed or ordered quantity.
+
+Rules:
+1. Carefully decipher doctor handwriting, Bengali prescription formats, abbreviations, or list numbering.
+2. Separate the brand name from the dosage/strength (e.g. for 'Monas 10', name is 'Monas', strength is '10mg'; for 'Olmedip 5/20', name is 'Olmedip', strength is '5/20'; for 'Napa Extra', name is 'Napa Extra', strength is null; for 'Amodis 400', name is 'Amodis', strength is '400mg'; for 'Sergel 20', name is 'Sergel', strength is '20mg').
+3. For quantity, if numbers like '50', '1', '2', '10' or '+ 9' are written next to the item, parse as the integer quantity. If not specified, default to 1.
+4. Output MUST be ONLY a raw valid minified JSON array of objects without markdown backticks.
+
+Format:
+[{"name":"Medicine Name","strength":"dosage or null","quantity":1}]`;
+
     let aiText = "";
+    const modelsToTry = ["gemini-3.6-flash"];
 
     for (const model of modelsToTry) {
       try {
         const response = await ai.models.generateContent({
           model,
-          contents: {
-            parts: [
-              { inlineData: { mimeType, data: base64Data } },
-              {
-                text: `You are an expert pharmaceutical optical character recognition (OCR) and prescription analysis system.
-Carefully inspect this image of a medical prescription, handwritten medicine order list, or pharmacy product purchase sheet.
-Extract each medicine name, its dosage/strength, and prescribed or ordered quantity.
-If quantity is not specified, default to 1.
-
-Return ONLY a raw, valid minified JSON array of objects without markdown formatting or backticks.
-Format:
-[{"name":"Medicine Name","strength":"500mg or null","quantity":1}]`
-              }
-            ]
-          }
+          contents: [
+            { inlineData: { mimeType, data: base64Data } },
+            { text: promptText }
+          ]
         });
         if (response.text) {
           aiText = response.text;
           break;
         }
       } catch (genErr: any) {
-        log.warn(`Gemini model ${model} failed, trying fallback...`, genErr?.message);
+        log.warn(`Gemini model ${model} error during prescription scan:`, genErr?.message);
       }
     }
 
@@ -733,7 +740,8 @@ Format:
 
     let parsedItems: any[] = [];
     try {
-      const cleanJson = aiText.replace(/```json/gi, "").replace(/```/g, "").trim();
+      const jsonMatch = aiText.match(/\[[\s\S]*\]/);
+      const cleanJson = jsonMatch ? jsonMatch[0] : aiText.replace(/```json/gi, "").replace(/```/g, "").trim();
       parsedItems = JSON.parse(cleanJson);
     } catch (parseErr) {
       log.warn("Failed to parse Gemini output as JSON:", aiText);
@@ -744,40 +752,80 @@ Format:
       return res.json({ success: true, items: [] });
     }
 
-    // Fetch all active products in stock
-    const { data: dbProducts } = await dbService.supabaseAdmin
-      .from("products")
-      .select("id, name, generic_name, company, strength, pack_size, mrp, selling_price, stock_quantity, image_url, category_name_fallback")
-      .gt("stock_quantity", 0);
+    // Fetch all active in-stock products across all pages
+    let allProducts: any[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    const productsList = dbProducts || [];
+    while (hasMore) {
+      const { data, error } = await dbService.supabaseAdmin
+        .from("products")
+        .select("id, name, generic_name, company, strength, pack_size, mrp, selling_price, stock_quantity, image_url, category_name_fallback")
+        .gt("stock_quantity", 0)
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (error || !data || data.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      allProducts = allProducts.concat(data);
+      if (data.length < pageSize) {
+        hasMore = false;
+      } else {
+        page++;
+      }
+    }
+
+    const productsList = allProducts.length > 0 ? allProducts : [];
     const matchedProducts = [];
 
     for (const item of parsedItems) {
       if (!item || !item.name) continue;
       const itemName = String(item.name).trim();
+      const itemNameLower = itemName.toLowerCase();
       const itemStrength = item.strength ? String(item.strength).trim() : null;
+      const strengthClean = itemStrength ? itemStrength.toLowerCase().replace(/mg/g, "").trim() : "";
       const itemQty = typeof item.quantity === "number" && item.quantity > 0 ? item.quantity : 1;
 
-      // Match against DB products
+      // Multi-tier intelligent matching:
       let match: any = null;
 
-      // 1. Direct name match (exact or case-insensitive)
-      match = productsList.find(p => p.name.toLowerCase() === itemName.toLowerCase());
+      // Tier 1: Exact brand name match
+      match = productsList.find(p => p.name.toLowerCase() === itemNameLower);
 
-      // 2. Exact match with strength
-      if (!match && itemStrength) {
+      // Tier 2: Name contains brand AND strength
+      if (!match && strengthClean) {
         match = productsList.find(p => 
-          p.name.toLowerCase().includes(itemName.toLowerCase()) && 
-          (p.strength?.toLowerCase().includes(itemStrength.toLowerCase()) || p.name.toLowerCase().includes(itemStrength.toLowerCase()))
+          p.name.toLowerCase().includes(itemNameLower) && 
+          (p.name.toLowerCase().includes(strengthClean) || (p.strength && p.strength.toLowerCase().includes(strengthClean)))
         );
       }
 
-      // 3. Search helper / substring match
+      // Tier 3: Name starts with or contains brand name
       if (!match) {
-        const results = performSearch(productsList, itemName, { pageSize: 1 });
-        if (results.products && results.products.length > 0) {
-          match = results.products[0];
+        match = productsList.find(p => p.name.toLowerCase().includes(itemNameLower));
+      }
+
+      // Tier 4: First word of multi-word brand (e.g. 'Napa' from 'Napa Extra')
+      if (!match && itemName.includes(" ")) {
+        const firstWord = itemName.split(" ")[0].toLowerCase();
+        if (firstWord.length >= 3) {
+          match = productsList.find(p => p.name.toLowerCase().includes(firstWord));
+        }
+      }
+
+      // Tier 5: Generic name match
+      if (!match) {
+        match = productsList.find(p => p.generic_name && p.generic_name.toLowerCase().includes(itemNameLower));
+      }
+
+      // Tier 6: Levenshtein / fuzzy phonetics for common brand spelling variations (e.g. Zoliam -> Zolium, Amitinol -> Amilin)
+      if (!match) {
+        const cleanStem = itemNameLower.slice(0, 4);
+        if (cleanStem.length >= 3) {
+          match = productsList.find(p => p.name.toLowerCase().startsWith(cleanStem));
         }
       }
 

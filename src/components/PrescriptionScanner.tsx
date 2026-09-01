@@ -3,6 +3,47 @@ import { Upload, Scan, Loader2, X, Check, ShoppingCart, Info, Search, Plus, Minu
 import { prescriptionService, ScannedMedicine } from "../services/prescription";
 import { orderService } from "../services/order";
 
+function compressImageForOCR(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDimension = 1600;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(e.target?.result as string);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedBase64 = canvas.toDataURL("image/jpeg", 0.88);
+        resolve(compressedBase64);
+      };
+      img.onerror = () => resolve(e.target?.result as string);
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function PrescriptionScanner({ onClose }: { onClose: () => void }) {
   const [image, setImage] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -16,26 +57,22 @@ export default function PrescriptionScanner({ onClose }: { onClose: () => void }
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 8 * 1024 * 1024) {
-      setError("ছবির সাইজ ৮ মেগাবাইট (8MB) এর কম হতে হবে।");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const base64 = ev.target?.result as string;
+    try {
+      setScanning(true);
+      setError(null);
+      const base64 = await compressImageForOCR(file);
       setImage(base64);
       setResults(null);
-      setError(null);
       setAllAddedSuccess(false);
       handleScan(base64);
-    };
-    reader.onerror = () => setError("ছবিটি রিড করা সম্ভব হয়নি। পুনরায় চেষ্টা করুন।");
-    reader.readAsDataURL(file);
+    } catch (err) {
+      setError("ছবিটি প্রসেস করা সম্ভব হয়নি। অনুগ্রহ করে অন্য ছবি নির্বাচন করুন।");
+      setScanning(false);
+    }
   };
 
   const handleScan = async (base64: string) => {
