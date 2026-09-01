@@ -133,3 +133,78 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 });
+
+// ==========================================
+// 4. WEB PUSH NOTIFICATIONS (Background Phone Delivery)
+// ==========================================
+
+self.addEventListener('push', (event) => {
+  console.log('[MediChain SW] Push event received:', event);
+
+  let payload = {
+    title: 'মেডিচেইন আপডেট',
+    body: 'আপনার অর্ডারের নতুন স্ট্যাটাস আপডেট হয়েছে।',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    url: '/',
+    tag: 'medichain-notification',
+    data: { url: '/' }
+  };
+
+  if (event.data) {
+    try {
+      const parsed = event.data.json();
+      payload = { ...payload, ...parsed };
+    } catch (e) {
+      payload.body = event.data.text();
+    }
+  }
+
+  const notificationOptions = {
+    body: payload.body,
+    icon: payload.icon || '/icons/icon-192.png',
+    badge: payload.badge || '/icons/icon-192.png',
+    image: payload.image || undefined,
+    vibrate: [200, 100, 200, 100, 200],
+    tag: payload.tag || `medichain_${Date.now()}`,
+    renotify: true,
+    requireInteraction: false,
+    data: {
+      url: payload.url || payload.data?.url || '/',
+      timestamp: Date.now()
+    },
+    actions: payload.actions && payload.actions.length > 0 ? payload.actions : [
+      { action: 'open', title: 'দেখুন' }
+    ]
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title, notificationOptions)
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  console.log('[MediChain SW] Notification clicked:', event.notification);
+  event.notification.close();
+
+  const targetUrl = event.notification.data?.url || '/';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // Check if there is already a window/tab open with the network app
+      for (let client of windowClients) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          if ('navigate' in client) {
+            client.navigate(targetUrl);
+          }
+          return client.focus();
+        }
+      }
+      // If no window is open, open a new window to the target URL
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+    })
+  );
+});
+

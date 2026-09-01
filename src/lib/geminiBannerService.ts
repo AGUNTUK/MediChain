@@ -37,7 +37,7 @@ export async function analyzeDailyWholesaleDiscounts(): Promise<DailyBannerIntel
   isAnalyzing = true;
   try {
     console.log("[GeminiBannerService] Checking entire in-stock product catalog from Supabase...");
-    
+
     // Fetch all active in-stock products
     let allProducts: any[] = [];
     let page = 0;
@@ -117,7 +117,7 @@ export async function analyzeDailyWholesaleDiscounts(): Promise<DailyBannerIntel
     // Consult Gemini AI for professional copywriting
     const apiKey = process.env.GEMINI_API_KEY;
     let headline = `আজকের পাইকারি অর্ডারে ${toBengaliNumber(minDiscount)}% – ${toBengaliNumber(maxDiscount)}% পর্যন্ত সর্বোচ্চ লাভ!`;
-    let subheadline = "মেডিচেইন ডিপো থেকে সরাসরি ক্রয়ে কোনো মধ্যস্বত্বভোগী নেই, তাই ফার্মেসির মুনাফা থাকে সর্বোচ্চ।";
+    let subheadline = "মেডিচেইন থেকে সরাসরি ক্রয়ে কোনো মধ্যস্বত্বভোগী নেই, তাই ফার্মেসির মুনাফা থাকে সর্বোচ্চ।";
     let badgeText = "AI দৈনিক মুনাফা মিটার";
 
     if (apiKey) {

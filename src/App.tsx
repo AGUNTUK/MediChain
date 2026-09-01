@@ -6,6 +6,7 @@ import Login from "./components/Login";
 import Home from "./components/Home";
 import CartDrawer from "./components/CartDrawer";
 import { PWAInstallPrompt } from "./pwa/PWAInstallPrompt";
+import PushNotificationPrompt from "./components/PushNotificationPrompt";
 import { CartFeedbackProvider } from "./context/FlyToCartContext";
 import CartBurst from "./components/CartBurst";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -678,6 +679,7 @@ export default function App() {
           {/* Cart feedback burst */}
           <CartBurst />
           <PWAInstallPrompt />
+          <PushNotificationPrompt userId={currentUser?.id} pharmacyName={pharmacy?.pharmacyName} />
 
           {/* Bottom persistent Nav Bar */}
           {appStep === "main" && (

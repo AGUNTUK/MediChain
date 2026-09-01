@@ -73,22 +73,22 @@ export default function NotificationsPanel({ onClose, onRefreshNotifications }: 
       <div className="absolute inset-0" onClick={onClose} />
       <div className="relative w-full max-w-xl bg-brand-bg rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 border-t sm:border border-slate-200 shadow-2xl overflow-y-auto max-h-[85vh] sm:max-h-[80vh] animate-slide-up flex flex-col justify-between z-10">
         {/* Header */}
-        <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-50">
+        <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-100">
           <div>
             <h3 className="text-xs font-black text-brand-charcoal flex items-center gap-1.5">
               <Bell className="w-4 h-4 text-brand-purple" />
-              MediChain Depot Broadcaster
+              মেডিচেইন ডিপো ব্রডকাস্টার
             </h3>
-            <p className="text-[10px] text-slate-400 mt-0.5">Real-time supply-chain updates and offers</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">রিয়েল-টাইম অর্ডার ডেলিভারি ও পাইকারি ডিল</p>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <button
               onClick={handleMarkAllRead}
               className="text-[10px] text-brand-purple font-extrabold hover:underline cursor-pointer flex items-center gap-1"
             >
               <CheckCheck className="w-3.5 h-3.5" />
-              Mark all read
+              সব পঠিত
             </button>
             <button
               onClick={onClose}
@@ -97,6 +97,25 @@ export default function NotificationsPanel({ onClose, onRefreshNotifications }: 
               <X className="w-4 h-4 text-slate-500" />
             </button>
           </div>
+        </div>
+
+        {/* Mobile Push Notification Quick Toggle Bar */}
+        <div className="bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 text-white p-3 rounded-2xl mb-3 flex items-center justify-between gap-2 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-brand-lime animate-ping"></span>
+            <span className="text-xs font-black text-purple-100">মোবাইল পুশ নোটিফিকেশন</span>
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              const { pushManager } = await import("../pwa/pushManager");
+              await pushManager.subscribe();
+              pushManager.sendTestPush().catch(() => {});
+            }}
+            className="text-[10px] font-black bg-brand-lime text-slate-950 px-2.5 py-1 rounded-xl shadow-xs hover:bg-lime-400 transition-all cursor-pointer"
+          >
+            চালু / টেস্ট
+          </button>
         </div>
 
         {/* List of broadcasts */}

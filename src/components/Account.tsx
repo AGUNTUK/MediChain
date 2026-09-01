@@ -7,6 +7,7 @@ import { restockService } from "../services/restockService";
 import { orderService } from "../services/order";
 import { authService } from "../services/auth";
 import { usePWAInstall } from "../pwa/usePWAInstall";
+import { pushManager } from "../pwa/pushManager";
 import EditProfileScreen from "./EditProfileScreen";
 import KYCVerificationHub from "./KYCVerificationHub";
 import MediChainLogo from "./MediChainLogo";
@@ -42,6 +43,43 @@ export default function Account({
   // Overlay state triggers
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showKycHub, setShowKycHub] = useState(false);
+
+  // Mobile Web Push Notification State
+  const [pushStatus, setPushStatus] = useState<NotificationPermission>("default");
+  const [isPushLoading, setIsPushLoading] = useState(false);
+  const [testPushStatus, setTestPushStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (pushManager.isPushSupported()) {
+      setPushStatus(pushManager.getPermissionState());
+    }
+  }, []);
+
+  const handleTogglePush = async () => {
+    setIsPushLoading(true);
+    setTestPushStatus(null);
+    if (pushStatus === "granted") {
+      await pushManager.unsubscribe();
+      setPushStatus("default");
+    } else {
+      const res = await pushManager.subscribe(currentUser?.id, pharmacy?.pharmacyName);
+      if (res.success) {
+        setPushStatus("granted");
+      }
+    }
+    setIsPushLoading(false);
+  };
+
+  const handleSendTestPush = async () => {
+    setTestPushStatus("sending");
+    const res = await pushManager.sendTestPush(currentUser?.id);
+    if (res.success) {
+      setTestPushStatus("success");
+      setTimeout(() => setTestPushStatus(null), 3000);
+    } else {
+      setTestPushStatus("error");
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -253,6 +291,67 @@ export default function Account({
           </div>
         </div>
       )}
+
+      {/* PWA & Mobile Web Push Notification Management Card */}
+      <div className="bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 text-white rounded-3xl p-5 border border-purple-500/20 space-y-4 shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-36 h-36 bg-brand-lime/10 rounded-full blur-2xl pointer-events-none"></div>
+
+        <div className="flex items-center justify-between relative z-10">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-2xl bg-brand-lime/20 flex items-center justify-center text-brand-lime shadow-inner">
+              <BellRing className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-black text-white">মোবাইল পুশ নোটিফিকেশন</h3>
+              <p className="text-xs text-purple-200/80">অ্যাপ বন্ধ থাকলেও সরাসরি ফোনে অ্যালার্ট পাবেন</p>
+            </div>
+          </div>
+          <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full ${
+            pushStatus === "granted" ? "bg-brand-lime text-slate-950" : "bg-white/10 text-slate-300"
+          }`}>
+            {pushStatus === "granted" ? "সক্রিয় ✓" : "বন্ধ"}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 pt-1 relative z-10">
+          <button
+            onClick={handleTogglePush}
+            disabled={isPushLoading}
+            className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+              pushStatus === "granted"
+                ? "bg-white/10 hover:bg-white/20 text-slate-300"
+                : "bg-brand-lime hover:bg-lime-400 text-slate-950 shadow-md shadow-lime-950/30"
+            }`}
+          >
+            {isPushLoading ? (
+              <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+            ) : pushStatus === "granted" ? (
+              <>
+                <Bell className="w-3.5 h-3.5" />
+                <span>নোটিফিকেশন বন্ধ করুন</span>
+              </>
+            ) : (
+              <>
+                <BellRing className="w-3.5 h-3.5" />
+                <span>ফোনে নোটিফিকেশন চালু করুন</span>
+              </>
+            )}
+          </button>
+
+          {pushStatus === "granted" && (
+            <button
+              onClick={handleSendTestPush}
+              disabled={testPushStatus === "sending"}
+              className="px-3.5 py-2.5 rounded-xl text-xs font-bold bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-500/30 transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-brand-lime" />
+              <span>
+                {testPushStatus === "sending" ? "পাঠানো হচ্ছে..." : testPushStatus === "success" ? "নোটিফিকেশন পাঠানো হয়েছে! 🎉" : "টেস্ট নোটিফিকেশন পাঠান"}
+              </span>
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* B2B Operational Quick-Action Grid */}
       <div className="grid grid-cols-2 gap-3">

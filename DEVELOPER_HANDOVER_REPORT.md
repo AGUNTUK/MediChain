@@ -646,6 +646,25 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 48. PWA Post-Install Mobile Web Push Notifications System
+- **Architecture & Standards**:
+  - Implemented standard W3C Push API + VAPID Web Push protocol (`web-push`).
+  - Enables instant, background notification delivery directly to mobile phone lock screens and notification trays (Android Chrome, iOS 16.4+ Safari PWA Home Screen, Windows, Mac) even when the MediChain PWA is closed.
+- **Backend Service & Routes (`src/lib/pushNotificationService.ts` & `server.ts`)**:
+  - Manages VAPID keys, subscriptions registry, and auto-cleanup of dead/unsubscribed endpoints.
+  - Endpoints: `GET /api/notifications/vapid-public-key`, `POST /api/notifications/push-subscribe`, `POST /api/notifications/push-unsubscribe`, and `POST /api/notifications/test-push`.
+  - Automatic push triggers:
+    * Order created confirmation.
+    * Order lifecycle updates (Confirmed, Processing, Packed, Out for Delivery, Delivered, Cancelled).
+- **Service Worker Background Handlers (`public/sw.js`)**:
+  - Handles `push` event: displays rich system notifications with sound/vibrate, badge, app icon, and action buttons.
+  - Handles `notificationclick` event: focuses existing PWA tab or opens new window directly navigating to `/#order-tracking`.
+- **Frontend Post-Install UI (`PushNotificationPrompt.tsx`, `pushManager.ts`, `Account.tsx`, `NotificationsPanel.tsx`)**:
+  - Listens to `appinstalled` event and standalone PWA launch to show native-feel Bengali opt-in prompt.
+  - Adds push status indicator, toggle, and instant "টেস্ট নোটিফিকেশন পাঠান" buttons in Account Settings and Depot Broadcaster panel.
+
+----------------------------------------
+
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

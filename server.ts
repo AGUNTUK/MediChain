@@ -25,6 +25,7 @@ import { supabaseAdmin } from "./src/lib/supabaseAdmin.js";
 import * as dbService from "./src/lib/dbService.js";
 import { aiEnrichmentService } from "./src/lib/aiEnrichmentService.js";
 import { initDailyBannerScheduler, getDailyBannerData, analyzeDailyWholesaleDiscounts } from "./src/lib/geminiBannerService.js";
+import { pushNotificationService } from "./src/lib/pushNotificationService.js";
 import cron from "node-cron";
 
 dotenv.config();
@@ -848,6 +849,69 @@ app.post("/api/banner/daily-profit-meter/refresh", async (req, res) => {
 });
 
 
+// --- WEB PUSH NOTIFICATIONS (Direct Mobile Delivery) ---
+
+app.get("/api/notifications/vapid-public-key", (req, res) => {
+  try {
+    const publicKey = pushNotificationService.getVapidPublicKey();
+    res.json({ publicKey });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to retrieve VAPID public key." });
+  }
+});
+
+app.post("/api/notifications/push-subscribe", async (req, res) => {
+  try {
+    const { subscription, userId, pharmacyName } = req.body;
+    if (!subscription || !subscription.endpoint) {
+      return res.status(400).json({ error: "Missing push subscription payload" });
+    }
+    const userAgent = req.headers["user-agent"] || "Mobile PWA";
+    const stored = pushNotificationService.saveSubscription(
+      subscription,
+      userId || req.user?.id || null,
+      pharmacyName || req.user?.pharmacy_name || null,
+      userAgent
+    );
+    res.json({ success: true, id: stored.id });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to save push subscription." });
+  }
+});
+
+app.post("/api/notifications/push-unsubscribe", async (req, res) => {
+  try {
+    const { endpoint } = req.body;
+    if (!endpoint) {
+      return res.status(400).json({ error: "Missing endpoint" });
+    }
+    const deleted = pushNotificationService.removeSubscription(endpoint);
+    res.json({ success: deleted });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to unsubscribe." });
+  }
+});
+
+app.post("/api/notifications/test-push", async (req, res) => {
+  try {
+    const { userId, title, body } = req.body;
+    const result = await pushNotificationService.sendPushNotification(
+      {
+        title: title || "মেডিচেইন পুশ নোটিফিকেশন 🚀",
+        body: body || "আপনার ফোনে পুশ নোটিফিকেশন সার্ভিস সফলভাবে সক্রিয় হয়েছে!",
+        icon: "/icons/icon-192.png",
+        badge: "/icons/icon-192.png",
+        url: "/"
+      },
+      userId || req.user?.id || null
+    );
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to send test push notification." });
+  }
+});
+
+
 // --- PROCUREMENT CART (Stateless DB Synced) ---
 
 app.get("/api/cart", requireAuth, async (req, res) => {
@@ -1198,6 +1262,14 @@ app.post("/api/orders", requireAuth, orderLimiter, validateBody(schemas.orderCre
 
     await dbService.saveCart(req.user.id, []);
 
+    // Send Real-time Web Push to Pharmacy Owner's mobile
+    pushNotificationService.sendPushNotification({
+      title: "অর্ডার সফলভাবে গ্রহণ করা হয়েছে! 📦",
+      body: `আপনার অর্ডার #${result.order.id.slice(0, 8)} প্লেস হয়েছে। মোট: ৳${(result.order.totalAmount || 0).toLocaleString()}`,
+      url: "/#order-tracking",
+      tag: `order_${result.order.id}`
+    }, req.user.id).catch(() => {});
+
     res.json({
       success: true,
       orderId: result.order.id,
@@ -1495,6 +1567,30 @@ app.post("/api/orders/:id/status", requireAuth, async (req, res) => {
     if (io) {
       io.to(`order_${req.params.id}`).emit("order_status_updated", updated);
       io.to("role_Admin").emit("admin_order_updated", updated);
+    }
+
+    // Send Web Push Notification to Pharmacy Owner's Mobile
+    if (order.pharmacyId) {
+      dbService.getPharmacyById(order.pharmacyId).then(pharmacy => {
+        const targetUserId = (pharmacy as any)?.userId || (pharmacy as any)?.user_id || pharmacy?.id;
+        if (targetUserId) {
+          const statusLabels: Record<string, string> = {
+            "Confirmed": "কনফার্ম করা হয়েছে ✅",
+            "Processing": "প্রসেসিং হচ্ছে ⚙️",
+            "Packed": "প্যাকিং সম্পন্ন 📦",
+            "Out for Delivery": "ডেলিভারির জন্য বের হয়েছে 🚚",
+            "Delivered": "সফলভাবে ডেলিভার হয়েছে 🎉",
+            "Cancelled": "বাতিল করা হয়েছে ❌"
+          };
+          const label = statusLabels[status] || status;
+          pushNotificationService.sendPushNotification({
+            title: `অর্ডার #${order.id.slice(0, 8)}: ${label}`,
+            body: `আপনার অর্ডারের বর্তমান অবস্থা: ${label}। বিস্তারিত জানতে ট্যাপ করুন।`,
+            url: "/#order-tracking",
+            tag: `order_${order.id}`
+          }, targetUserId).catch(() => {});
+        }
+      }).catch(() => {});
     }
 
     res.json({ success: true, order: updated });
