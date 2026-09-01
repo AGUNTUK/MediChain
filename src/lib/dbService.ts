@@ -411,6 +411,23 @@ export async function getPharmacyById(pharmacyId: string): Promise<Pharmacy | nu
   };
 }
 
+export function mapPharmacy(ph: any): Pharmacy {
+  const license = deserializeLicenseInfo(ph.license_information);
+  return {
+    id: ph.id,
+    pharmacyName: ph.pharmacy_name,
+    ownerName: ph.owner_name,
+    phone: ph.phone,
+    address: ph.address,
+    city: ph.city,
+    area: ph.city,
+    ...license,
+    licenseNo: license.licenseNo,
+    verificationStatus: license.verificationStatus as any,
+    verificationNotes: ""
+  };
+}
+
 export async function getAllPharmacies(page = 1, limit = 100): Promise<Pharmacy[]> {
   const offset = (page - 1) * limit;
   const { data: list } = await supabaseAdmin
@@ -418,25 +435,7 @@ export async function getAllPharmacies(page = 1, limit = 100): Promise<Pharmacy[
     .select("id, user_id, pharmacy_name, owner_name, phone, address, city, license_information").range(offset, offset + limit - 1);
 
   if (!list || list.length === 0) return [];
-  
-  const out: Pharmacy[] = [];
-  for (const ph of list) {
-    const license = deserializeLicenseInfo(ph.license_information);
-    out.push({
-      id: ph.id,
-      pharmacyName: ph.pharmacy_name,
-      ownerName: ph.owner_name,
-      phone: ph.phone,
-      address: ph.address,
-      city: ph.city,
-      area: ph.city,
-      ...license,
-      licenseNo: license.licenseNo,
-      verificationStatus: license.verificationStatus as any,
-      verificationNotes: ""
-    });
-  }
-  return out;
+  return list.map(mapPharmacy);
 }
 
 export async function updatePharmacyProfile(userId: string, data: any) {
@@ -924,13 +923,7 @@ export async function createOrderTransaction(userId: string, pharmacyId: string,
         if (directProd) {
           productMap.set(normalizedId, directProd);
         } else {
-          const allProds = await getProductsRaw();
-          const foundInAll = allProds.find((p: any) => String(p.id).trim().toLowerCase() === normalizedId);
-          if (foundInAll) {
-            productMap.set(normalizedId, foundInAll);
-          } else {
-            throw new Error("Selected product no longer exists in catalog");
-          }
+          throw new Error("Selected product no longer exists in catalog");
         }
       }
     }
@@ -1998,10 +1991,33 @@ export async function getPharmacyRestockRequests(pharmacyId: string): Promise<an
     }
   }
 
-  // Enrich with product details
-  const allProducts = await getProductsRaw();
+  // Enrich with product details using targeted ID lookup
+  const requestedProductIds = Array.from(new Set(rawRequests.map(r => String(r.product_id || "").trim()).filter(Boolean)));
   const productMap = new Map<string, Product>();
-  allProducts.forEach(p => productMap.set(String(p.id).trim(), p));
+  
+  if (requestedProductIds.length > 0) {
+    try {
+      const { data: prods } = await supabaseAdmin
+        .from("products")
+        .select(`
+          id, name, generic_name, company, category_name_fallback, strength, pack_size, mrp, selling_price, stock_quantity, image_url,
+          inventory (
+            available_stock,
+            reserved_stock,
+            sold_stock,
+            batch_number,
+            expiry_date
+          )
+        `)
+        .in("id", requestedProductIds);
+
+      if (prods) {
+        prods.forEach(p => productMap.set(String(p.id).trim(), mapProduct(p)));
+      }
+    } catch (e) {
+      console.warn("Targeted product lookup for restock requests failed:", e);
+    }
+  }
 
   return rawRequests.map(r => ({
     id: r.id,
@@ -2055,17 +2071,54 @@ export async function getAdminRestockRequestsGrouped(filters?: {
     }
   }
 
-  // Fetch all products and pharmacies for enrichment
-  const [allProducts, allPharmacies] = await Promise.all([
-    getProductsRaw(2000),
-    getAllPharmacies(1, 2000)
-  ]);
+  // Fetch only the specific products and pharmacies referenced in the requests
+  const requestedProductIds = Array.from(new Set(allRequests.map(r => String(r.product_id || "").trim()).filter(Boolean)));
+  const requestedPharmacyIds = Array.from(new Set(allRequests.map(r => String(r.pharmacy_id || "").trim()).filter(Boolean)));
 
   const productMap = new Map<string, Product>();
-  allProducts.forEach(p => productMap.set(String(p.id).trim(), p));
-
   const pharmacyMap = new Map<string, Pharmacy>();
-  allPharmacies.forEach(ph => pharmacyMap.set(String(ph.id).trim(), ph));
+
+  await Promise.all([
+    (async () => {
+      if (requestedProductIds.length > 0) {
+        try {
+          const { data: prods } = await supabaseAdmin
+            .from("products")
+            .select(`
+              id, name, generic_name, company, category_name_fallback, strength, pack_size, mrp, selling_price, stock_quantity, image_url,
+              inventory (
+                available_stock,
+                reserved_stock,
+                sold_stock,
+                batch_number,
+                expiry_date
+              )
+            `)
+            .in("id", requestedProductIds);
+          if (prods) {
+            prods.forEach(p => productMap.set(String(p.id).trim(), mapProduct(p)));
+          }
+        } catch (e) {
+          console.warn("Targeted restock products query failed:", e);
+        }
+      }
+    })(),
+    (async () => {
+      if (requestedPharmacyIds.length > 0) {
+        try {
+          const { data: pharms } = await supabaseAdmin
+            .from("pharmacies")
+            .select("*")
+            .in("id", requestedPharmacyIds);
+          if (pharms) {
+            pharms.forEach(ph => pharmacyMap.set(String(ph.id).trim(), mapPharmacy(ph)));
+          }
+        } catch (e) {
+          console.warn("Targeted restock pharmacies query failed:", e);
+        }
+      }
+    })()
+  ]);
 
   // Group requests by product_id
   const groupMap = new Map<string, {

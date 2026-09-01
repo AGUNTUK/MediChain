@@ -26,6 +26,8 @@ import * as dbService from "./src/lib/dbService.js";
 import { aiEnrichmentService } from "./src/lib/aiEnrichmentService.js";
 import { initDailyBannerScheduler, getDailyBannerData, analyzeDailyWholesaleDiscounts } from "./src/lib/geminiBannerService.js";
 import { pushNotificationService } from "./src/lib/pushNotificationService.js";
+import { LRUCache } from "./src/lib/lruCache.js";
+import { DEFAULT_CATEGORY_OPTIONS } from "./src/constants/categories.js";
 import cron from "node-cron";
 
 dotenv.config();
@@ -532,21 +534,22 @@ let lastCategoryFetch = 0;
 
 app.get("/api/categories", async (req, res) => {
   try {
-    if (cachedCategories && Date.now() - lastCategoryFetch < 3600000) {
+    // 24-hour HTTP Cache header for browser and edge CDNs
+    res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+
+    if (cachedCategories && Date.now() - lastCategoryFetch < 86400000) {
       return res.json(cachedCategories);
     }
     
     // First try getting from categories table directly
-    const { data: catData, error: catErr } = await supabaseAdmin.from("categories").select("name");
+    const { data: catData, error: catErr } = await supabaseAdmin.from("categories").select("name").limit(100);
     
-    let categories = [];
+    let categories: string[] = [];
     if (!catErr && catData && catData.length > 0) {
        categories = catData.map((c: any) => c.name);
     } else {
-       // Fallback to distinct
-       const { data, error } = await supabaseAdmin.from("products").select("category_name_fallback");
-       if (error) throw error;
-       categories = Array.from(new Set(data.map((p: any) => p.category_name_fallback).filter(Boolean)));
+       // Fast fallback to standardized DGDA categories constant instead of scanning 21,000 product rows
+       categories = DEFAULT_CATEGORY_OPTIONS;
     }
     
     cachedCategories = categories;
@@ -555,16 +558,15 @@ app.get("/api/categories", async (req, res) => {
   } catch (err) {
     console.error("Error fetching categories:", err);
     if (cachedCategories) return res.json(cachedCategories);
-    res.status(500).json({ error: "Failed to fetch categories." });
+    res.json(DEFAULT_CATEGORY_OPTIONS);
   }
 });
 
-const productCache: Record<string, { data: any, time: number }> = {};
+// Bounded LRU Cache (max 500 queries, 60-second TTL) to eliminate V8 GC memory pauses
+const productLRUCache = new LRUCache<any>(500, 60000);
 
 export function clearProductCache() {
-  for (const k in productCache) {
-    delete productCache[k];
-  }
+  productLRUCache.clear();
 }
 
 app.get("/api/products", publicLimiter, async (req, res) => {
@@ -572,13 +574,16 @@ app.get("/api/products", publicLimiter, async (req, res) => {
 
   const pageNum = parseInt(page as string) || 1;
   const limitNum = parseInt(limit as string) || 50;
-  const searchQuery = (search as string) || "";
-  const cacheKey = `${filter}_${category}_${searchQuery}_${pageNum}_${limitNum}`;
+  const searchQuery = ((search as string) || "").trim();
+  const cacheKey = `${filter || "all"}_${category || "all"}_${searchQuery}_${pageNum}_${limitNum}_${paginate || "false"}`;
 
   try {
-    const cached = productCache[cacheKey];
-    if (cached && Date.now() - cached.time < 30000) { // 30 seconds cache
-      return res.json(cached.data);
+    // Edge cache header: 30s fresh, 120s stale-while-revalidate
+    res.setHeader("Cache-Control", "public, max-age=30, stale-while-revalidate=120");
+
+    const cached = productLRUCache.get(cacheKey);
+    if (cached) {
+      return res.json(cached);
     }
 
     const from = (pageNum - 1) * limitNum;
@@ -590,7 +595,7 @@ app.get("/api/products", publicLimiter, async (req, res) => {
       .range(from, to);
 
     if (searchQuery) {
-      const searchTerms = searchQuery.trim().split(/\s+/);
+      const searchTerms = searchQuery.split(/\s+/).filter(Boolean);
       searchTerms.forEach(term => {
         query = query.or(`name.ilike.%${term}%,generic_name.ilike.%${term}%,company.ilike.%${term}%`);
       });
@@ -680,7 +685,7 @@ app.get("/api/products", publicLimiter, async (req, res) => {
         page: pageNum,
         pageSize: limitNum,
         pages,
-        suggestions: [], // Server-side search doesn't do suggestions in this simplified query
+        suggestions: [],
         originalQuery: searchQuery,
         correctedQuery: undefined
       };
@@ -688,7 +693,7 @@ app.get("/api/products", publicLimiter, async (req, res) => {
       responseData = mappedProducts;
     }
 
-    productCache[cacheKey] = { data: responseData, time: Date.now() };
+    productLRUCache.set(cacheKey, responseData, 60000);
     
     return res.json(responseData);
   } catch (err: any) {
@@ -2211,20 +2216,25 @@ app.get("/api/admin/products/:id/price-history", requireRole(["Admin"]), async (
 app.post("/api/admin/inventory/alerts/sync", requireRole(["Admin"]), async (req, res) => {
   const alertsCreated: string[] = [];
   try {
-    const prods = await dbService.getProductsRaw();
     const settings = await dbService.getSystemSettings();
     const lowStockThreshold = settings.low_stock_threshold || 50;
 
-    for (const p of prods) {
-      if (p.availableStock < lowStockThreshold) {
-        await dbService.logAlert(`⚠️ Low Stock Alert: ${p.name}`, `The available stock for ${p.name} has fallen to ${p.availableStock} units.`, p.id);
-        alertsCreated.push(`${p.name} (Low Stock)`);
-      }
+    // Targeted query for products with low stock (no full catalog dump)
+    const { data: lowStockItems } = await supabaseAdmin
+      .from("products")
+      .select("id, name, stock_quantity, expiry_date")
+      .lte("stock_quantity", lowStockThreshold)
+      .limit(300);
 
-      if (p.expiryDate) {
-        const days = Math.ceil((new Date(p.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    for (const p of (lowStockItems || [])) {
+      const stock = parseInt(p.stock_quantity ?? "0", 10);
+      await dbService.logAlert(`⚠️ Low Stock Alert: ${p.name}`, `The available stock for ${p.name} has fallen to ${stock} units.`, p.id);
+      alertsCreated.push(`${p.name} (Low Stock)`);
+
+      if (p.expiry_date) {
+        const days = Math.ceil((new Date(p.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
         if (days <= 180 && days > 0) {
-          await dbService.logAlert(`🚨 Expiring Soon: ${p.name}`, `Batch of ${p.name} is expiring on ${p.expiryDate} (${days} days remaining).`, p.id);
+          await dbService.logAlert(`🚨 Expiring Soon: ${p.name}`, `Batch of ${p.name} is expiring on ${p.expiry_date} (${days} days remaining).`, p.id);
           alertsCreated.push(`${p.name} (Expiring)`);
         }
       }
@@ -2548,16 +2558,20 @@ app.post("/api/admin/products", requireRole(["Admin"]), validateBody(schemas.adm
   }
 
   try {
-    // Database-driven duplicate prevention check (name + company + strength case-insensitive)
-    const allProducts = await dbService.getProductsRaw();
-    const isDuplicate = allProducts.some(p => {
-      if (productData.id && p.id === productData.id) return false;
-      return p.name.toLowerCase().trim() === productData.name.toLowerCase().trim() &&
-             p.company.toLowerCase().trim() === productData.company.toLowerCase().trim() &&
-             p.strength.toLowerCase().trim() === productData.strength.toLowerCase().trim();
-    });
+    // Database-driven targeted duplicate check (name + company + strength)
+    let dupQuery = supabaseAdmin
+      .from("products")
+      .select("id")
+      .ilike("name", productData.name.trim())
+      .ilike("company", productData.company.trim())
+      .ilike("strength", productData.strength.trim());
 
-    if (isDuplicate) {
+    if (productData.id) {
+      dupQuery = dupQuery.neq("id", productData.id);
+    }
+    const { data: duplicate } = await dupQuery.limit(1).maybeSingle();
+
+    if (duplicate) {
       return res.json({
         success: false,
         message: "Product already exists"
@@ -3069,20 +3083,25 @@ app.post("/api/admin/notifications/send", requireRole(["Admin"]), async (req, re
 app.post("/api/admin/run-alert-check", requireRole(["Admin"]), async (req, res) => {
   const alertsCreated: string[] = [];
   try {
-    const prods = await dbService.getProductsRaw();
     const settings = await dbService.getSystemSettings();
     const lowStockThreshold = settings.low_stock_threshold || 50;
 
-    for (const p of prods) {
-      if (p.availableStock < lowStockThreshold) {
-        await dbService.logAlert(`⚠️ Low Stock Alert: ${p.name}`, `The available stock for ${p.name} has fallen to ${p.availableStock} units.`, p.id);
-        alertsCreated.push(`${p.name} (Low Stock)`);
-      }
+    // Targeted query for low stock products without full catalog dump
+    const { data: lowStockItems } = await supabaseAdmin
+      .from("products")
+      .select("id, name, stock_quantity, expiry_date")
+      .lte("stock_quantity", lowStockThreshold)
+      .limit(300);
 
-      if (p.expiryDate) {
-        const days = Math.ceil((new Date(p.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    for (const p of (lowStockItems || [])) {
+      const stock = parseInt(p.stock_quantity ?? "0", 10);
+      await dbService.logAlert(`⚠️ Low Stock Alert: ${p.name}`, `The available stock for ${p.name} has fallen to ${stock} units.`, p.id);
+      alertsCreated.push(`${p.name} (Low Stock)`);
+
+      if (p.expiry_date) {
+        const days = Math.ceil((new Date(p.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
         if (days <= 180 && days > 0) {
-          await dbService.logAlert(`🚨 Expiring Soon: ${p.name}`, `Batch of ${p.name} is expiring on ${p.expiryDate} (${days} days remaining).`, p.id);
+          await dbService.logAlert(`🚨 Expiring Soon: ${p.name}`, `Batch of ${p.name} is expiring on ${p.expiry_date} (${days} days remaining).`, p.id);
           alertsCreated.push(`${p.name} (Expiring)`);
         }
       }
