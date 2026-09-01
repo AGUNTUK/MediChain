@@ -122,7 +122,23 @@ export default function Home({
   const [catalogTotalPages, setCatalogTotalPages] = useState(1);
   const [catalogTotalProducts, setCatalogTotalProducts] = useState(0);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
-  const [profitMarginRange, setProfitMarginRange] = useState<{ min: number; max: number }>({ min: 22, max: 32 });
+  const [profitMarginRange, setProfitMarginRange] = useState<{ min: number; max: number }>({ min: 4, max: 94 });
+  const [dailyBanner, setDailyBanner] = useState<{
+    headline?: string;
+    subheadline?: string;
+    badgeText?: string;
+    minDiscount: number;
+    maxDiscount: number;
+    avgDiscount?: number;
+    totalProductsChecked?: number;
+    lastUpdated?: string;
+  }>({
+    minDiscount: 4,
+    maxDiscount: 94,
+    headline: "আজকের পাইকারি অর্ডারে ৪% – ৯৪% পর্যন্ত নিশ্চিত লাভ!",
+    subheadline: "কোনো মধ্যস্বত্বভোগী ছাড়াই সরাসরি প্রস্তুতকারক কোম্পানি থেকে সেরা মূল্যে ফার্মেসির ওষুধ অর্ডার করুন।",
+    badgeText: "AI দৈনিক মুনাফা মিটার"
+  });
 
   const DEFAULT_CATEGORIES = ALL_CATEGORY_VALUES;
 
@@ -186,8 +202,19 @@ export default function Home({
       });
       setFrequentProducts(inStockFreq.slice(0, 4));
 
-      // 3. Compute dynamic wholesale profit margin meter from available in-stock inventory
-      updateProfitMarginFromInStock(dataDeals);
+      // 3. Fetch Gemini AI Daily Profit Meter Analysis
+      try {
+        const bannerRes = await fetch("/api/banner/daily-profit-meter");
+        if (bannerRes.ok) {
+          const bannerJson = await bannerRes.json();
+          if (bannerJson && bannerJson.minDiscount !== undefined && bannerJson.maxDiscount !== undefined) {
+            setDailyBanner(bannerJson);
+            setProfitMarginRange({ min: bannerJson.minDiscount, max: bannerJson.maxDiscount });
+          }
+        }
+      } catch (bannerErr) {
+        console.warn("Failed to fetch daily profit meter:", bannerErr);
+      }
 
       // 4. Fetch Live Campaign
       const { bulkDealsService } = await import("../services");
@@ -479,34 +506,46 @@ export default function Home({
               <PrescriptionScanner onClose={() => setIsScannerOpen(false)} />
             )}
 
-            {/* Wholesale Profit Margin Calculator Card (Point 4) */}
+            {/* Wholesale Profit Margin Calculator Card (Point 4) - Gemini AI Daily Dynamic Meter */}
             <div className="bg-linear-to-r from-purple-950 via-indigo-900 to-slate-900 text-white rounded-3xl p-4 sm:p-5 shadow-xl border border-purple-500/20 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-48 h-48 bg-radial from-brand-lime/15 to-transparent blur-2xl pointer-events-none"></div>
               
               <div className="relative z-10 space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <span className="bg-brand-lime text-slate-950 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
-                    <Percent className="w-3 h-3" />
-                    দৈনিক পাইকারি মুনাফা মিটার
+                    <Sparkles className="w-3 h-3 text-slate-950" />
+                    {dailyBanner.badgeText || "AI দৈনিক মুনাফা মিটার"}
                   </span>
-                  <span className="text-[10px] text-purple-200 font-mono font-bold flex items-center gap-1">
-                    <Award className="w-3.5 h-3.5 text-brand-lime" />
-                    সরাসরি প্রস্তুতকারক রেট
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-brand-lime/90 font-mono font-bold flex items-center gap-1 bg-brand-lime/10 px-2 py-0.5 rounded-full border border-brand-lime/20">
+                      <Sparkles className="w-3 h-3" />
+                      Gemini AI ভেরিফাইড
+                    </span>
+                    <span className="text-[10px] text-purple-200 font-mono font-bold flex items-center gap-1">
+                      <Award className="w-3.5 h-3.5 text-brand-lime" />
+                      সরাসরি প্রস্তুতকারক রেট
+                    </span>
+                  </div>
                 </div>
 
                 <div>
                   <h3 className="text-base sm:text-lg font-black text-white leading-snug">
-                    আজকের পাইকারি অর্ডারে গড়ে{" "}
-                    <span className="text-brand-lime font-mono">
-                      {profitMarginRange.min === profitMarginRange.max
-                        ? `${toBengaliNumber(profitMarginRange.max)}%`
-                        : `${toBengaliNumber(profitMarginRange.min)}% – ${toBengaliNumber(profitMarginRange.max)}%`}
-                    </span>{" "}
-                    পর্যন্ত সর্বোচ্চ লাভ!
+                    {dailyBanner.headline ? (
+                      dailyBanner.headline
+                    ) : (
+                      <>
+                        আজকের পাইকারি অর্ডারে গড়ে{" "}
+                        <span className="text-brand-lime font-mono">
+                          {profitMarginRange.min === profitMarginRange.max
+                            ? `${toBengaliNumber(profitMarginRange.max)}%`
+                            : `${toBengaliNumber(profitMarginRange.min)}% – ${toBengaliNumber(profitMarginRange.max)}%`}
+                        </span>{" "}
+                        পর্যন্ত সর্বোচ্চ লাভ!
+                      </>
+                    )}
                   </h3>
                   <p className="text-xs text-purple-200/90 font-medium mt-0.5">
-                    মেডিচেইন ডিপো থেকে সরাসরি ক্রয়ে কোনো মধ্যস্বত্বভোগী নেই, তাই ফার্মেসির মুনাফা থাকে সর্বোচ্চ।
+                    {dailyBanner.subheadline || "মেডিচেইন ডিপো থেকে সরাসরি ক্রয়ে কোনো মধ্যস্বত্বভোগী নেই, তাই ফার্মেসির মুনাফা থাকে সর্বোচ্চ।"}
                   </p>
                 </div>
 

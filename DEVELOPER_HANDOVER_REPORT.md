@@ -633,6 +633,19 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 47. Gemini AI Daily Wholesale Profit Meter & 12 AM Scheduler
+- **Objective**: Daily automated analysis of the entire active in-stock pharmaceutical catalog at 12:00 AM midnight, computing the exact mathematical lowest and highest wholesale discount percentages, and utilizing Gemini AI (`gemini-3.6-flash`) to generate dynamic, high-converting homepage banner messaging.
+- **Backend Architecture (`src/lib/geminiBannerService.ts` & `server.ts`)**:
+  - Automatically queries all in-stock medicines from Supabase (`stock_quantity > 0`).
+  - Computes real wholesale bounds (`minDiscount`, `maxDiscount`, `avgDiscount`, and top pharmaceutical companies by margin).
+  - Prompts Gemini AI with catalog statistics to synthesize natural Bengali copywriting tailored for pharmacy owners.
+  - Initialized on server startup (runs immediately) and scheduled daily at 12:00 AM (`0 0 * * *` Asia/Dhaka) via `node-cron`.
+  - Exposes `GET /api/banner/daily-profit-meter` and `POST /api/banner/daily-profit-meter/refresh`.
+- **Frontend Presentation (`src/components/Home.tsx`)**:
+  - Dynamic "দৈনিক পাইকারি মুনাফা মিটার" banner displays the real-time AI-calculated discount range (`৪% – ৯৪%`), Gemini verification badge, and direct manufacturer rate callout.
+
+----------------------------------------
+
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

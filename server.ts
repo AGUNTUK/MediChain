@@ -24,6 +24,7 @@ import { validateProduct, checkDuplicate } from "./src/lib/productValidator.js";
 import { supabaseAdmin } from "./src/lib/supabaseAdmin.js";
 import * as dbService from "./src/lib/dbService.js";
 import { aiEnrichmentService } from "./src/lib/aiEnrichmentService.js";
+import { initDailyBannerScheduler, getDailyBannerData, analyzeDailyWholesaleDiscounts } from "./src/lib/geminiBannerService.js";
 import cron from "node-cron";
 
 dotenv.config();
@@ -822,6 +823,27 @@ Format:
   } catch (err: any) {
     console.error("Prescription scan error:", err);
     return res.status(500).json({ error: err.message || "Failed to scan prescription." });
+  }
+});
+
+
+// --- AI DAILY WHOLESALE PROFIT METER (Gemini AI Daily 12 AM Scheduler) ---
+
+app.get("/api/banner/daily-profit-meter", async (req, res) => {
+  try {
+    const data = await getDailyBannerData();
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to fetch daily profit meter data." });
+  }
+});
+
+app.post("/api/banner/daily-profit-meter/refresh", async (req, res) => {
+  try {
+    const data = await analyzeDailyWholesaleDiscounts();
+    res.json({ success: true, data });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to refresh daily profit meter data." });
   }
 });
 
@@ -3013,6 +3035,7 @@ app.post("/api/admin/enrichment/tick", async (req, res) => {
 
   serverInstance = app.listen(PORT, "0.0.0.0", () => {
     log.info(`[${new Date().toISOString()}] [INFO] [System] MediChain Server running on port ${PORT} in ${process.env.NODE_ENV || "development"} mode.`);
+    initDailyBannerScheduler();
   });
 
   // Initialize Socket.io
