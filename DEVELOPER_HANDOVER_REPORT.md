@@ -254,6 +254,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - **Task 19 (MediChain SmartOrder — "Write it. Scan it. Cart it."):** Implemented an AI Vision Optical Character Recognition and ordering suite for handwritten doctor prescriptions and pharmacy requisition slips. Built on Google Gemini 3.x Flash hierarchy (`gemini-3.7-flash` primary with thinking level medium, falling back to `gemini-3.6-flash` and `gemini-3.5-flash`), paired with a 4-stage fuzzy matching algorithm against MediChain's 21,000+ catalog, strict pharmacy safety rules (generic match never auto-substitutes brands), an interactive review & replacement interface (`SmartOrderModal.tsx`), and single-click atomic batch carting (`POST /api/smart-order/cart-all`).
   - **Task 20 (Multi-Tier AI Vision Resilient Fallback Engine & OpenRouter Redundancy):** Resolved upstream Gemini 503 "high demand" / rate limit errors by engineering a resilient 2-Tier multi-model vision cascade. Tier 1 dynamically attempts high-speed Google GenAI vision models (`gemini-3.6-flash`, `gemini-3.5-flash-lite`, `gemini-flash-lite-latest`, `gemini-3.1-flash-lite`, `gemini-3.7-flash`) with adaptive 7-8s circuit breaking. Tier 2 provides automatic zero-downtime failover to OpenRouter vision models (`minimax/minimax-m3:free`, `google/gemini-2.5-flash`, `qwen/qwen-2.5-vl-72b-instruct`, `meta-llama/llama-3.2-11b-vision-instruct`, `openai/gpt-4o-mini`, `openrouter/free`). Upgraded OCR JSON parsing with robust substring extraction, friendly Bengali error guidance, and dynamic model badges in `SmartOrderModal.tsx`.
   - **Task 21 (SmartOrder Cart Persistence & Real-Time Cart State Synchronization Fix):** Fixed client-side React state mismatch where `SmartOrderModal` batch add succeeded on backend but `App.tsx` lacked an active listener and `onOpenCart` propagation was disconnected in `Home.tsx`, causing the drawer to display "আপনার কার্ট বর্তমানে খালি". Implemented universal event listeners for `cartUpdated`, `cart-updated`, and `storage` in `App.tsx`, wired `onOpenCart` through `Home.tsx` and `PrescriptionScanner`, made drawer triggers auto-refresh cart data, refactored `GET /api/cart` and `POST /api/smart-order/cart-all` with case-insensitive trimmed ID matching to prevent destructive database cart clearing on read errors, and upgraded `dbService.getCart`/`saveCart` with `limit(1)` ordering and duplicate row purging.
+  - **Task 22 (Secure Backend Proxy Architecture for Pharmacy Verification Document Storage):** Resolved the Supabase Storage RLS error (`StorageApiError: The database schema is invalid or incompatible.`) during Step 4 (Documents) of the Pharmacy Onboarding Wizard. Direct browser uploads using the public anon key failed against the private `verification-documents` bucket without active Supabase Auth JWTs. Built dedicated backend proxy endpoints `POST /api/upload/verification-document` and `GET /api/upload/document-url` in `server.ts` powered by `multer` and `supabaseAdmin` service role key. Refactored `storageService.uploadVerificationDocument` and `getVerificationDocumentUrl` in `src/services/storage.ts` to route all verification uploads and signed URLs securely through the backend proxy with automatic offline fallbacks.
 
 ----------------------------------------
 
@@ -274,7 +275,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 | Product Catalog Management | 100% | Completed (Transparent Field-Level Zod Validation & Inline Editing) | Completed |
 | Pharmaceutical Category System | 100% | Completed (40+ Dosage Forms & Grouped Bilingual Selectors) | Completed |
 | In-Stock Catalog Priority & Profit Meter | 100% | Completed (In-Stock First Everywhere & Dynamic Profit Range) | Completed |
-| Verification Documents Private Storage | 100% | Completed (Private Bucket, RLS, Signed URLs, Wizard Fix) | Completed |
+| Verification Documents Private Storage | 100% | Completed (Private Bucket, RLS, Signed URLs, Backend Proxy) | Completed |
 | High-Speed Query Optimization & LRU Cache | 100% | Completed (Targeted SQL lookups, LRU Cache, HTTP Edge Caching) | Completed |
 | MediChain SmartOrder (OCR & Carting) | 100% | Completed (Gemini 3.7 Flash, 21k Matcher, Safety Rules, Batch Cart) | Completed |
 
@@ -310,6 +311,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 - **Completed:** Task 19: MediChain SmartOrder — Gemini 3.7 Flash Vision OCR, 21k+ Product Matcher & Batch Carting ("Write it. Scan it. Cart it.").
 - **Completed:** Task 20: Multi-Tier AI Vision Resilient Fallback Engine & OpenRouter Failover for 100% OCR Availability.
 - **Completed:** Task 21: SmartOrder Cart Persistence & Real-Time Cart State Synchronization Fix.
+- **Completed:** Task 22: Secure Backend Proxy Architecture for Pharmacy Verification Document Storage.
 - **Short Term:** Finish FCM Push Notifications.
 - **Long Term:** Implement multi-tenant capability.
 

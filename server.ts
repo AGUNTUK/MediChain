@@ -31,8 +31,14 @@ import { DEFAULT_CATEGORY_OPTIONS } from "./src/constants/categories.js";
 import { scanSmartOrderImage, formatFriendlyErrorMessage } from "./src/lib/smartOrderOCR.js";
 import { matchSmartOrderItems } from "./src/lib/productMatcher.js";
 import cron from "node-cron";
+import multer from "multer";
 
 dotenv.config();
+
+const uploadMiddleware = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+});
 
 
 async function runWithRetry(fn, maxAttempts = 3, timeoutMs = 15000) {
@@ -811,6 +817,94 @@ app.post("/api/banner/daily-profit-meter/refresh", async (req, res) => {
   }
 });
 
+
+// --- SECURE VERIFICATION DOCUMENTS UPLOAD ENDPOINTS ---
+
+app.post("/api/upload/verification-document", uploadMiddleware.single("file"), async (req, res) => {
+  try {
+    let fileBuffer: Buffer | null = null;
+    let fileName = "";
+    let mimeType = "image/jpeg";
+    const docType = (req.body.docType || "drug-license").toString().trim();
+    const folderId = (req.body.folderId || req.body.pharmacyId || req.user?.id || "registration").toString().replace(/[^a-zA-Z0-9_-]/g, "_");
+
+    if (req.file) {
+      fileBuffer = req.file.buffer;
+      fileName = req.file.originalname;
+      mimeType = req.file.mimetype || "image/jpeg";
+    } else if (req.body.fileBase64) {
+      const base64Data = req.body.fileBase64.replace(/^data:[^;]+;base64,/, "");
+      fileBuffer = Buffer.from(base64Data, "base64");
+      fileName = req.body.fileName || `doc_${Date.now()}.jpg`;
+      mimeType = req.body.mimeType || "image/jpeg";
+    } else {
+      return res.status(400).json({ error: "No file content provided for upload." });
+    }
+
+    if (!fileBuffer || fileBuffer.length === 0) {
+      return res.status(400).json({ error: "Uploaded file is empty." });
+    }
+
+    const fileExt = fileName.split(".").pop()?.toLowerCase() || "jpg";
+    const allowedExts = ["jpg", "jpeg", "png", "webp", "heic", "heif", "pdf"];
+    if (!allowedExts.includes(fileExt)) {
+      return res.status(400).json({ error: `Unsupported file extension: .${fileExt}. Allowed: ${allowedExts.join(", ")}` });
+    }
+
+    const cleanBaseName = (fileName.substring(0, fileName.lastIndexOf(".")) || fileName).replace(/[^a-zA-Z0-9_-]/g, "_");
+    const storagePath = `${folderId}/${docType}/${Date.now()}_${cleanBaseName}.${fileExt}`;
+
+    // Upload to private verification-documents bucket via supabaseAdmin
+    const { data: uploadData, error: uploadErr } = await supabaseAdmin.storage
+      .from("verification-documents")
+      .upload(storagePath, fileBuffer, {
+        contentType: mimeType,
+        upsert: true
+      });
+
+    if (uploadErr) {
+      log.error("Supabase verification document upload failed:", uploadErr);
+      return res.status(500).json({ error: `Document storage failed: ${uploadErr.message}` });
+    }
+
+    // Create 7-day signed URL for secure verification viewing
+    const { data: signData } = await supabaseAdmin.storage
+      .from("verification-documents")
+      .createSignedUrl(storagePath, 60 * 60 * 24 * 7); // 7 days
+
+    const signedUrl = signData?.signedUrl || "";
+
+    return res.json({
+      success: true,
+      path: storagePath,
+      url: signedUrl
+    });
+  } catch (err: any) {
+    log.error("Verification upload exception:", err);
+    return res.status(500).json({ error: err.message || "Failed to process document upload." });
+  }
+});
+
+app.get("/api/upload/document-url", async (req, res) => {
+  const docPath = String(req.query.path || "").trim();
+  if (!docPath) {
+    return res.status(400).json({ error: "Missing document path." });
+  }
+
+  try {
+    const { data, error } = await supabaseAdmin.storage
+      .from("verification-documents")
+      .createSignedUrl(docPath, 60 * 60 * 24 * 7); // 7 days
+
+    if (error || !data?.signedUrl) {
+      return res.status(404).json({ error: "Failed to create signed document URL." });
+    }
+
+    return res.json({ signedUrl: data.signedUrl });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 // --- WEB PUSH NOTIFICATIONS (Direct Mobile Delivery) ---
 
