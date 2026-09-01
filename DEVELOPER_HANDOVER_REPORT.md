@@ -101,6 +101,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ## 6. Storage Documentation
 
+- `verification-documents` (Strictly Private): Dedicated secure bucket for DGDA Drug Licenses, Municipal Trade Licenses, and Proprietor NIDs. Path: `{pharmacyId}/{docType}/{timestamp}_{filename}`. Access via authenticated time-limited signed URLs only (`/api/pharmacy/verification-documents/signed-url` and `/api/admin/pharmacies/:id/documents`). Protected by Supabase Storage RLS.
 - `prescriptions` (Private): HIPAA/DGDA compliant bucket. Uploaded by users. Path: `{userId}/{timestamp}_{filename}`.
 - `product-images` (Public): Catalog images. Uploaded by Admin.
 
@@ -248,6 +249,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - **Task 14 (Medicine Catalog Edit Validation Clarity & Error Transparency):** Enhanced `ProductEditModal.tsx`, `AdminPanel.tsx`, `server.ts`, and `security.ts` to surface detailed, field-specific error messages instead of generic `"Validation failed"`. Added client-side pre-validation for required product name, generic formula, manufacturer company, positive wholesale MRP & trade selling prices, selling price <= MRP checks, stock non-negativity, and batch/expiry constraints.
   - **Task 15 (Comprehensive Pharmaceutical Categories & Dosage Form System):** Expanded the restricted 6-category dropdown into a comprehensive, standardized Bangladeshi DGDA/pharma-compliant catalog classification system (`src/constants/categories.ts`). Grouped dosage forms into clear, bilingual optgroups (Oral Solids, Oral Liquids, Injectables & Infusions, Respiratory & Inhalation, Topicals & Dermatological, Eye/Ear/Nasal, Suppositories, Supplements/Nutrition, and Medical Devices/Surgical) across `ProductEditModal.tsx`, `AdminPanel.tsx`, `SearchSystem.tsx`, `Home.tsx`, and `types.ts`, backed by high-precision vector iconography in `CategoryIcon.tsx`.
   - **Task 16 (In-Stock Products Priority Ordering & Dynamic Profit Margin Meter):** Enforced a universal in-stock priority rule across all product listings (`server.ts`, `dbService.ts`, `searchService.ts`, `productService.ts`, `Home.tsx`, `SearchSystem.tsx`) ensuring in-stock medicines (`availableStock > 0`) always render ahead of out-of-stock items. Dynamically connected the homepage Daily Wholesale Profit Margin Meter card ("দৈনিক পাইকারি মুনাফা মিটার") to calculate live lowest and highest discount percentage ranges exclusively from in-stock inventory.
+  - **Task 17 (Secure Private Storage Architecture for Pharmacy Verification Documents & Wizard Bug Fix):** Created dedicated private storage bucket `verification-documents` in Supabase with strict RLS policies (owner pharmacy + admin access only). Resolved `"Invalid input: expected string, received undefined"` error by aligning Zod `schemas.pharmacyProfile` with registration payloads. Integrated live multi-format document uploads (JPG, PNG, WEBP, HEIC/HEIF, PDF) in `PharmacyRegistrationWizard.tsx` and built full document inspection with time-limited signed URLs in `PharmacyVerificationPanel.tsx`.
 
 ----------------------------------------
 
@@ -268,6 +270,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 | Product Catalog Management | 100% | Completed (Transparent Field-Level Zod Validation & Inline Editing) | Completed |
 | Pharmaceutical Category System | 100% | Completed (40+ Dosage Forms & Grouped Bilingual Selectors) | Completed |
 | In-Stock Catalog Priority & Profit Meter | 100% | Completed (In-Stock First Everywhere & Dynamic Profit Range) | Completed |
+| Verification Documents Private Storage | 100% | Completed (Private Bucket, RLS, Signed URLs, Wizard Fix) | Completed |
 
 ----------------------------------------
 
@@ -296,6 +299,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 - **Completed:** Task 14: Medicine Catalog Edit Validation Clarity & Error Transparency.
 - **Completed:** Task 15: Comprehensive Pharmaceutical Category System & Grouped Dosage Form Selectors.
 - **Completed:** Task 16: In-Stock Priority Ordering Everywhere & Dynamic Live Wholesale Profit Margin Calculation.
+- **Completed:** Task 17: Secure Private Storage Architecture for Pharmacy Verification Documents (`verification-documents`), Storage RLS, Signed URLs & Onboarding Wizard Fix.
 - **Short Term:** Finish FCM Push Notifications.
 - **Long Term:** Implement multi-tenant capability.
 
@@ -662,6 +666,31 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 - **Frontend Post-Install UI (`PushNotificationPrompt.tsx`, `pushManager.ts`, `Account.tsx`, `NotificationsPanel.tsx`)**:
   - Listens to `appinstalled` event and standalone PWA launch to show native-feel Bengali opt-in prompt.
   - Adds push status indicator, toggle, and instant "টেস্ট নোটিফিকেশন পাঠান" buttons in Account Settings and Depot Broadcaster panel.
+
+----------------------------------------
+
+## 49. Secure Private Storage Architecture for Pharmacy Verification Documents & Registration Fix
+- **Architecture & Private Bucket Creation (`verification-documents`)**:
+  - Created dedicated private bucket `verification-documents` in Supabase Storage (`public: false`, `file_size_limit: 10485760` / 10MB).
+  - Allowed MIME types: `image/jpeg`, `image/jpg`, `image/png`, `image/webp`, `image/heic`, `image/heif`, `application/pdf`.
+  - Canonical folder partitioning:
+    * `verification-documents/{pharmacyId}/drug-license/{timestamp}_{cleanFileName}.{ext}`
+    * `verification-documents/{pharmacyId}/trade-license/{timestamp}_{cleanFileName}.{ext}`
+    * `verification-documents/{pharmacyId}/proprietor-nid/{timestamp}_{cleanFileName}.{ext}`
+- **Storage Row Level Security (RLS) Policies (`supabase-migrations/04_verification_documents_storage.sql`)**:
+  - Enforced storage policies on `storage.objects` for `verification-documents`:
+    * **Upload (INSERT)**: Authenticated users can only upload files into folders matching their own `pharmacy_id` or `auth.uid()`, with full Admin bypass.
+    * **Read (SELECT)**: Pharmacies can only read their own documents; cross-pharmacy document enumeration or reading is strictly forbidden. Admins have global review permissions.
+    * **Update/Delete**: Restricts file modifications and deletions strictly to the document owner or Admin.
+- **Root Cause & Resolution of `"Invalid input: expected string, received undefined"`**:
+  - `schemas.pharmacyProfile` in `src/lib/security.ts` previously enforced a strict required string constraint on `nidNumber`, but `PharmacyRegistrationWizard.tsx` did not provide `nidNumber`, causing Zod validation rejection.
+  - Updated `schemas.pharmacyProfile` to accept `nidNumber` as optional or string, added support for document storage paths (`drugLicensePath`, `tradeLicensePath`, `nidDocumentPath`), and added an explicit NID input field in Step 2 of `PharmacyRegistrationWizard.tsx`.
+  - Step 4 of the wizard now actively uploads selected document files to `verification-documents` via `storageService.uploadVerificationDocument` before profile submission.
+- **Time-Limited Authenticated Signed URL Endpoints (`server.ts` & `src/services/storage.ts`)**:
+  - `POST /api/pharmacy/verification-documents/signed-url`: Generates 1-hour signed access URLs for authorized pharmacy owners and Admins.
+  - `GET /api/admin/pharmacies/:id/documents`: Resolves and returns signed access URLs for Drug License, Trade License, and Proprietor NID for administrative compliance audit.
+- **Admin Compliance Inspection Panel (`PharmacyVerificationPanel.tsx`)**:
+  - Enhanced credential inspection modal with live document preview tiles, "View Document" secure links, and status action workflows (Approve & Verify vs Reject/Suspend).
 
 ----------------------------------------
 

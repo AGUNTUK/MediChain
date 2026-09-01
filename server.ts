@@ -492,6 +492,39 @@ app.post("/api/pharmacy/profile", requireAuth, validateBody(schemas.pharmacyProf
   }
 });
 
+app.post("/api/pharmacy/verification-documents/signed-url", requireAuth, async (req, res) => {
+  try {
+    const { path } = req.body;
+    if (!path || typeof path !== "string") {
+      return res.status(400).json({ error: "Missing document storage path." });
+    }
+
+    // Security check: Only Admin or the owning pharmacy/user can generate a signed URL
+    const userRole = req.user.role;
+    if (userRole !== "Admin") {
+      const userPharmacy = await dbService.getPharmacyProfile(req.user.id).catch(() => null);
+      const isUserFolder = path.startsWith(`${req.user.id}/`);
+      const isPharmacyFolder = userPharmacy?.id ? path.startsWith(`${userPharmacy.id}/`) : false;
+
+      if (!isUserFolder && !isPharmacyFolder) {
+        return res.status(403).json({ error: "Access denied. You can only access your own pharmacy documents." });
+      }
+    }
+
+    const { data, error } = await supabaseAdmin.storage
+      .from("verification-documents")
+      .createSignedUrl(path, 3600);
+
+    if (error || !data?.signedUrl) {
+      return res.status(404).json({ error: "Document not found or signed URL generation failed: " + (error?.message || "empty") });
+    }
+
+    res.json({ success: true, signedUrl: data.signedUrl });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- MEDICINES & PRODUCT CATALOG ---
 
 let cachedCategories: string[] | null = null;
@@ -2061,6 +2094,58 @@ app.get("/api/admin/pharmacies/:id", requireRole(["Admin"]), async (req, res) =>
     const ph = await dbService.getPharmacyById(req.params.id);
     if (!ph) return res.status(404).json({ error: "Pharmacy not found." });
     res.json(ph);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/admin/pharmacies/:id/documents", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const ph = await dbService.getPharmacyById(req.params.id);
+    if (!ph) return res.status(404).json({ error: "Pharmacy not found." });
+
+    const getDocSignedUrl = async (pathOrUrl?: string) => {
+      if (!pathOrUrl) return null;
+      if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://") || pathOrUrl.startsWith("data:")) {
+        return pathOrUrl;
+      }
+      try {
+        const { data } = await supabaseAdmin.storage
+          .from("verification-documents")
+          .createSignedUrl(pathOrUrl, 3600);
+        return data?.signedUrl || null;
+      } catch {
+        return null;
+      }
+    };
+
+    const drugLicensePath = ph.drugLicensePath || (ph.drugLicenseUrl && !ph.drugLicenseUrl.startsWith("http") ? ph.drugLicenseUrl : null);
+    const tradeLicensePath = ph.tradeLicensePath || (ph.tradeLicenseUrl && !ph.tradeLicenseUrl.startsWith("http") ? ph.tradeLicenseUrl : null);
+    const nidDocumentPath = ph.nidDocumentPath || (ph.nidUrl && !ph.nidUrl.startsWith("http") ? ph.nidUrl : null);
+
+    const [drugLicenseSignedUrl, tradeLicenseSignedUrl, nidDocumentSignedUrl] = await Promise.all([
+      getDocSignedUrl(drugLicensePath || ph.drugLicenseUrl),
+      getDocSignedUrl(tradeLicensePath || ph.tradeLicenseUrl),
+      getDocSignedUrl(nidDocumentPath || ph.nidUrl || ph.nidFrontUrl)
+    ]);
+
+    res.json({
+      success: true,
+      documents: {
+        drugLicense: {
+          path: drugLicensePath || null,
+          url: drugLicenseSignedUrl || ph.drugLicenseUrl || null
+        },
+        tradeLicense: {
+          path: tradeLicensePath || null,
+          url: tradeLicenseSignedUrl || ph.tradeLicenseUrl || null
+        },
+        proprietorNid: {
+          path: nidDocumentPath || null,
+          url: nidDocumentSignedUrl || ph.nidUrl || ph.nidFrontUrl || null
+        }
+      }
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

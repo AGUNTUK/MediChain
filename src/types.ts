@@ -47,14 +47,24 @@ export interface Pharmacy {
   dob?: string;
   nidFrontUrl?: string;
   nidBackUrl?: string;
+  nidUrl?: string;
   drugLicenseExpiry?: string;
   drugLicenseUrl?: string;
+  tradeLicenseUrl?: string;
+  drugLicensePath?: string;
+  tradeLicensePath?: string;
+  nidDocumentPath?: string;
+  tinNumber?: string;
   division?: string;
   district?: string;
+  thana?: string;
   upazila?: string;
   streetAddress?: string;
+  landmark?: string;
   logoUrl?: string;
   email?: string;
+  status?: string;
+  submittedAt?: string;
 }
 
 export type OrderStatus = "Pending" | "Confirmed" | "Processing" | "Packed" | "Out for Delivery" | "Delivered" | "Completed" | "Cancelled" | "Failed";
