@@ -93,7 +93,17 @@ try {
 
 export default function App() {
   // Mobile app navigation state
-  const [appStep, setAppStep] = useState<"splash" | "login" | "setup" | "main" | "cart" | "checkout" | "success" | "tracking" | "bulk_deals">("splash");
+  const [appStep, setAppStep] = useState<"splash" | "login" | "setup" | "main" | "cart" | "checkout" | "success" | "tracking" | "bulk_deals">(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("demo") === "true") {
+        return "setup";
+      }
+    } catch {
+      // ignore
+    }
+    return "splash";
+  });
   const [activeTab, setActiveTab] = useState<"home" | "search" | "history" | "account">("home");
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
   const [activeBulkCampaignId, setActiveBulkCampaignId] = useState<string | undefined>();

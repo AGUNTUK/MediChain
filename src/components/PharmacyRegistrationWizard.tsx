@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Building2, 
@@ -16,7 +16,10 @@ import {
   FileSpreadsheet,
   Sparkles,
   CreditCard,
-  Check
+  Check,
+  Play,
+  Square,
+  RotateCcw
 } from "lucide-react";
 import MediChainLogo from "./MediChainLogo";
 import { profileService } from "../services";
@@ -64,6 +67,176 @@ export default function PharmacyRegistrationWizard({
   const [error, setError] = useState("");
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
 
+  // Auto-Typing Demo Mode State & Runner
+  const [isDemoRunning, setIsDemoRunning] = useState(false);
+  const [demoStepNote, setDemoStepNote] = useState("");
+  const demoCancelledRef = useRef(false);
+
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const autoTypeField = async (
+    targetValue: string,
+    setter: (val: string) => void,
+    speedMs = 40
+  ) => {
+    setter("");
+    for (let i = 0; i < targetValue.length; i++) {
+      if (demoCancelledRef.current) return false;
+      setter(targetValue.slice(0, i + 1));
+      const jitter = Math.floor(Math.random() * 16) - 8;
+      await sleep(Math.max(25, speedMs + jitter));
+    }
+    return !demoCancelledRef.current;
+  };
+
+  const autoPause = async (ms: number) => {
+    const intervals = Math.floor(ms / 50);
+    for (let i = 0; i < intervals; i++) {
+      if (demoCancelledRef.current) return false;
+      await sleep(50);
+    }
+    return !demoCancelledRef.current;
+  };
+
+  const stopAutoDemo = () => {
+    demoCancelledRef.current = true;
+    setIsDemoRunning(false);
+    setLoading(false);
+    setUploadStatus("");
+    setDemoStepNote("");
+  };
+
+  const runAutoDemo = async () => {
+    if (isDemoRunning) return;
+    demoCancelledRef.current = false;
+    setIsDemoRunning(true);
+    setError("");
+    setSubmittedSuccess(false);
+
+    try {
+      // STEP 1: Business & Owner Details
+      setStep(1);
+      setDemoStepNote("Step 1: Typing Pharmacy & Proprietor Details...");
+      if (!(await autoPause(600))) return;
+
+      if (!(await autoTypeField("Manik Medicine Corner", setPharmacyName, 42))) return;
+      if (!(await autoPause(500))) return;
+
+      if (!(await autoTypeField("Manik Mia", setOwnerName, 45))) return;
+      if (!(await autoPause(500))) return;
+
+      if (!(await autoTypeField("01787916775", setPhone, 40))) return;
+      if (!(await autoPause(500))) return;
+
+      if (!(await autoTypeField("noobiefy2024@gmail.com", setEmail, 38))) return;
+      if (!(await autoPause(800))) return;
+
+      // Transition to Step 2
+      setStep(2);
+      setDemoStepNote("Step 2: Entering DGDA Drug & Trade Licenses...");
+      if (!(await autoPause(800))) return;
+
+      // STEP 2: Licensing & Regulatory
+      if (!(await autoTypeField("DL-DHAKA-28985", setDrugLicenseNo, 45))) return;
+      if (!(await autoPause(500))) return;
+
+      if (!(await autoTypeField("TRAD/DNCC/20265", setTradeLicenseNo, 42))) return;
+      if (!(await autoPause(500))) return;
+
+      if (!(await autoTypeField("51704627599", setNidNumber, 40))) return;
+      if (!(await autoPause(500))) return;
+
+      if (!(await autoTypeField("227437947652", setTinNumber, 40))) return;
+      if (!(await autoPause(800))) return;
+
+      // Transition to Step 3
+      setStep(3);
+      setDemoStepNote("Step 3: Configuring Location & Delivery Mapping...");
+      if (!(await autoPause(800))) return;
+
+      // STEP 3: Location & Address
+      setDivision("Dhaka");
+      if (!(await autoPause(400))) return;
+
+      if (!(await autoTypeField("Dhaka", setDistrict, 45))) return;
+      if (!(await autoPause(500))) return;
+
+      if (!(await autoTypeField("Uttara", setThana, 45))) return;
+      if (!(await autoPause(500))) return;
+
+      if (!(await autoTypeField("Rajlokkhi Super Market", setAddress, 40))) return;
+      if (!(await autoPause(500))) return;
+
+      if (!(await autoTypeField("1st Floor, Beside Tasty Treat Showroom", setLandmark, 38))) return;
+      if (!(await autoPause(800))) return;
+
+      // Transition to Step 4
+      setStep(4);
+      setDemoStepNote("Step 4: Attaching Verification Documents & Submitting...");
+      if (!(await autoPause(800))) return;
+
+      // STEP 4: Documents Upload Simulation
+      const mockDl = new File(["mock-dl-data"], "IMG_20260901_09520.jpg", { type: "image/jpeg" });
+      setDrugLicenseFile(mockDl);
+      if (!(await autoPause(600))) return;
+
+      const mockTl = new File(["mock-tl-data"], "IMG_20260830_15153.jpg", { type: "image/jpeg" });
+      setTradeLicenseFile(mockTl);
+      if (!(await autoPause(600))) return;
+
+      const mockNid = new File(["mock-nid-data"], "Untitled spreadsheet.pdf", { type: "application/pdf" });
+      setNidFile(mockNid);
+      if (!(await autoPause(1000))) return;
+
+      // Simulate submission and verification flow
+      setLoading(true);
+      setUploadStatus("Uploading Drug License scan to private storage...");
+      if (!(await autoPause(700))) return;
+
+      setUploadStatus("Uploading Trade License scan to private storage...");
+      if (!(await autoPause(700))) return;
+
+      setUploadStatus("Uploading Proprietor NID to private storage...");
+      if (!(await autoPause(700))) return;
+
+      setUploadStatus("Registering pharmacy credentials with MediChain...");
+      if (!(await autoPause(900))) return;
+
+      setLoading(false);
+      setUploadStatus("");
+      setSubmittedSuccess(true);
+      setDemoStepNote("Demo Completed Successfully!");
+    } finally {
+      setIsDemoRunning(false);
+    }
+  };
+
+  // Keyboard shortcut listener for Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isDemoRunning) {
+        stopAutoDemo();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isDemoRunning]);
+
+  // URL Query Param ?demo=true Activation
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("demo") === "true") {
+        const timer = setTimeout(() => {
+          runAutoDemo();
+        }, 600);
+        return () => clearTimeout(timer);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const validateStep = (currentStep: number) => {
     setError("");
     if (currentStep === 1) {
@@ -88,8 +261,8 @@ export default function PharmacyRegistrationWizard({
         setError("Municipal Trade License Number is required.");
         return false;
       }
-      if (nidNumber.trim() && nidNumber.trim().length !== 10 && nidNumber.trim().length !== 17) {
-        setError("National ID (NID) must be 10 or 17 digits if provided.");
+      if (nidNumber.trim() && (nidNumber.trim().length < 10 || nidNumber.trim().length > 17)) {
+        setError("National ID (NID) must be between 10 and 17 digits if provided.");
         return false;
       }
     } else if (currentStep === 3) {
@@ -208,90 +381,150 @@ export default function PharmacyRegistrationWizard({
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden flex flex-col my-4">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-teal-800 to-emerald-900 p-5 md:p-6 text-white relative">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <MediChainLogo size="sm" withText={false} className="shrink-0" />
-            <div className="min-w-0">
-              <h2 className="text-lg md:text-xl font-bold text-white tracking-wide leading-tight">
-                Pharmacy Onboarding Wizard
-              </h2>
-              <p className="text-xs text-emerald-200 mt-0.5 leading-snug">
-                DGDA Compliant B2B Medicine Procurement Network
-              </p>
-            </div>
-          </div>
-          {onCancel && (
-            <button
-              onClick={onCancel}
-              type="button"
-              className="shrink-0 text-xs font-medium text-slate-200 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-          )}
-        </div>
-
-        {/* Step Progress Bar */}
-        <div className="grid grid-cols-4 gap-2 mt-6">
-          {[
-            { num: 1, label: "Business" },
-            { num: 2, label: "Licensing" },
-            { num: 3, label: "Location" },
-            { num: 4, label: "Documents" }
-          ].map((item) => (
-            <div key={item.num} className="flex flex-col gap-1">
-              <div
-                className={`h-1.5 rounded-full transition-all duration-300 ${
-                  step >= item.num ? "bg-emerald-400" : "bg-white/20"
-                }`}
-              />
-              <span
-                className={`text-[10px] font-medium text-center ${
-                  step === item.num ? "text-emerald-300 font-semibold" : "text-white/60"
-                }`}
-              >
-                {item.num}. {item.label}
-              </span>
-            </div>
-          ))}
-        </div>
+    <>
+      {/* Floating Action Button for Auto-Typing Demo Mode */}
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+        {!isDemoRunning ? (
+          <button
+            type="button"
+            onClick={runAutoDemo}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg hover:shadow-xl rounded-full px-4 py-2 text-sm font-semibold flex items-center gap-2 border border-emerald-400/40 backdrop-blur transition-all duration-200 cursor-pointer animate-pulse hover:animate-none"
+            title="Start Automated Typing Demo Mode"
+          >
+            <Play className="w-4 h-4 fill-white" />
+            <span>Start Auto Demo</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={stopAutoDemo}
+            className="bg-rose-600 hover:bg-rose-700 text-white shadow-lg hover:shadow-xl rounded-full px-4 py-2 text-sm font-semibold flex items-center gap-2 border border-rose-400/40 backdrop-blur transition-all duration-200 cursor-pointer"
+            title="Press Escape or click to Stop Demo"
+          >
+            <Square className="w-4 h-4 fill-white" />
+            <span>Stop Demo (Esc)</span>
+            <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+          </button>
+        )}
       </div>
 
-      {/* Main Form Content */}
-      <div className="p-6 md:p-8 flex-1 overflow-y-auto">
-        {error && (
-          <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm flex items-center gap-3 animate-fade-in">
-            <AlertCircle className="w-5 h-5 shrink-0 text-rose-600" />
-            <span>{error}</span>
+      <div className="w-full max-w-2xl mx-auto bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden flex flex-col my-4 relative">
+        {/* Active Demo Mode Banner */}
+        {isDemoRunning && (
+          <div className="bg-emerald-950 text-emerald-200 text-xs px-4 py-2 flex items-center justify-between border-b border-emerald-500/30">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
+              <span className="font-semibold text-white shrink-0">Auto Demo Mode Active</span>
+              {demoStepNote && (
+                <span className="truncate text-emerald-300/90 text-[11px] hidden sm:inline">
+                  — {demoStepNote}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={stopAutoDemo}
+              type="button"
+              className="text-[11px] bg-white/10 hover:bg-white/20 text-white px-2.5 py-1 rounded-md cursor-pointer transition-colors shrink-0 ml-2"
+            >
+              Press Esc to Stop
+            </button>
           </div>
         )}
 
-        {submittedSuccess ? (
-          <div className="text-center py-8 px-4 flex flex-col items-center">
-            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 mb-4 shadow-inner">
-              <CheckCircle2 className="w-10 h-10" />
+        {/* Header Banner */}
+        <div className="bg-gradient-to-r from-teal-800 to-emerald-900 p-5 md:p-6 text-white relative">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <MediChainLogo size="sm" withText={false} className="shrink-0" />
+              <div className="min-w-0">
+                <h2 className="text-lg md:text-xl font-bold text-white tracking-wide leading-tight">
+                  Pharmacy Onboarding Wizard
+                </h2>
+                <p className="text-xs text-emerald-200 mt-0.5 leading-snug">
+                  DGDA Compliant B2B Medicine Procurement Network
+                </p>
+              </div>
             </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-2">Registration Submitted!</h3>
-            <p className="text-sm text-slate-600 max-w-md mb-6 leading-relaxed">
-              Your drug license (<span className="font-semibold text-slate-900">{drugLicenseNo}</span>) and verification documents for <span className="font-semibold text-slate-900">{pharmacyName}</span> have been securely submitted to MediChain Compliance.
-            </p>
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 max-w-sm mb-6 text-left space-y-1">
-              <p className="font-semibold text-slate-700">What happens next?</p>
-              <p>1. DGDA license validation against national drug database.</p>
-              <p>2. Express wholesale medicine dispatch enabled upon verification.</p>
-            </div>
-            <button
-              onClick={() => onComplete && onComplete({ submittedSuccess: true })}
-              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm rounded-xl shadow-lg transition-all cursor-pointer"
-            >
-              Continue to Dashboard
-            </button>
+            {onCancel && (
+              <button
+                onClick={onCancel}
+                type="button"
+                className="shrink-0 text-xs font-medium text-slate-200 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+            )}
           </div>
-        ) : (
-          <AnimatePresence mode="wait">
+
+          {/* Step Progress Bar */}
+          <div className="grid grid-cols-4 gap-2 mt-6">
+            {[
+              { num: 1, label: "Business" },
+              { num: 2, label: "Licensing" },
+              { num: 3, label: "Location" },
+              { num: 4, label: "Documents" }
+            ].map((item) => (
+              <div key={item.num} className="flex flex-col gap-1">
+                <div
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    step >= item.num ? "bg-emerald-400" : "bg-white/20"
+                  }`}
+                />
+                <span
+                  className={`text-[10px] font-medium text-center ${
+                    step === item.num ? "text-emerald-300 font-semibold" : "text-white/60"
+                  }`}
+                >
+                  {item.num}. {item.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Main Form Content */}
+        <div className="p-6 md:p-8 flex-1 overflow-y-auto">
+          {error && (
+            <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm flex items-center gap-3 animate-fade-in">
+              <AlertCircle className="w-5 h-5 shrink-0 text-rose-600" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {submittedSuccess ? (
+            <div className="text-center py-8 px-4 flex flex-col items-center">
+              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 mb-4 shadow-inner">
+                <CheckCircle2 className="w-10 h-10" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">Registration Submitted!</h3>
+              <p className="text-sm text-slate-600 max-w-md mb-6 leading-relaxed">
+                Your drug license (<span className="font-semibold text-slate-900">{drugLicenseNo || "DL-DHAKA-28985"}</span>) and verification documents for <span className="font-semibold text-slate-900">{pharmacyName || "Manik Medicine Corner"}</span> have been securely submitted to MediChain Compliance.
+              </p>
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 max-w-sm mb-6 text-left space-y-1">
+                <p className="font-semibold text-slate-700">What happens next?</p>
+                <p>1. DGDA license validation against national drug database.</p>
+                <p>2. Express wholesale medicine dispatch enabled upon verification.</p>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <button
+                  onClick={() => onComplete && onComplete({ submittedSuccess: true, pharmacyName, licenseNo: drugLicenseNo })}
+                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-2"
+                >
+                  <span>Continue to Dashboard</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={runAutoDemo}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm rounded-xl transition-all cursor-pointer flex items-center gap-2 border border-slate-200"
+                >
+                  <RotateCcw className="w-4 h-4 text-slate-600" />
+                  <span>Replay Demo</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <AnimatePresence mode="wait">
             <motion.form
               key={step}
               initial={{ opacity: 0, x: 10 }}
@@ -694,5 +927,6 @@ export default function PharmacyRegistrationWizard({
         )}
       </div>
     </div>
-  );
+  </>
+);
 }
