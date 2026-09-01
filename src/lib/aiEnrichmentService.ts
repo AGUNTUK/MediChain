@@ -3,7 +3,7 @@ import { supabaseAdmin } from "./supabaseAdmin.js";
 import { ENRICHMENT_SOURCES, EnrichmentSourceKey } from "./enrichmentSources";
 
 // Firecrawl configuration
-const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY || "fc-ccc5bfe9944141948d4179fa25f4bffa";
+const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY || "";
 const FIRECRAWL_BASE_URL = 'https://api.firecrawl.dev/v2';
 
 

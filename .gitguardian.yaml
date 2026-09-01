@@ -1,0 +1,13 @@
+version: 2
+secret:
+  ignored_paths:
+    - "**/.env*"
+    - "**/dist/**"
+    - "**/build/**"
+    - "**/node_modules/**"
+    - "**/.kilo/**"
+    - "**/.kilocode/**"
+    - "**/scratch/**"
+    - "**/extracted_medicines/**"
+    - "**/products-zip/**"
+    - "**/public/playwright-report.html"

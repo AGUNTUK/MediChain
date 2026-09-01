@@ -66,9 +66,14 @@ let VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || '';
 let VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
 
 if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-  // Stable fallback VAPID keypair for MediChain if not provided in environment
-  VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
-  VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || 'UUxI2pxqWkJ9gXvGgZ2hM6gN8yQ3vF1mB9jL4kP7wR0';
+  try {
+    const generated = webpush.generateVAPIDKeys();
+    VAPID_PUBLIC_KEY = generated.publicKey;
+    VAPID_PRIVATE_KEY = generated.privateKey;
+    console.log('[PushService] VAPID keys auto-generated dynamically.');
+  } catch (e) {
+    console.error('[PushService] Could not generate VAPID keys:', e);
+  }
 }
 
 try {
