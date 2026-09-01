@@ -482,15 +482,15 @@ export default function Home({
                   <Mic className="w-4 h-4" />
                 </button>
 
-                {/* Camera Prescription Scanner Button */}
+                {/* Camera SmartOrder Scanner Button */}
                 <button
                   type="button"
                   onClick={() => setIsScannerOpen(true)}
-                  title="প্রেসক্রিপশন স্ক্যানার"
-                  className="flex items-center gap-1 px-2.5 py-1.5 bg-brand-purple/10 text-brand-purple hover:bg-brand-purple hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                  title="MediChain SmartOrder (Write it. Scan it. Cart it.)"
+                  className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-500/15 text-emerald-700 hover:bg-emerald-600 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer border border-emerald-500/20"
                 >
                   <Camera className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">স্ক্যান</span>
+                  <span className="hidden sm:inline">SmartOrder</span>
                 </button>
               </div>
 
@@ -505,6 +505,41 @@ export default function Home({
             {isScannerOpen && (
               <PrescriptionScanner onClose={() => setIsScannerOpen(false)} />
             )}
+
+            {/* MediChain SmartOrder Card (Write it. Scan it. Cart it.) */}
+            <div className="bg-linear-to-r from-emerald-950 via-teal-900 to-slate-900 text-white rounded-3xl p-4 sm:p-5 shadow-xl border border-emerald-500/30 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-48 h-48 bg-radial from-emerald-400/15 to-transparent blur-2xl pointer-events-none"></div>
+              
+              <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="space-y-1.5 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-emerald-400 text-slate-950 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
+                      <Sparkles className="w-3 h-3 text-slate-950" />
+                      MediChain SmartOrder
+                    </span>
+                    <span className="text-[10px] text-emerald-300 font-mono font-bold">
+                      Gemini 3.7 Flash Vision
+                    </span>
+                  </div>
+
+                  <h3 className="text-base sm:text-lg font-black text-white leading-snug">
+                    MediChain SmartOrder — <span className="text-emerald-300">Write it. Scan it. Cart it.</span>
+                  </h3>
+                  <p className="text-xs text-slate-300 font-medium">
+                    Handwritten medicine list scan করুন এবং কয়েক সেকেন্ডে verified products cart-এ যোগ করুন।
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsScannerOpen(true)}
+                  className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-400 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 hover:brightness-110 active:scale-95 transition-all cursor-pointer shrink-0"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>📷 SmartOrder স্ক্যানার</span>
+                </button>
+              </div>
+            </div>
 
             {/* Wholesale Profit Margin Calculator Card (Point 4) - Gemini AI Daily Dynamic Meter */}
             <div className="bg-linear-to-r from-purple-950 via-indigo-900 to-slate-900 text-white rounded-3xl p-4 sm:p-5 shadow-xl border border-purple-500/20 relative overflow-hidden">

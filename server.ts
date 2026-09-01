@@ -28,6 +28,8 @@ import { initDailyBannerScheduler, getDailyBannerData, analyzeDailyWholesaleDisc
 import { pushNotificationService } from "./src/lib/pushNotificationService.js";
 import { LRUCache } from "./src/lib/lruCache.js";
 import { DEFAULT_CATEGORY_OPTIONS } from "./src/constants/categories.js";
+import { scanSmartOrderImage } from "./src/lib/smartOrderOCR.js";
+import { matchSmartOrderItems } from "./src/lib/productMatcher.js";
 import cron from "node-cron";
 
 dotenv.config();
@@ -138,7 +140,7 @@ if (process.env.ALLOW_IFRAME_SESSION === "true") {
   });
 }
 
-import { authLimiter, orderLimiter, publicLimiter, schemas, validateBody, sanitizeInput } from "./src/lib/security.js";
+import { authLimiter, orderLimiter, publicLimiter, smartOrderLimiter, schemas, validateBody, sanitizeInput } from "./src/lib/security.js";
 
 // Global input sanitization
 app.use(sanitizeInput);
@@ -714,201 +716,72 @@ app.get("/api/products/:id", async (req, res) => {
   }
 });
 
-// --- AI PRESCRIPTION & PRODUCT LIST SCANNER (Gemini Vision) ---
+// --- MEDICHAIN SMARTORDER: AI VISION OCR & 21K+ PRODUCT MATCHER ---
 
-app.post("/api/prescription/scan", async (req, res) => {
-  const { imageBase64 } = req.body;
+app.post("/api/smart-order/scan", smartOrderLimiter, async (req, res) => {
+  const { imageBase64, mimeType } = req.body;
+  if (!imageBase64) {
+    return res.status(400).json({ error: "অনুগ্রহ করে প্রেসক্রিপশন বা অর্ডার স্লিপের একটি ছবি প্রদান করুন।" });
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: "Server-side GEMINI_API_KEY is not configured." });
+  }
+
+  try {
+    // 1. Vision OCR via Gemini 3.x Flash hierarchy (3.7 -> 3.6 -> 3.5)
+    const ocrResult = await scanSmartOrderImage(imageBase64, apiKey, mimeType || "image/jpeg");
+
+    if (!ocrResult.items || ocrResult.items.length === 0) {
+      return res.json({
+        success: true,
+        modelUsed: ocrResult.modelUsed,
+        items: [],
+        message: "ছবিতে কোনো পরিচিত ওষুধের নাম শনাক্ত করা যায়নি। অনুগ্রহ করে পরিষ্কার আলোতে তোলা ছবি দিন।"
+      });
+    }
+
+    // 2. Candidate Search & Multi-Factor Scoring against Supabase 21k+ Catalog
+    const matchedItems = await matchSmartOrderItems(ocrResult.items);
+
+    log.info(`[SmartOrder] Scan successful: ${ocrResult.items.length} items read using ${ocrResult.modelUsed}, matched ${matchedItems.filter(m => m.matchedProduct).length} in catalog.`);
+
+    return res.json({
+      success: true,
+      modelUsed: ocrResult.modelUsed,
+      items: matchedItems
+    });
+  } catch (err: any) {
+    log.error("SmartOrder scan exception:", err);
+    return res.status(500).json({
+      error: err.message || "প্রেসক্রিপশন প্রসেস করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।"
+    });
+  }
+});
+
+// Backward-compatible alias for existing prescription scanner callers
+app.post("/api/prescription/scan", smartOrderLimiter, async (req, res) => {
+  const { imageBase64, mimeType } = req.body;
   if (!imageBase64) {
     return res.status(400).json({ error: "No image data provided for scanning." });
   }
 
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: "Gemini API key is not configured." });
+  }
+
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: "Gemini API key is not configured." });
-    }
-
-    const ai = new GoogleGenAI({ apiKey });
-    
-    // Detect mime type cleanly
-    let mimeType = "image/jpeg";
-    const mimeMatch = imageBase64.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,/);
-    if (mimeMatch && mimeMatch[1]) {
-      mimeType = mimeMatch[1];
-    }
-    const base64Data = imageBase64.replace(/^data:[^;]+;base64,/, "");
-
-    const promptText = `You are an expert pharmaceutical optical character recognition (OCR) and prescription analysis system for Bangladesh pharmacies.
-Carefully inspect this image of a medical prescription, handwritten doctor's slip, medicine order list, or pharmacy procurement memo.
-Accurately read and transcribe each medicine name, its dosage/strength, and prescribed or ordered quantity.
-
-Rules:
-1. Carefully decipher doctor handwriting, Bengali prescription formats, abbreviations, or list numbering.
-2. Separate the brand name from the dosage/strength (e.g. for 'Monas 10', name is 'Monas', strength is '10mg'; for 'Olmedip 5/20', name is 'Olmedip', strength is '5/20'; for 'Napa Extra', name is 'Napa Extra', strength is null; for 'Amodis 400', name is 'Amodis', strength is '400mg'; for 'Sergel 20', name is 'Sergel', strength is '20mg').
-3. For quantity, if numbers like '50', '1', '2', '10' or '+ 9' are written next to the item, parse as the integer quantity. If not specified, default to 1.
-4. Output MUST be ONLY a raw valid minified JSON array of objects without markdown backticks.
-
-Format:
-[{"name":"Medicine Name","strength":"dosage or null","quantity":1}]`;
-
-    let aiText = "";
-    const modelsToTry = ["gemini-3.6-flash"];
-
-    for (const model of modelsToTry) {
-      try {
-        const response = await ai.models.generateContent({
-          model,
-          contents: [
-            { inlineData: { mimeType, data: base64Data } },
-            { text: promptText }
-          ]
-        });
-        if (response.text) {
-          aiText = response.text;
-          break;
-        }
-      } catch (genErr: any) {
-        log.warn(`Gemini model ${model} error during prescription scan:`, genErr?.message);
-      }
-    }
-
-    if (!aiText) {
-      return res.status(500).json({ error: "Unable to extract medicines from the uploaded image. Please ensure the picture is clear and try again." });
-    }
-
-    let parsedItems: any[] = [];
-    try {
-      const jsonMatch = aiText.match(/\[[\s\S]*\]/);
-      const cleanJson = jsonMatch ? jsonMatch[0] : aiText.replace(/```json/gi, "").replace(/```/g, "").trim();
-      parsedItems = JSON.parse(cleanJson);
-    } catch (parseErr) {
-      log.warn("Failed to parse Gemini output as JSON:", aiText);
-      return res.status(500).json({ error: "Failed to parse medicine data from image.", raw: aiText });
-    }
-
-    if (!Array.isArray(parsedItems) || parsedItems.length === 0) {
-      return res.json({ success: true, items: [] });
-    }
-
-    // Fetch all active in-stock products across all pages
-    let allProducts: any[] = [];
-    let page = 0;
-    const pageSize = 1000;
-    let hasMore = true;
-
-    while (hasMore) {
-      const { data, error } = await dbService.supabaseAdmin
-        .from("products")
-        .select("id, name, generic_name, company, strength, pack_size, mrp, selling_price, stock_quantity, image_url, category_name_fallback")
-        .gt("stock_quantity", 0)
-        .range(page * pageSize, (page + 1) * pageSize - 1);
-
-      if (error || !data || data.length === 0) {
-        hasMore = false;
-        break;
-      }
-
-      allProducts = allProducts.concat(data);
-      if (data.length < pageSize) {
-        hasMore = false;
-      } else {
-        page++;
-      }
-    }
-
-    const productsList = allProducts.length > 0 ? allProducts : [];
-    const matchedProducts = [];
-
-    for (const item of parsedItems) {
-      if (!item || !item.name) continue;
-      const itemName = String(item.name).trim();
-      const itemNameLower = itemName.toLowerCase();
-      const itemStrength = item.strength ? String(item.strength).trim() : null;
-      const strengthClean = itemStrength ? itemStrength.toLowerCase().replace(/mg/g, "").trim() : "";
-      const itemQty = typeof item.quantity === "number" && item.quantity > 0 ? item.quantity : 1;
-
-      // Multi-tier intelligent matching:
-      let match: any = null;
-
-      // Tier 1: Exact brand name match
-      match = productsList.find(p => p.name.toLowerCase() === itemNameLower);
-
-      // Tier 2: Name contains brand AND strength
-      if (!match && strengthClean) {
-        match = productsList.find(p => 
-          p.name.toLowerCase().includes(itemNameLower) && 
-          (p.name.toLowerCase().includes(strengthClean) || (p.strength && p.strength.toLowerCase().includes(strengthClean)))
-        );
-      }
-
-      // Tier 3: Name starts with or contains brand name
-      if (!match) {
-        match = productsList.find(p => p.name.toLowerCase().includes(itemNameLower));
-      }
-
-      // Tier 4: First word of multi-word brand (e.g. 'Napa' from 'Napa Extra')
-      if (!match && itemName.includes(" ")) {
-        const firstWord = itemName.split(" ")[0].toLowerCase();
-        if (firstWord.length >= 3) {
-          match = productsList.find(p => p.name.toLowerCase().includes(firstWord));
-        }
-      }
-
-      // Tier 5: Generic name match
-      if (!match) {
-        match = productsList.find(p => p.generic_name && p.generic_name.toLowerCase().includes(itemNameLower));
-      }
-
-      // Tier 6: Levenshtein / fuzzy phonetics for common brand spelling variations (e.g. Zoliam -> Zolium, Amitinol -> Amilin)
-      if (!match) {
-        const cleanStem = itemNameLower.slice(0, 4);
-        if (cleanStem.length >= 3) {
-          match = productsList.find(p => p.name.toLowerCase().startsWith(cleanStem));
-        }
-      }
-
-      if (match) {
-        const mrp = parseFloat(match.mrp || 0);
-        const sellingPrice = parseFloat(match.selling_price || mrp);
-        const discountPct = mrp > 0 ? Math.round(((mrp - sellingPrice) / mrp) * 100) : 0;
-
-        matchedProducts.push({
-          extractedName: itemName,
-          extractedStrength: itemStrength || match.strength,
-          extractedQuantity: itemQty,
-          matchedProduct: {
-            id: match.id,
-            name: match.name,
-            genericName: match.generic_name || "",
-            company: match.company || "",
-            category: match.category_name_fallback || "Medicine",
-            strength: match.strength || "",
-            packSize: match.pack_size || "",
-            mrp,
-            sellingPrice,
-            discountPercentage: discountPct,
-            availableStock: match.stock_quantity || 100,
-            imageUrl: match.image_url || undefined
-          }
-        });
-      } else {
-        matchedProducts.push({
-          extractedName: itemName,
-          extractedStrength: itemStrength,
-          extractedQuantity: itemQty,
-          matchedProduct: null
-        });
-      }
-    }
-
-    log.info(`Prescription scan completed: recognized ${parsedItems.length} items, matched ${matchedProducts.filter(m => m.matchedProduct).length} in stock.`);
+    const ocrResult = await scanSmartOrderImage(imageBase64, apiKey, mimeType || "image/jpeg");
+    const matchedItems = await matchSmartOrderItems(ocrResult.items);
 
     return res.json({
       success: true,
-      items: matchedProducts
+      modelUsed: ocrResult.modelUsed,
+      items: matchedItems
     });
   } catch (err: any) {
-    console.error("Prescription scan error:", err);
     return res.status(500).json({ error: err.message || "Failed to scan prescription." });
   }
 });
@@ -1118,6 +991,59 @@ app.post("/api/cart/add", requireAuth, requireVerifiedPharmacy, async (req, res)
     res.json({ success: true, cartCount: dbCart.reduce((acc: number, c: any) => acc + c.quantity, 0) });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/smart-order/cart-all", requireAuth, requireVerifiedPharmacy, async (req, res) => {
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: "কার্টে যোগ করার জন্য অন্তত একটি ওষুধ নির্বাচন করুন।" });
+  }
+
+  try {
+    const productIds = items.map((it: any) => String(it.productId || "").trim()).filter(Boolean);
+    if (productIds.length === 0) {
+      return res.status(400).json({ error: "কোনো বৈধ ওষুধ পাওয়া যায়নি।" });
+    }
+
+    // Retrieve live products from Supabase to validate existence and stock
+    const { data: dbProducts, error } = await dbService.supabaseAdmin
+      .from("products")
+      .select("id, name, selling_price, mrp, stock_quantity")
+      .in("id", productIds);
+
+    if (error || !dbProducts || dbProducts.length === 0) {
+      return res.status(404).json({ error: "নির্বাচিত ওষুধগুলো ক্যাটালগে পাওয়া যায়নি।" });
+    }
+
+    const dbProdMap = new Map(dbProducts.map(p => [p.id, p]));
+    const dbCart = await dbService.getCart(req.user.id);
+
+    let addedCount = 0;
+    for (const item of items) {
+      const pId = String(item.productId || "").trim();
+      const qty = Math.max(1, parseInt(item.quantity, 10) || 1);
+      const prod = dbProdMap.get(pId);
+      if (!prod) continue;
+
+      const existingIndex = dbCart.findIndex((c: any) => c.productId === pId);
+      if (existingIndex >= 0) {
+        dbCart[existingIndex].quantity = (dbCart[existingIndex].quantity || 0) + qty;
+      } else {
+        dbCart.push({ productId: pId, quantity: qty });
+      }
+      addedCount++;
+    }
+
+    await dbService.saveCart(req.user.id, dbCart);
+
+    return res.json({
+      success: true,
+      addedCount,
+      cartCount: dbCart.reduce((acc: number, c: any) => acc + (c.quantity || 1), 0)
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "কার্ট আপডেট করতে সমস্যা হয়েছে।" });
   }
 });
 

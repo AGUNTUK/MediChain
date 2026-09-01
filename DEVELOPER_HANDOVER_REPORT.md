@@ -251,6 +251,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - **Task 16 (In-Stock Products Priority Ordering & Dynamic Profit Margin Meter):** Enforced a universal in-stock priority rule across all product listings (`server.ts`, `dbService.ts`, `searchService.ts`, `productService.ts`, `Home.tsx`, `SearchSystem.tsx`) ensuring in-stock medicines (`availableStock > 0`) always render ahead of out-of-stock items. Dynamically connected the homepage Daily Wholesale Profit Margin Meter card ("দৈনিক পাইকারি মুনাফা মিটার") to calculate live lowest and highest discount percentage ranges exclusively from in-stock inventory.
   - **Task 17 (Secure Private Storage Architecture for Pharmacy Verification Documents & Wizard Bug Fix):** Created dedicated private storage bucket `verification-documents` in Supabase with strict RLS policies (owner pharmacy + admin access only). Resolved `"Invalid input: expected string, received undefined"` error by aligning Zod `schemas.pharmacyProfile` with registration payloads. Integrated live multi-format document uploads (JPG, PNG, WEBP, HEIC/HEIF, PDF) in `PharmacyRegistrationWizard.tsx` and built full document inspection with time-limited signed URLs in `PharmacyVerificationPanel.tsx`.
   - **Task 18 (Database Query Optimization, Bounded LRU Cache & Egress Elimination):** Audited and resolved high egress and server latency bottlenecks across MediChain. Eliminated heavy `getProductsRaw(1000/2000)` dumps in duplicate checks, restock request aggregation, and order placement fallbacks. Replaced unbounded plain JS memory cache with a high-performance bounded LRU cache (`src/lib/lruCache.ts`, max 500 entries, 60s TTL) eliminating V8 Garbage Collection pauses. Added GIN Trigram/B-Tree SQL indices (`supabase-migrations/05_performance_trigram_indices.sql`) for sub-millisecond search, and enabled HTTP `Cache-Control: public, max-age=...` headers on catalog and category APIs.
+  - **Task 19 (MediChain SmartOrder — "Write it. Scan it. Cart it."):** Implemented an AI Vision Optical Character Recognition and ordering suite for handwritten doctor prescriptions and pharmacy requisition slips. Built on Google Gemini 3.x Flash hierarchy (`gemini-3.7-flash` primary with thinking level medium, falling back to `gemini-3.6-flash` and `gemini-3.5-flash`), paired with a 4-stage fuzzy matching algorithm against MediChain's 21,000+ catalog, strict pharmacy safety rules (generic match never auto-substitutes brands), an interactive review & replacement interface (`SmartOrderModal.tsx`), and single-click atomic batch carting (`POST /api/smart-order/cart-all`).
 
 ----------------------------------------
 
@@ -273,6 +274,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 | In-Stock Catalog Priority & Profit Meter | 100% | Completed (In-Stock First Everywhere & Dynamic Profit Range) | Completed |
 | Verification Documents Private Storage | 100% | Completed (Private Bucket, RLS, Signed URLs, Wizard Fix) | Completed |
 | High-Speed Query Optimization & LRU Cache | 100% | Completed (Targeted SQL lookups, LRU Cache, HTTP Edge Caching) | Completed |
+| MediChain SmartOrder (OCR & Carting) | 100% | Completed (Gemini 3.7 Flash, 21k Matcher, Safety Rules, Batch Cart) | Completed |
 
 ----------------------------------------
 
@@ -303,6 +305,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 - **Completed:** Task 16: In-Stock Priority Ordering Everywhere & Dynamic Live Wholesale Profit Margin Calculation.
 - **Completed:** Task 17: Secure Private Storage Architecture for Pharmacy Verification Documents (`verification-documents`), Storage RLS, Signed URLs & Onboarding Wizard Fix.
 - **Completed:** Task 18: Database Query Optimization, Bounded LRU Cache & Egress Elimination.
+- **Completed:** Task 19: MediChain SmartOrder — Gemini 3.7 Flash Vision OCR, 21k+ Product Matcher & Batch Carting ("Write it. Scan it. Cart it.").
 - **Short Term:** Finish FCM Push Notifications.
 - **Long Term:** Implement multi-tenant capability.
 
@@ -718,6 +721,41 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 - **PostgreSQL Trigram & B-Tree Index Migration (`supabase-migrations/05_performance_trigram_indices.sql`)**:
   - Added GIN trigram indices (`gin_trgm_ops`) on `products.name`, `products.generic_name`, and `products.company` to accelerate ILIKE search from 400ms to <5ms.
   - Added B-Tree indices on `category_name_fallback`, `stock_quantity`, `selling_price`, `discount_percentage`, and foreign keys.
+
+----------------------------------------
+
+## 51. MediChain SmartOrder Architecture ("Write it. Scan it. Cart it.")
+- **Core Philosophy & Architecture**:
+  - **Gemini = Reader (OCR Extraction Only)**: Transcribes handwritten text, dosage forms, strength, procurement units, and dosage frequencies. Gemini is strictly prohibited from inventing product IDs, prices, stocks, or manufacturer metadata.
+  - **Supabase Catalog = Source of Truth**: Retrieves verified product records from MediChain's 21,000+ database with live wholesale prices, trade discounts, and depot inventory.
+- **Gemini 3.x Flash OCR Model Hierarchy (`src/lib/smartOrderOCR.ts`)**:
+  - Primary: `gemini-3.7-flash` (configured with `thinkingLevel: "medium"` for complex doctor handwriting).
+  - Secondary: `gemini-3.6-flash` (resilient fallback on 429 quota, 5xx, or network timeouts).
+  - Tertiary: `gemini-3.5-flash` (final fallback).
+  - Non-retryable error gating: 400 bad image, 401 unauthenticated, and 403 forbidden do not trigger wasteful model retries.
+  - Deprecated parameters removed: No `temperature`, `top_p`, `top_k`, or `candidate_count`.
+- **4-Stage Multi-Factor Product Matching Engine (`src/lib/productMatcher.ts`)**:
+  - Server-side candidate search with PostgreSQL ILIKE query projection (max 15 candidates per item, zero full-table client dumps).
+  - Transparent scoring system (0 to 100):
+    * Exact brand / product name match: +40
+    * Brand similarity (normalized Levenshtein >= 0.80): +25 to +35
+    * Dosage strength match: +15
+    * Dosage form match: +10
+    * In-stock depot availability: +10
+    * Verified manufacturer: +5
+  - Two distinct confidence scores: `ocrConfidence` (0.0 to 1.0) and `matchConfidence` (0 to 100).
+- **Critical Pharmacy Safety Rule (Generic Match ≠ Automatic Substitution)**:
+  - When a requested brand is Out of Stock, the engine marks the item as `isOutOfStock: true` and queries in-stock generic alternatives from top manufacturers (Square, Beximco, Incepta, etc.) into `alternativeProducts: Product[]`.
+  - The pharmacy owner must explicitly click to swap brands; silent substitution is strictly forbidden.
+- **Confidence Thresholds & UI Selection Tiers (`SmartOrderModal.tsx`)**:
+  - **95–100% (Strong Match)**: High optical and catalog certainty, auto-preselected for carting if in-stock.
+  - **85–94% (Good Match)**: Minor handwriting variations, review recommended.
+  - **70–84% (Possible Match)**: User confirmation required (unchecked by default).
+  - **<70% (Low Confidence)**: Manual search and selection required.
+- **Batch Cart Endpoint (`POST /api/smart-order/cart-all`)**:
+  - Validates authentication and verification status.
+  - Retrieves live product prices and stock directly from Supabase, completely ignoring any client-provided prices or MRP.
+  - Safely merges and increments quantities into the pharmacy's database cart, returning updated cart state.
 
 ----------------------------------------
 

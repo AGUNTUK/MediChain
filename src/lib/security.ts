@@ -20,6 +20,14 @@ export const orderLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+export const smartOrderLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  message: { error: "অনেকগুলো স্ক্যান রিকোয়েস্ট পাঠানো হয়েছে। অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করে আবার চেষ্টা করুন।" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 export const publicLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 100,
