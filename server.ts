@@ -28,7 +28,7 @@ import { initDailyBannerScheduler, getDailyBannerData, analyzeDailyWholesaleDisc
 import { pushNotificationService } from "./src/lib/pushNotificationService.js";
 import { LRUCache } from "./src/lib/lruCache.js";
 import { DEFAULT_CATEGORY_OPTIONS } from "./src/constants/categories.js";
-import { scanSmartOrderImage } from "./src/lib/smartOrderOCR.js";
+import { scanSmartOrderImage, formatFriendlyErrorMessage } from "./src/lib/smartOrderOCR.js";
 import { matchSmartOrderItems } from "./src/lib/productMatcher.js";
 import cron from "node-cron";
 
@@ -724,9 +724,9 @@ app.post("/api/smart-order/scan", smartOrderLimiter, async (req, res) => {
     return res.status(400).json({ error: "অনুগ্রহ করে প্রেসক্রিপশন বা অর্ডার স্লিপের একটি ছবি প্রদান করুন।" });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || "").trim();
   if (!apiKey) {
-    return res.status(500).json({ error: "Server-side GEMINI_API_KEY is not configured." });
+    return res.status(500).json({ error: "সার্ভারে Gemini API Key কনফিগার করা নেই। অনুগ্রহ করে Render Dashboard > Environment Variables-এ GEMINI_API_KEY সেট করুন।" });
   }
 
   try {
@@ -754,8 +754,8 @@ app.post("/api/smart-order/scan", smartOrderLimiter, async (req, res) => {
     });
   } catch (err: any) {
     log.error("SmartOrder scan exception:", err);
-    return res.status(500).json({
-      error: err.message || "প্রেসক্রিপশন প্রসেস করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।"
+    return res.status(400).json({
+      error: formatFriendlyErrorMessage(err)
     });
   }
 });
@@ -767,7 +767,7 @@ app.post("/api/prescription/scan", smartOrderLimiter, async (req, res) => {
     return res.status(400).json({ error: "No image data provided for scanning." });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || "").trim();
   if (!apiKey) {
     return res.status(500).json({ error: "Gemini API key is not configured." });
   }
@@ -782,7 +782,7 @@ app.post("/api/prescription/scan", smartOrderLimiter, async (req, res) => {
       items: matchedItems
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to scan prescription." });
+    return res.status(400).json({ error: formatFriendlyErrorMessage(err) });
   }
 });
 

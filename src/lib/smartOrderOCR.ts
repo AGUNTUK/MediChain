@@ -279,10 +279,45 @@ export async function scanSmartOrderImage(
       lastError = err;
 
       if (!isRetryableError(err)) {
-        throw new Error(err.message || "Invalid image or request format for SmartOrder OCR.");
+        throw new Error(formatFriendlyErrorMessage(err));
       }
     }
   }
 
-  throw new Error(`All Gemini 3.x OCR models failed. Last error: ${lastError?.message || "Service temporarily busy."}`);
+  throw new Error(formatFriendlyErrorMessage(lastError || "Service temporarily busy."));
+}
+
+/**
+ * Transforms raw technical/JSON API errors into clear, friendly guidance.
+ */
+export function formatFriendlyErrorMessage(err: any): string {
+  if (!err) return "প্রেসক্রিপশন প্রসেস করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।";
+  const raw = typeof err === "string" ? err : String(err.message || "");
+
+  if (raw.includes("API_KEY_INVALID") || raw.includes("API key not valid") || raw.includes("API_KEY") || raw.includes("unauthenticated") || raw.includes("not configured")) {
+    return "সার্ভারে Gemini API Key সঠিক নয় বা সক্রিয় নেই। অনুগ্রহ করে Render Dashboard > Environment Variables-এ ভ্যালিড GEMINI_API_KEY সেট করুন।";
+  }
+  if (raw.includes("429") || raw.includes("quota") || raw.includes("Resource has been exhausted")) {
+    return "অনেকগুলো স্ক্যান রিকোয়েস্ট হয়েছে। অনুগ্রহ করে ১ মিনিট পর আবার চেষ্টা করুন।";
+  }
+  if (raw.includes("timeout") || raw.includes("deadline")) {
+    return "ছবিটি প্রসেস করতে সময় বেশি লাগছে। অনুগ্রহ করে ছোট বা পরিষ্কার ছবি দিয়ে আবার চেষ্টা করুন।";
+  }
+  if (raw.includes("bad request") || raw.includes("invalid argument")) {
+    return "ছবিটির ফরম্যাট বা সাইজে সমস্যা রয়েছে। অনুগ্রহ করে সাধারণ JPG বা PNG ছবি নির্বাচন করুন।";
+  }
+
+  // If it's a JSON string, try to parse message or return clean text
+  if (raw.trim().startsWith("{") || raw.trim().startsWith("[")) {
+    try {
+      const parsed = JSON.parse(raw);
+      const inner = Array.isArray(parsed) ? parsed[0] : parsed;
+      if (inner?.error?.message) {
+        return formatFriendlyErrorMessage(inner.error.message);
+      }
+    } catch (_) {}
+    return "প্রেসক্রিপশন প্রসেস করতে সমস্যা হয়েছে। অনুগ্রহ করে পরিষ্কার আলোতে তোলা ছবি দিন।";
+  }
+
+  return raw;
 }

@@ -135,7 +135,13 @@ export default function SmartOrderModal({ onClose, onOpenCart }: SmartOrderModal
       setSelectedIndices(initialSelected);
       setQuantities(initialQty);
     } catch (err: any) {
-      setError(err.message || "প্রেসক্রিপশন স্ক্যান করতে সমস্যা হয়েছে। কিছুক্ষণ পরে আবার চেষ্টা করুন।");
+      let msg = err.message || "প্রেসক্রিপশন স্ক্যান করতে সমস্যা হয়েছে। কিছুক্ষণ পরে আবার চেষ্টা করুন।";
+      if (msg.includes("API_KEY_INVALID") || msg.includes("API key not valid") || msg.includes("API key") || msg.includes("UNAUTHENTICATED")) {
+        msg = "সার্ভারে Gemini API Key সঠিক নয় বা মেয়াদোত্তীর্ণ। অনুগ্রহ করে Render Dashboard > Environment Settings-এ একটি সক্রিয় GEMINI_API_KEY সেট করুন।";
+      } else if (msg.includes("429") || msg.includes("quota")) {
+        msg = "অনেকগুলো স্ক্যান রিকোয়েস্ট হয়েছে। অনুগ্রহ করে ১ মিনিট পর আবার চেষ্টা করুন।";
+      }
+      setError(msg);
     } finally {
       setIsScanning(false);
     }
