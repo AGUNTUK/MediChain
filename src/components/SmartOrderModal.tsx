@@ -107,7 +107,7 @@ export default function SmartOrderModal({ onClose, onOpenCart }: SmartOrderModal
     setCartSuccess(false);
 
     try {
-      setScanStep("Gemini 3.7 Flash দিয়ে হাতের লেখা পড়া হচ্ছে...");
+      setScanStep("AI Vision দিয়ে প্রেসক্রিপশন ও স্লিপ পড়া হচ্ছে...");
       
       const res = await smartOrderService.scanSmartOrder(base64Data);
       
@@ -117,7 +117,7 @@ export default function SmartOrderModal({ onClose, onOpenCart }: SmartOrderModal
         return;
       }
 
-      setModelUsed(res.modelUsed || "gemini-3.7-flash");
+      setModelUsed(res.modelUsed || "gemini-3.6-flash");
       setItems(res.items);
 
       // Initialize selection and quantities
@@ -137,7 +137,7 @@ export default function SmartOrderModal({ onClose, onOpenCart }: SmartOrderModal
     } catch (err: any) {
       let msg = err.message || "প্রেসক্রিপশন স্ক্যান করতে সমস্যা হয়েছে। কিছুক্ষণ পরে আবার চেষ্টা করুন।";
       if (msg.includes("API_KEY_INVALID") || msg.includes("API key not valid") || msg.includes("API key") || msg.includes("UNAUTHENTICATED")) {
-        msg = "সার্ভারে Gemini API Key সঠিক নয় বা মেয়াদোত্তীর্ণ। অনুগ্রহ করে Render Dashboard > Environment Settings-এ একটি সক্রিয় GEMINI_API_KEY সেট করুন।";
+        msg = "সার্ভারে AI API Key সঠিক নয় বা মেয়াদোত্তীর্ণ। অনুগ্রহ করে এনভায়রনমেন্ট ভ্যারিয়েবল চেক করুন।";
       } else if (msg.includes("429") || msg.includes("quota")) {
         msg = "অনেকগুলো স্ক্যান রিকোয়েস্ট হয়েছে। অনুগ্রহ করে ১ মিনিট পর আবার চেষ্টা করুন।";
       }
@@ -280,7 +280,11 @@ export default function SmartOrderModal({ onClose, onOpenCart }: SmartOrderModal
                   MediChain <span className="text-emerald-400">SmartOrder</span>
                 </h2>
                 <span className="hidden sm:inline-flex px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  AI 3.7 Flash
+                  {modelUsed
+                    ? (modelUsed.startsWith("openrouter/")
+                        ? "OpenRouter Vision"
+                        : `AI Vision • ${modelUsed.replace("models/", "").replace("gemini-", "Gemini ")}`)
+                    : "AI Smart Vision"}
                 </span>
               </div>
               <p className="text-xs text-slate-400">

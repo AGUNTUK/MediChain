@@ -5,15 +5,17 @@ import { Product } from "../src/types";
 
 test.describe("MediChain SmartOrder - AI Vision OCR & Matching Engine", () => {
   
-  test("Model hierarchy should strictly use only Gemini 3.x Flash models", () => {
-    // Verify required Gemini 3.x Flash models
+  test("Model hierarchy should strictly use high availability Gemini models and OpenRouter backups", () => {
+    // Verify required primary Gemini models
     expect(SMART_ORDER_MODELS).toEqual([
-      "gemini-3.7-flash",
       "gemini-3.6-flash",
-      "gemini-3.5-flash"
+      "gemini-3.5-flash-lite",
+      "gemini-flash-lite-latest",
+      "gemini-3.1-flash-lite",
+      "gemini-3.7-flash"
     ]);
 
-    // Ensure deprecated 1.5 or 2.5 models are NEVER included
+    // Ensure deprecated 1.5 or 2.5 models are NEVER included in primary list
     expect((SMART_ORDER_MODELS as readonly string[]).includes("gemini-1.5-flash")).toBe(false);
     expect((SMART_ORDER_MODELS as readonly string[]).includes("gemini-2.5-flash")).toBe(false);
   });

@@ -2,28 +2,50 @@
  * MediChain SmartOrder - Vision OCR Engine
  * 
  * Extracts handwritten and printed medicine order slips, doctor prescriptions,
- * and requisition notes using the Google Gemini 3.x Flash family.
+ * and requisition notes using a resilient multi-tier Vision AI hierarchy.
  * 
- * Model Hierarchy:
- * 1. Primary:   gemini-3.7-flash (with medium thinking level for complex handwriting)
- * 2. Secondary: gemini-3.6-flash (resilient fallback on 429, 5xx, or timeout)
- * 3. Tertiary:  gemini-3.5-flash (final fallback)
+ * Multi-Tier Hierarchy:
+ * Tier 1 (Primary High-Speed Gemini Models):
+ *   1. gemini-3.6-flash (Fast ~2s, high accuracy OCR)
+ *   2. gemini-3.5-flash-lite (Ultra-fast ~1s, high availability)
+ *   3. gemini-flash-lite-latest (Dynamic stable flash lite)
+ *   4. gemini-3.1-flash-lite (Resilient backup)
+ *   5. gemini-3.7-flash (Adaptive reasoning with fast circuit breaker)
+ * 
+ * Tier 2 (OpenRouter Multi-Model Vision Backup):
+ *   - Automatic zero-downtime failover to OpenRouter vision models
+ *     (minimax/minimax-m3:free, google/gemini-2.5-flash, qwen/qwen-2.5-vl-72b-instruct,
+ *      meta-llama/llama-3.2-11b-vision-instruct, openai/gpt-4o-mini, openrouter/free).
  * 
  * IMPORTANT ARCHITECTURAL CONSTRAINTS:
- * - Gemini acts STRICTLY as an image reader / OCR extractor.
- * - Gemini MUST NEVER invent product IDs, prices, stock, or manufacturer metadata.
+ * - Vision AI acts STRICTLY as an optical reader / text extractor.
+ * - Vision AI MUST NEVER invent product IDs, prices, stock, or manufacturer metadata.
  * - Numerical ocrConfidence (0.0 to 1.0) is assigned per item.
  */
 
 import { GoogleGenAI } from "@google/genai";
+import axios from "axios";
 
-export const SMART_ORDER_MODELS = [
-  "gemini-3.7-flash",
+export const PRIMARY_GEMINI_MODELS = [
   "gemini-3.6-flash",
-  "gemini-3.5-flash"
+  "gemini-3.5-flash-lite",
+  "gemini-flash-lite-latest",
+  "gemini-3.1-flash-lite",
+  "gemini-3.7-flash"
 ] as const;
 
-export type SmartOrderModelName = typeof SMART_ORDER_MODELS[number];
+export const SMART_ORDER_MODELS = PRIMARY_GEMINI_MODELS;
+
+export const BACKUP_OPENROUTER_MODELS = [
+  "minimax/minimax-m3:free",
+  "google/gemini-2.5-flash",
+  "qwen/qwen-2.5-vl-72b-instruct",
+  "meta-llama/llama-3.2-11b-vision-instruct",
+  "openai/gpt-4o-mini",
+  "openrouter/free"
+] as const;
+
+export type SmartOrderModelName = string;
 
 export type DosageForm = 
   | "tablet" 
@@ -72,30 +94,9 @@ export interface OCRExtractedItem {
 
 export interface OCRScanResult {
   success: boolean;
-  modelUsed: SmartOrderModelName;
+  modelUsed: string;
   items: OCRExtractedItem[];
   rawNotes?: string;
-}
-
-/**
- * Checks whether an error from Gemini API is retryable across the model fallback chain.
- */
-function isRetryableError(error: any): boolean {
-  if (!error) return false;
-  const msg = String(error.message || "").toLowerCase();
-  const status = error.status || error.statusCode || 0;
-
-  // Non-retryable user/auth errors
-  if (status === 400 || msg.includes("invalid argument") || msg.includes("bad request")) return false;
-  if (status === 401 || msg.includes("unauthenticated") || msg.includes("api key")) return false;
-  if (status === 403 || msg.includes("permission denied")) return false;
-
-  // Retryable server, rate limit, quota, and timeout errors
-  if (status === 429 || msg.includes("quota") || msg.includes("resource exhausted") || msg.includes("rate limit")) return true;
-  if (status >= 500 && status <= 599) return true;
-  if (msg.includes("timeout") || msg.includes("deadline exceeded") || msg.includes("network") || msg.includes("unavailable")) return true;
-
-  return true;
 }
 
 const OCR_PROMPT = `You are the specialized Optical Character Recognition (OCR) reader for MediChain, a B2B wholesale pharmaceutical platform in Bangladesh.
@@ -135,17 +136,82 @@ Example:
   ]
 }`;
 
+function parseOCRResponse(rawText: string, modelName: string): OCRExtractedItem[] {
+  let cleanJson = rawText
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
+
+  // If there's surrounding text, extract the outermost JSON object or array
+  if (!cleanJson.startsWith("{") && !cleanJson.startsWith("[")) {
+    const firstBrace = cleanJson.indexOf("{");
+    const lastBrace = cleanJson.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
+    }
+  }
+
+  const parsed = JSON.parse(cleanJson);
+  const rawList = Array.isArray(parsed.items) ? parsed.items : (Array.isArray(parsed) ? parsed : []);
+
+  const validDosageForms: DosageForm[] = [
+    "tablet", "capsule", "syrup", "suspension", "drops", "injection",
+    "infusion", "ointment", "cream", "gel", "spray", "inhaler",
+    "powder", "sachet", "suppository", "other", "unknown"
+  ];
+
+  const validUnits: QuantityUnit[] = [
+    "box", "strip", "tablet", "capsule", "piece", "bottle",
+    "vial", "ampoule", "tube", "pack", "unknown"
+  ];
+
+  return rawList
+    .filter((it: any) => it && (it.brandName || it.rawText))
+    .map((it: any) => {
+      const rawTextStr = String(it.rawText || it.brandName || "Medicine").trim();
+      const brandName = String(it.brandName || rawTextStr).trim();
+      const genericName = it.genericName ? String(it.genericName).trim() : null;
+      const strength = it.strength ? String(it.strength).trim() : null;
+      const rawQuantityText = it.rawQuantityText ? String(it.rawQuantityText).trim() : null;
+      const frequency = it.frequency ? String(it.frequency).trim() : null;
+      
+      let qty = parseInt(it.quantity, 10);
+      if (isNaN(qty) || qty <= 0) qty = 1;
+
+      let conf = typeof it.ocrConfidence === "number" ? it.ocrConfidence : parseFloat(it.ocrConfidence);
+      if (isNaN(conf) || conf <= 0) conf = 0.85;
+      if (conf > 1.0) conf = conf <= 100 ? conf / 100 : 1.0;
+
+      const rawDosage = String(it.dosageForm || "").toLowerCase().trim();
+      const dosageForm: DosageForm = validDosageForms.includes(rawDosage as any) ? (rawDosage as DosageForm) : "tablet";
+
+      const rawUnit = String(it.quantityUnit || "").toLowerCase().trim();
+      const quantityUnit: QuantityUnit = validUnits.includes(rawUnit as any) ? (rawUnit as QuantityUnit) : "box";
+
+      return {
+        rawText: rawTextStr,
+        brandName,
+        genericName,
+        dosageForm,
+        strength,
+        quantity: qty,
+        quantityUnit,
+        rawQuantityText,
+        frequency,
+        ocrConfidence: Math.round(conf * 100) / 100
+      };
+    });
+}
+
 /**
- * Executes Gemini 3.x Flash OCR with automatic resilient fallback.
+ * Executes multi-tier OCR across Google Gemini models and OpenRouter vision backups.
  */
 export async function scanSmartOrderImage(
   imageBase64: string,
-  apiKey: string,
-  mimeType = "image/jpeg"
+  geminiApiKey?: string,
+  mimeType = "image/jpeg",
+  openRouterApiKey?: string
 ): Promise<OCRScanResult> {
-  if (!apiKey) {
-    throw new Error("Server-side GEMINI_API_KEY is not configured.");
-  }
   if (!imageBase64) {
     throw new Error("No image data provided for SmartOrder OCR.");
   }
@@ -162,162 +228,170 @@ export async function scanSmartOrderImage(
     cleanBase64 = parts[1];
   }
 
-  const ai = new GoogleGenAI({ apiKey });
+  const effectiveGeminiKey = (
+    geminiApiKey ||
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.VITE_GEMINI_API_KEY ||
+    process.env.GOOGLE_GENAI_API_KEY ||
+    ""
+  ).trim();
+
+  const effectiveOpenRouterKey = (
+    openRouterApiKey ||
+    process.env.OPENROUTER_API_KEY ||
+    process.env.VITE_OPENROUTER_API_KEY ||
+    ""
+  ).trim();
+
   let lastError: any = null;
 
-  for (const modelName of SMART_ORDER_MODELS) {
-    try {
-      console.log(`[SmartOrderOCR] Attempting handwriting recognition with ${modelName}...`);
+  // --- TIER 1: GOOGLE GEMINI HIGH-AVAILABILITY MODELS ---
+  if (effectiveGeminiKey) {
+    const ai = new GoogleGenAI({ apiKey: effectiveGeminiKey });
 
-      const requestConfig: any = {
-        model: modelName,
-        contents: [
-          {
-            role: "user",
-            parts: [
-              {
-                inlineData: {
-                  mimeType: detectedMime,
-                  data: cleanBase64
+    for (const modelName of PRIMARY_GEMINI_MODELS) {
+      try {
+        console.log(`[SmartOrderOCR] Attempting recognition with Google Gemini: ${modelName}...`);
+
+        const requestConfig: any = {
+          model: modelName,
+          contents: [
+            {
+              role: "user",
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: detectedMime,
+                    data: cleanBase64
+                  }
+                },
+                {
+                  text: OCR_PROMPT
                 }
-              },
-              {
-                text: OCR_PROMPT
-              }
-            ]
-          }
-        ]
-      };
-
-      // Set Gemini 3.x thinking configuration
-      if (modelName === "gemini-3.7-flash") {
-        requestConfig.config = {
-          thinkingConfig: {
-            thinkingLevel: "medium"
-          }
+              ]
+            }
+          ]
         };
-      }
 
-      const response = await Promise.race([
-        ai.models.generateContent(requestConfig),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error(`SmartOrder OCR request timed out on ${modelName} after 18s`)), 18000)
-        )
-      ]);
-
-      const responseText = response.text || "";
-      if (!responseText.trim()) {
-        throw new Error(`Empty response from ${modelName}`);
-      }
-
-      // Parse structured JSON
-      const cleanJson = responseText
-        .replace(/```json/gi, "")
-        .replace(/```/g, "")
-        .trim();
-
-      const parsed = JSON.parse(cleanJson);
-      const rawList = Array.isArray(parsed.items) ? parsed.items : (Array.isArray(parsed) ? parsed : []);
-
-      const sanitizedItems: OCRExtractedItem[] = rawList
-        .filter((it: any) => it && (it.brandName || it.rawText))
-        .map((it: any) => {
-          const rawText = String(it.rawText || it.brandName || "Medicine").trim();
-          const brandName = String(it.brandName || rawText).trim();
-          const genericName = it.genericName ? String(it.genericName).trim() : null;
-          const strength = it.strength ? String(it.strength).trim() : null;
-          const rawQuantityText = it.rawQuantityText ? String(it.rawQuantityText).trim() : null;
-          const frequency = it.frequency ? String(it.frequency).trim() : null;
-          
-          let qty = parseInt(it.quantity, 10);
-          if (isNaN(qty) || qty <= 0) qty = 1;
-
-          let conf = typeof it.ocrConfidence === "number" ? it.ocrConfidence : parseFloat(it.ocrConfidence);
-          if (isNaN(conf) || conf <= 0) conf = 0.85;
-          if (conf > 1.0) conf = conf <= 100 ? conf / 100 : 1.0;
-
-          // Normalize dosageForm
-          const validDosageForms: DosageForm[] = [
-            "tablet", "capsule", "syrup", "suspension", "drops", "injection",
-            "infusion", "ointment", "cream", "gel", "spray", "inhaler",
-            "powder", "sachet", "suppository", "other", "unknown"
-          ];
-          const rawDosage = String(it.dosageForm || "").toLowerCase().trim();
-          const dosageForm: DosageForm = validDosageForms.includes(rawDosage as any) ? (rawDosage as DosageForm) : "tablet";
-
-          // Normalize quantityUnit
-          const validUnits: QuantityUnit[] = [
-            "box", "strip", "tablet", "capsule", "piece", "bottle",
-            "vial", "ampoule", "tube", "pack", "unknown"
-          ];
-          const rawUnit = String(it.quantityUnit || "").toLowerCase().trim();
-          const quantityUnit: QuantityUnit = validUnits.includes(rawUnit as any) ? (rawUnit as QuantityUnit) : "box";
-
-          return {
-            rawText,
-            brandName,
-            genericName,
-            dosageForm,
-            strength,
-            quantity: qty,
-            quantityUnit,
-            rawQuantityText,
-            frequency,
-            ocrConfidence: Math.round(conf * 100) / 100
+        if (modelName === "gemini-3.7-flash") {
+          requestConfig.config = {
+            thinkingConfig: {
+              thinkingLevel: "low"
+            }
           };
-        });
+        }
 
-      console.log(`[SmartOrderOCR] Successfully recognized ${sanitizedItems.length} items using ${modelName}`);
+        const timeoutMs = modelName === "gemini-3.7-flash" ? 7000 : 8000;
+        const response = await Promise.race([
+          ai.models.generateContent(requestConfig),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`Timeout on ${modelName} after ${timeoutMs / 1000}s`)), timeoutMs)
+          )
+        ]);
 
-      return {
-        success: true,
-        modelUsed: modelName,
-        items: sanitizedItems
-      };
-    } catch (err: any) {
-      console.warn(`[SmartOrderOCR] Model ${modelName} failed:`, err.message || err);
-      lastError = err;
+        const responseText = response.text || "";
+        if (!responseText.trim()) {
+          throw new Error(`Empty response from ${modelName}`);
+        }
 
-      if (!isRetryableError(err)) {
-        throw new Error(formatFriendlyErrorMessage(err));
+        const sanitizedItems = parseOCRResponse(responseText, modelName);
+        console.log(`[SmartOrderOCR] ✅ Successfully recognized ${sanitizedItems.length} items using Google Gemini (${modelName})`);
+
+        return {
+          success: true,
+          modelUsed: modelName,
+          items: sanitizedItems
+        };
+      } catch (err: any) {
+        console.warn(`[SmartOrderOCR] Google Gemini ${modelName} failed or busy:`, err.message || err);
+        lastError = err;
+        // Continue immediately to next candidate
       }
     }
   }
 
-  throw new Error(formatFriendlyErrorMessage(lastError || "Service temporarily busy."));
+  // --- TIER 2: OPENROUTER MULTI-MODEL VISION BACKUP ---
+  if (effectiveOpenRouterKey) {
+    console.log("[SmartOrderOCR] Primary Gemini models busy. Activating OpenRouter Vision fallback...");
+
+    for (const modelName of BACKUP_OPENROUTER_MODELS) {
+      try {
+        console.log(`[SmartOrderOCR] Attempting OpenRouter vision model: ${modelName}...`);
+
+        const res = await axios.post(
+          "https://openrouter.ai/api/v1/chat/completions",
+          {
+            model: modelName,
+            messages: [
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: OCR_PROMPT },
+                  {
+                    type: "image_url",
+                    image_url: {
+                      url: `data:${detectedMime};base64,${cleanBase64}`
+                    }
+                  }
+                ]
+              }
+            ],
+            max_tokens: 1500
+          },
+          {
+            headers: {
+              "Authorization": `Bearer ${effectiveOpenRouterKey}`,
+              "Content-Type": "application/json",
+              "HTTP-Referer": "https://medichain.com",
+              "X-Title": "MediChain SmartOrder"
+            },
+            timeout: 9000
+          }
+        );
+
+        const content = res.data?.choices?.[0]?.message?.content || "";
+        if (!content.trim()) {
+          throw new Error(`Empty response from OpenRouter ${modelName}`);
+        }
+
+        const sanitizedItems = parseOCRResponse(content, modelName);
+        console.log(`[SmartOrderOCR] ✅ Successfully recognized ${sanitizedItems.length} items using OpenRouter (${modelName})`);
+
+        return {
+          success: true,
+          modelUsed: `openrouter/${modelName}`,
+          items: sanitizedItems
+        };
+      } catch (err: any) {
+        console.warn(`[SmartOrderOCR] OpenRouter ${modelName} failed:`, err.response?.data?.error?.message || err.message || err);
+        lastError = err;
+      }
+    }
+  }
+
+  throw new Error(formatFriendlyErrorMessage(lastError || "All OCR models are temporarily busy. Please try again in a moment."));
 }
 
 /**
- * Transforms raw technical/JSON API errors into clear, friendly guidance.
+ * Transforms raw technical API errors into clean, informative messages.
  */
 export function formatFriendlyErrorMessage(err: any): string {
   if (!err) return "প্রেসক্রিপশন প্রসেস করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।";
   const raw = typeof err === "string" ? err : String(err.message || "");
 
-  if (raw.includes("API_KEY_INVALID") || raw.includes("API key not valid") || raw.includes("API_KEY") || raw.includes("unauthenticated") || raw.includes("not configured")) {
-    return "সার্ভারে Gemini API Key সঠিক নয় বা সক্রিয় নেই। অনুগ্রহ করে Render Dashboard > Environment Variables-এ ভ্যালিড GEMINI_API_KEY সেট করুন।";
+  if (raw.includes("API_KEY_INVALID") || raw.includes("API key not valid") || raw.includes("unauthenticated") || raw.includes("not configured")) {
+    return "সার্ভারে Gemini / OpenRouter API Key সক্রিয় নেই। অনুগ্রহ করে এনভায়রনমেন্ট ভ্যারিয়েবল চেক করুন।";
   }
   if (raw.includes("429") || raw.includes("quota") || raw.includes("Resource has been exhausted")) {
-    return "অনেকগুলো স্ক্যান রিকোয়েস্ট হয়েছে। অনুগ্রহ করে ১ মিনিট পর আবার চেষ্টা করুন।";
+    return "অতিরিক্ত রিকোয়েস্টের কারণে সাময়িক বিলম্ব হচ্ছে। অনুগ্রহ করে ৩০ সেকেন্ড পর আবার চেষ্টা করুন।";
   }
   if (raw.includes("timeout") || raw.includes("deadline")) {
-    return "ছবিটি প্রসেস করতে সময় বেশি লাগছে। অনুগ্রহ করে ছোট বা পরিষ্কার ছবি দিয়ে আবার চেষ্টা করুন।";
+    return "ছবিটি স্ক্যান করতে কিছুটা সময় বেশি লাগছে। অনুগ্রহ করে আরেকবার চেষ্টা করুন।";
   }
   if (raw.includes("bad request") || raw.includes("invalid argument")) {
-    return "ছবিটির ফরম্যাট বা সাইজে সমস্যা রয়েছে। অনুগ্রহ করে সাধারণ JPG বা PNG ছবি নির্বাচন করুন।";
+    return "ছবিটির ফরম্যাটে সমস্যা রয়েছে। সাধারণ JPG বা PNG ছবি আপলোড করুন।";
   }
 
-  // If it's a JSON string, try to parse message or return clean text
-  if (raw.trim().startsWith("{") || raw.trim().startsWith("[")) {
-    try {
-      const parsed = JSON.parse(raw);
-      const inner = Array.isArray(parsed) ? parsed[0] : parsed;
-      if (inner?.error?.message) {
-        return formatFriendlyErrorMessage(inner.error.message);
-      }
-    } catch (_) {}
-    return "প্রেসক্রিপশন প্রসেস করতে সমস্যা হয়েছে। অনুগ্রহ করে পরিষ্কার আলোতে তোলা ছবি দিন।";
-  }
-
-  return raw;
+  return "প্রেসক্রিপশন প্রসেস করতে সমস্যা হয়েছে। অনুগ্রহ করে পরিষ্কার আলোতে ছবি তুলে আবার চেষ্টা করুন।";
 }

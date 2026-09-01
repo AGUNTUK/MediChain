@@ -724,14 +724,16 @@ app.post("/api/smart-order/scan", smartOrderLimiter, async (req, res) => {
     return res.status(400).json({ error: "অনুগ্রহ করে প্রেসক্রিপশন বা অর্ডার স্লিপের একটি ছবি প্রদান করুন।" });
   }
 
-  const apiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || "").trim();
-  if (!apiKey) {
-    return res.status(500).json({ error: "সার্ভারে Gemini API Key কনফিগার করা নেই। অনুগ্রহ করে Render Dashboard > Environment Variables-এ GEMINI_API_KEY সেট করুন।" });
+  const geminiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || "").trim();
+  const openRouterKey = (process.env.OPENROUTER_API_KEY || process.env.VITE_OPENROUTER_API_KEY || "").trim();
+
+  if (!geminiKey && !openRouterKey) {
+    return res.status(500).json({ error: "সার্ভারে AI Vision API Key কনফিগার করা নেই। অনুগ্রহ করে Render Dashboard > Environment Variables-এ GEMINI_API_KEY বা OPENROUTER_API_KEY সেট করুন।" });
   }
 
   try {
-    // 1. Vision OCR via Gemini 3.x Flash hierarchy (3.7 -> 3.6 -> 3.5)
-    const ocrResult = await scanSmartOrderImage(imageBase64, apiKey, mimeType || "image/jpeg");
+    // 1. Multi-Tier Vision OCR (Gemini High Availability Hierarchy + OpenRouter Failover)
+    const ocrResult = await scanSmartOrderImage(imageBase64, geminiKey, mimeType || "image/jpeg", openRouterKey);
 
     if (!ocrResult.items || ocrResult.items.length === 0) {
       return res.json({
@@ -767,13 +769,15 @@ app.post("/api/prescription/scan", smartOrderLimiter, async (req, res) => {
     return res.status(400).json({ error: "No image data provided for scanning." });
   }
 
-  const apiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || "").trim();
-  if (!apiKey) {
-    return res.status(500).json({ error: "Gemini API key is not configured." });
+  const geminiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || "").trim();
+  const openRouterKey = (process.env.OPENROUTER_API_KEY || process.env.VITE_OPENROUTER_API_KEY || "").trim();
+
+  if (!geminiKey && !openRouterKey) {
+    return res.status(500).json({ error: "AI Vision API key is not configured." });
   }
 
   try {
-    const ocrResult = await scanSmartOrderImage(imageBase64, apiKey, mimeType || "image/jpeg");
+    const ocrResult = await scanSmartOrderImage(imageBase64, geminiKey, mimeType || "image/jpeg", openRouterKey);
     const matchedItems = await matchSmartOrderItems(ocrResult.items);
 
     return res.json({
