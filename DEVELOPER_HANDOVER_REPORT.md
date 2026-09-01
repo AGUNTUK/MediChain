@@ -280,7 +280,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 | Verification Documents Private Storage | 100% | Completed (Private Bucket, RLS, Signed URLs, Backend Proxy) | Completed |
 | High-Speed Query Optimization & LRU Cache | 100% | Completed (Targeted SQL lookups, LRU Cache, HTTP Edge Caching) | Completed |
 | MediChain SmartOrder (OCR & Carting) | 100% | Completed (Gemini 3.7 Flash, 21k Matcher, Safety Rules, Batch Cart) | Completed |
-| Onboarding Wizard Auto-Typing Demo | 100% | Completed (Floating Button, URL Param ?demo=true, Esc shortcut) | Completed |
+| Onboarding Wizard (Production Ready) | 100% | Completed (Pure production wizard, multi-step validation & verification storage) | Completed |
 
 ----------------------------------------
 
@@ -316,7 +316,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 - **Completed:** Task 21: SmartOrder Cart Persistence & Real-Time Cart State Synchronization Fix.
 - **Completed:** Task 22: Secure Backend Proxy Architecture for Pharmacy Verification Document Storage.
 - **Completed:** Task 23: Foreign Key Constraint Integrity Fix for Pharmacy Profile Submissions (`pharmacies_user_id_fkey`).
-- **Completed:** Task 24: Automated Character-by-Character Auto-Typing Demo Mode for Pharmacy Onboarding Wizard (`?demo=true`).
+- **Completed:** Task 24: Pharmacy Onboarding Wizard Production Purification (Reverted temporary video recording demo runner and restored clean, robust production state).
 - **Short Term:** Finish FCM Push Notifications.
 - **Long Term:** Implement multi-tenant capability.
 

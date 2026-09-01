@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import MediChainLogo from "./MediChainLogo";
 import { motion } from "motion/react";
-import { Mail, Lock, User, RefreshCw, AlertCircle, ArrowRight, ShieldCheck, UserPlus, LogIn, Play } from "lucide-react";
+import { Mail, Lock, User, RefreshCw, AlertCircle, ArrowRight, ShieldCheck, UserPlus, LogIn } from "lucide-react";
 import { authService } from "../services";
 
 interface LoginProps {
@@ -217,14 +217,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       </motion.div>
 
       {/* Enterprise Security assurance Footer */}
-      <div className="border-t border-slate-100 pt-4 text-center space-y-3">
-        <a
-          href="/?demo=true"
-          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 px-3.5 py-1.5 rounded-full transition-all shadow-sm"
-        >
-          <Play className="w-3 h-3 fill-emerald-600 text-emerald-600" />
-          <span>Launch Pharmacy Onboarding Auto-Demo</span>
-        </a>
+      <div className="border-t border-slate-100 pt-4 text-center">
         <p className="text-[9px] text-slate-400 leading-relaxed">
           🔒 Secured by DGDA Bangladesh-approved serialization. Procurement access is exclusively granted to authorized pharmacies holding active trade licenses.
         </p>
