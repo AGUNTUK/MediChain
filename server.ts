@@ -8,6 +8,7 @@ import bcrypt from "bcryptjs";
 import PDFDocument from "pdfkit";
 import helmet from "helmet";
 import cors from "cors";
+import crypto from "crypto";
 
 declare global {
   namespace Express {
@@ -314,7 +315,7 @@ app.post("/api/auth/local-signup", loginLimiter, validateBody(schemas.signup), a
     const passwordHash = await bcrypt.hash(password, salt);
     
     const newUser = {
-      id: "local-usr-" + Math.random().toString(36).substring(2, 11),
+      id: crypto.randomUUID(),
       email: normalizedEmail,
       name,
       role: "Pharmacy Owner",
@@ -489,13 +490,21 @@ app.get("/api/pharmacy/profile", requireAuth, async (req, res) => {
 
 app.post("/api/pharmacy/profile", requireAuth, validateBody(schemas.pharmacyProfile), async (req, res) => {
   try {
-    const { data: ph, error } = await dbService.updatePharmacyProfile(req.user.id, req.body);
+    const { data: ph, error, resolvedUserId } = await dbService.updatePharmacyProfile(req.user.id, {
+      ...req.body,
+      email: req.user?.email || req.body.email
+    });
 
     if (error || !ph) {
       return res.status(500).json({ error: "Failed to update profile: " + error?.message });
     }
 
-    const updatedPharmacy = await dbService.getPharmacyProfile(req.user.id);
+    if (resolvedUserId && resolvedUserId !== req.session.userId) {
+      req.session.userId = resolvedUserId;
+      if (req.user) req.user.id = resolvedUserId;
+    }
+
+    const updatedPharmacy = await dbService.getPharmacyProfile(resolvedUserId || req.user.id);
     res.json({ success: true, pharmacy: updatedPharmacy });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

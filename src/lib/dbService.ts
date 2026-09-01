@@ -298,23 +298,58 @@ export async function getAlertLogs() {
   });
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function isValidUUID(id: string): boolean {
+  return typeof id === "string" && UUID_REGEX.test(id.trim());
+}
+
+export function generateUUID(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 // ==========================================
 // USERS & SESSIONS
 // ==========================================
 
 export async function syncSession(id: string, email: string, name: string, role: string, phone: string = "") {
+  let resolvedId = (id || "").trim();
+  const normalizedEmail = (email || "").toLowerCase().trim();
+
+  if (!isValidUUID(resolvedId)) {
+    // Check if user already exists by email
+    const { data: userByEmail } = await supabaseAdmin
+      .from("users")
+      .select("*")
+      .eq("email", normalizedEmail)
+      .maybeSingle();
+
+    if (userByEmail) {
+      resolvedId = userByEmail.id;
+    } else {
+      resolvedId = generateUUID();
+    }
+  }
+
   // Check if user already exists
   const { data: existingUser } = await supabaseAdmin
     .from("users")
     .select("*")
-    .eq("id", id)
+    .eq("id", resolvedId)
     .maybeSingle();
 
   const userPayload: any = {
-    id,
-    email,
-    name,
-    phone
+    id: resolvedId,
+    email: normalizedEmail,
+    name: name || "Pharmacy Owner",
+    phone: phone || ""
   };
 
   // Only set role if user does not exist yet to prevent role updates from frontend sync
@@ -328,7 +363,7 @@ export async function syncSession(id: string, email: string, name: string, role:
     .select()
     .single();
 
-  return { data, error };
+  return { data: data || { id: resolvedId, email: normalizedEmail, name, role, phone }, error, resolvedId };
 }
 
 export async function getUserById(id: string) {
@@ -439,11 +474,56 @@ export async function getAllPharmacies(page = 1, limit = 100): Promise<Pharmacy[
 }
 
 export async function updatePharmacyProfile(userId: string, data: any) {
+  let resolvedUserId = (userId || "").trim();
+
+  // 1. Verify if user row exists in public.users table to satisfy foreign key constraint pharmacies_user_id_fkey
+  let userExists = false;
+  if (isValidUUID(resolvedUserId)) {
+    const { data: userRow } = await supabaseAdmin
+      .from("users")
+      .select("id, email")
+      .eq("id", resolvedUserId)
+      .maybeSingle();
+    if (userRow) userExists = true;
+  }
+
+  // 2. If user row not found by ID, try looking up by email
+  if (!userExists && data.email) {
+    const safeEmail = data.email.toString().trim().toLowerCase();
+    const { data: userByEmail } = await supabaseAdmin
+      .from("users")
+      .select("id, email")
+      .eq("email", safeEmail)
+      .maybeSingle();
+    if (userByEmail) {
+      resolvedUserId = userByEmail.id;
+      userExists = true;
+    }
+  }
+
+  // 3. If user row still does not exist, auto-create/upsert into users table first
+  if (!userExists) {
+    if (!isValidUUID(resolvedUserId)) {
+      resolvedUserId = generateUUID();
+    }
+    const safeName = (data.ownerName || "Pharmacy Owner").toString().trim().slice(0, 255);
+    const safePhone = (data.phone || "").toString().trim().slice(0, 20);
+    const safeEmail = (data.email || `${resolvedUserId}@medichain.local`).toString().trim().toLowerCase().slice(0, 255);
+
+    await supabaseAdmin.from("users").upsert({
+      id: resolvedUserId,
+      email: safeEmail,
+      name: safeName,
+      phone: safePhone,
+      role: "Pharmacy Owner"
+    }, { onConflict: "id" });
+  }
+
   // Find or create pharmacy record
   const { data: existing } = await supabaseAdmin
     .from("pharmacies")
     .select("id, license_information")
-    .eq("user_id", userId)
+    .eq("user_id", resolvedUserId)
     .maybeSingle();
 
   const existingLicense = existing ? deserializeLicenseInfo(existing.license_information) : {};
@@ -472,7 +552,7 @@ export async function updatePharmacyProfile(userId: string, data: any) {
   const safeCity = (data.city || "Dhaka").toString().trim().slice(0, 100);
 
   const payload = {
-    user_id: userId,
+    user_id: resolvedUserId,
     pharmacy_name: safePharmacyName,
     owner_name: safeOwnerName,
     phone: safePhone,
@@ -497,11 +577,10 @@ export async function updatePharmacyProfile(userId: string, data: any) {
     await supabaseAdmin
       .from("users")
       .update(userUpdatePayload)
-      .eq("id", userId);
-
+      .eq("id", resolvedUserId);
   }
 
-  return { data: ph, error };
+  return { data: ph, error, resolvedUserId };
 }
 
 export async function updatePharmacyStatus(pharmacyId: string, status: string, adminUser: string = "Admin", notes?: string) {
