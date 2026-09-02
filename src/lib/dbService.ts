@@ -1301,8 +1301,8 @@ export async function getOrders(pharmacyId?: string, page = 1, limit = 100): Pro
         owner_name,
         phone,
         address,
-        license_no,
-        trade_license_no
+        city,
+        license_information
       )
     `);
 
@@ -1311,7 +1311,10 @@ export async function getOrders(pharmacyId?: string, page = 1, limit = 100): Pro
     }
 
     const { data, error } = await query.order("created_at", { ascending: false }).range(offset, offset + limit - 1);
-    if (error || !data) return [];
+    if (error || !data) {
+      if (error) console.error("Error retrieving orders from database:", error);
+      return [];
+    }
 
     return data.map(order => {
       // Extract readable readableId from notes prefix if present (e.g. "MCH-88392. Deliver during store hours...")
@@ -1322,6 +1325,8 @@ export async function getOrders(pharmacyId?: string, page = 1, limit = 100): Pro
         readableId = parts[0];
         orderNotes = parts.slice(1).join(". ");
       }
+
+      const lic = deserializeLicenseInfo(order.pharmacies?.license_information);
 
       const items: OrderItem[] = (order.order_items || []).map((itm: any) => {
         const prod = itm.products || {};
@@ -1351,8 +1356,8 @@ export async function getOrders(pharmacyId?: string, page = 1, limit = 100): Pro
         pharmacyPhone: order.pharmacies?.phone,
         pharmacyOwner: order.pharmacies?.owner_name,
         pharmacyAddress: order.pharmacies?.address || order.delivery_address,
-        pharmacyLicense: order.pharmacies?.license_no,
-        pharmacyBin: order.pharmacies?.trade_license_no,
+        pharmacyLicense: lic.licenseNo || "DC-PH-2026",
+        pharmacyBin: lic.tradeLicenseNo || "BIN-MCH-882",
         salesRep: "MediChain Rangpur Team",
         status: order.status as any,
         paymentMethod: order.payment_method as any,
@@ -1399,14 +1404,17 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
         owner_name,
         phone,
         address,
-        license_no,
-        trade_license_no
+        city,
+        license_information
       )
     `)
     .eq("id", orderId)
     .maybeSingle();
 
-  if (error || !data) return null;
+  if (error || !data) {
+    if (error) console.error("Error retrieving order by id from database:", error);
+    return null;
+  }
 
   let readableId = `MCH-${data.id.substring(0, 5).toUpperCase()}`;
   let orderNotes = data.notes || "";
@@ -1415,6 +1423,8 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
     readableId = parts[0];
     orderNotes = parts.slice(1).join(". ");
   }
+
+  const lic = deserializeLicenseInfo(data.pharmacies?.license_information);
 
   const items: OrderItem[] = (data.order_items || []).map((itm: any) => {
     const prod = itm.products || {};
@@ -1444,8 +1454,8 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
     pharmacyPhone: data.pharmacies?.phone,
     pharmacyOwner: data.pharmacies?.owner_name,
     pharmacyAddress: data.pharmacies?.address || data.delivery_address,
-    pharmacyLicense: data.pharmacies?.license_no,
-    pharmacyBin: data.pharmacies?.trade_license_no,
+    pharmacyLicense: lic.licenseNo || "DC-PH-2026",
+    pharmacyBin: lic.tradeLicenseNo || "BIN-MCH-882",
     salesRep: "MediChain Rangpur Team",
     status: data.status as any,
     paymentMethod: data.payment_method as any,
