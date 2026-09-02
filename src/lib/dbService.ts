@@ -1289,6 +1289,8 @@ export async function getOrders(pharmacyId?: string, page = 1, limit = 100): Pro
         *,
         products (
           name,
+          generic_name,
+          company,
           strength,
           pack_size,
           mrp
@@ -1297,7 +1299,10 @@ export async function getOrders(pharmacyId?: string, page = 1, limit = 100): Pro
       pharmacies (
         pharmacy_name,
         owner_name,
-        phone
+        phone,
+        address,
+        license_no,
+        trade_license_no
       )
     `);
 
@@ -1320,16 +1325,21 @@ export async function getOrders(pharmacyId?: string, page = 1, limit = 100): Pro
 
       const items: OrderItem[] = (order.order_items || []).map((itm: any) => {
         const prod = itm.products || {};
-        const sellingPrice = parseFloat(itm.price);
+        const sellingPrice = parseFloat(itm.price || itm.selling_price || 0);
+        const mrp = parseFloat(prod.mrp || itm.mrp || 0) || (sellingPrice * 1.25);
+        const discountPercentage = mrp > 0 ? Math.round(((mrp - sellingPrice) / mrp) * 100) : 0;
         return {
           productId: itm.product_id,
-          name: prod.name || "Medicine Item",
-          strength: prod.strength || "N/A",
-          packSize: prod.pack_size || "N/A",
+          name: prod.name || itm.name || "Medicine Item",
+          genericName: prod.generic_name || itm.generic_name || "",
+          company: prod.company || itm.company || "MediChain Partner",
+          strength: prod.strength || itm.strength || "—",
+          packSize: prod.pack_size || itm.pack_size || "100 Tablets",
           quantity: itm.quantity,
           sellingPrice,
-          mrp: parseFloat(prod.mrp) || (sellingPrice * 1.2),
-          subtotal: parseFloat(itm.subtotal)
+          mrp,
+          discountPercentage,
+          subtotal: parseFloat(itm.subtotal || (sellingPrice * itm.quantity))
         };
       });
 
@@ -1339,6 +1349,11 @@ export async function getOrders(pharmacyId?: string, page = 1, limit = 100): Pro
         pharmacyId: order.pharmacy_id,
         pharmacyName: order.pharmacies?.pharmacy_name || order.pharmacies?.business_name || "Unknown Pharmacy",
         pharmacyPhone: order.pharmacies?.phone,
+        pharmacyOwner: order.pharmacies?.owner_name,
+        pharmacyAddress: order.pharmacies?.address || order.delivery_address,
+        pharmacyLicense: order.pharmacies?.license_no,
+        pharmacyBin: order.pharmacies?.trade_license_no,
+        salesRep: "MediChain Rangpur Team",
         status: order.status as any,
         paymentMethod: order.payment_method as any,
         paymentStatus: order.payment_status as any,
@@ -1372,6 +1387,8 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
         *,
         products (
           name,
+          generic_name,
+          company,
           strength,
           pack_size,
           mrp
@@ -1380,7 +1397,10 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
       pharmacies (
         pharmacy_name,
         owner_name,
-        phone
+        phone,
+        address,
+        license_no,
+        trade_license_no
       )
     `)
     .eq("id", orderId)
@@ -1398,16 +1418,21 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
 
   const items: OrderItem[] = (data.order_items || []).map((itm: any) => {
     const prod = itm.products || {};
-    const sellingPrice = parseFloat(itm.price);
+    const sellingPrice = parseFloat(itm.price || itm.selling_price || 0);
+    const mrp = parseFloat(prod.mrp || itm.mrp || 0) || (sellingPrice * 1.25);
+    const discountPercentage = mrp > 0 ? Math.round(((mrp - sellingPrice) / mrp) * 100) : 0;
     return {
       productId: itm.product_id,
-      name: prod.name || "Medicine Item",
-      strength: prod.strength || "N/A",
-      packSize: prod.pack_size || "N/A",
+      name: prod.name || itm.name || "Medicine Item",
+      genericName: prod.generic_name || itm.generic_name || "",
+      company: prod.company || itm.company || "MediChain Partner",
+      strength: prod.strength || itm.strength || "—",
+      packSize: prod.pack_size || itm.pack_size || "100 Tablets",
       quantity: itm.quantity,
       sellingPrice,
-      mrp: parseFloat(prod.mrp) || (sellingPrice * 1.2),
-      subtotal: parseFloat(itm.subtotal)
+      mrp,
+      discountPercentage,
+      subtotal: parseFloat(itm.subtotal || (sellingPrice * itm.quantity))
     };
   });
 
@@ -1417,6 +1442,11 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
     pharmacyId: data.pharmacy_id,
     pharmacyName: data.pharmacies?.pharmacy_name || data.pharmacies?.business_name || "Unknown Pharmacy",
     pharmacyPhone: data.pharmacies?.phone,
+    pharmacyOwner: data.pharmacies?.owner_name,
+    pharmacyAddress: data.pharmacies?.address || data.delivery_address,
+    pharmacyLicense: data.pharmacies?.license_no,
+    pharmacyBin: data.pharmacies?.trade_license_no,
+    salesRep: "MediChain Rangpur Team",
     status: data.status as any,
     paymentMethod: data.payment_method as any,
     paymentStatus: data.payment_status as any,

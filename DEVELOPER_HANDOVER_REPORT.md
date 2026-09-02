@@ -258,6 +258,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - **Task 23 (Foreign Key Constraint Integrity Fix for Pharmacy Profile Submissions `pharmacies_user_id_fkey`):** Resolved the PostgreSQL foreign key constraint violation (`insert or update on table "pharmacies" violates foreign key constraint "pharmacies_user_id_fkey"`) upon completing Step 4 of the Pharmacy Onboarding Wizard. Eliminated non-UUID ID generation (`local-usr-...`) in `server.ts` `/api/auth/local-signup` by standardizing on RFC4122 `crypto.randomUUID()`. Enhanced `dbService.updatePharmacyProfile` and `dbService.syncSession` with UUID format validation (`isValidUUID`) and automatic pre-insertion user existence verification in `public.users` to guarantee FK integrity before upserting into `pharmacies`. Updated `POST /api/pharmacy/profile` to seamlessly sync session user IDs if legacy non-UUID IDs are resolved.
   - **Task 24 (Pharmacy Onboarding Wizard Production Purification):** Reverted temporary video recording demo runner and restored clean, robust production state.
   - **Task 25 (Lightweight Color-Themed Banners & AI Doinik Munafa Miter Removal):** Converted all dark/deep-colored banners across the application (HeroCarousel, Active Order Pulse Card, SmartOrder Card, Live Wholesale Bulk Campaign Card, Notifications push bar, and Account push card) to lightweight, light-themed designs featuring Orchid Purple and Fresh Lime branding over soft tints (`purple-50`, `lime-50`, `white`) with high-contrast slate typography. Removed the unwanted "AI Doinik Munafa Miter" ("AI দৈনিক মুনাফা মিটার") feature and its daily analysis fetching logic from the homepage.
+  - **Task 26 (Modern Pixel-Perfect A4 Invoice Format & Depot/Customer Print/Download System):** Implemented an exact pixel-perfect A4 invoice system matching official MediChain specifications (`ModernInvoiceModal.tsx`). Features official logo with tagline "ফার্মেসির স্মার্ট পার্টনার", company address ("Shorear Tol,Rangpur Sadar,Rangpur, Bangladesh"), phone (+8801940681989), support email, website, 3 info cards (BILLED TO, DELIVER TO, Payment Method), 9-column itemized medicine table (SL, Product & Generic Name, Company, Strength, Pack Size, MRP, Discount %, Qty, Total Price), Bengali Terms & Conditions, authentic cursive authorized signature SVG, totals breakdown with solid purple Grand Total banner, 4 trust badges (3000+ partner pharmacies), and deep purple footer. Integrated with print CSS for one-click A4 laser printing and PDF downloading across Depot Dashboard (`OrderCenter.tsx`) and Customer Portal (`OrderHistory.tsx`, `OrderTracking.tsx`).
 
 ----------------------------------------
 
@@ -267,7 +268,8 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 |---|---|---|---|
 | Core Auth | 100% | Yes | High |
 | Search/Cart | 100% | Yes | High |
-| Orders/Depot | 95% | Yes | High |
+| Orders/Depot | 100% | Completed (Depot Order Center, Dispatch, FEFO, Modern A4 Invoice Printing) | Completed |
+| Official A4 Invoices | 100% | Completed (ModernInvoiceModal.tsx, 9-column table, A4 Print/PDF Download) | Completed |
 | AI Enrichment | 95% | Yes | Medium |
 | Push Notifications | 100% | Completed (Broadcast HUD, Socket.io Real-time & Web Push) | Completed |
 | Payment Gateway | 100% | Completed (bKash/Nagad/SSLCommerz PGW) | Completed |

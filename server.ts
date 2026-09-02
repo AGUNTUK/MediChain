@@ -1491,9 +1491,10 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
   doc.pipe(res);
 
   // Colors and Styles
-  const primaryColor = "#4f46e5"; // Indigo-600
+  const primaryColor = "#3b1a6c"; // Deep Brand Purple
+  const accentGreen = "#45a834"; // Fresh Brand Green
   const secondaryColor = "#1e293b"; // Slate-800
-  const lightGray = "#f1f5f9";
+  const lightGray = "#f8f5fc"; // Subtle lavender tint
   const grayText = "#64748b";
 
   // Top Accent Banner
@@ -1501,12 +1502,12 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
 
   // Company Header (Left)
   doc.moveDown(2);
-  doc.fillColor(primaryColor).fontSize(28).font("Helvetica-Bold").text("MediChain", 40, 40);
-  doc.fillColor(secondaryColor).fontSize(10).font("Helvetica").text("B2B Medicine Wholesale Logistics", 40, 72);
-  doc.fillColor(grayText).fontSize(9).text("Plot 12, Tejgaon Industrial Area\nDhaka-1208, Bangladesh\nPhone: +880 1700-000000\nEmail: accounts@medichain.bd.com", 40, 88);
+  doc.fillColor(primaryColor).fontSize(26).font("Helvetica-Bold").text("MediChain", 40, 40);
+  doc.fillColor(accentGreen).fontSize(9).font("Helvetica-Bold").text("SMART PARTNER FOR PHARMACIES", 40, 70);
+  doc.fillColor(grayText).fontSize(8.5).text("Shorear Tol, Rangpur Sadar\nRangpur, Bangladesh\nPhone: +8801940681989\nEmail: support@medichainbd.com\nWeb: www.medichainbd.com", 40, 84);
 
   // Invoice Meta (Right)
-  const createdDate = order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-GB") : new Date().toLocaleDateString("en-GB");
+  const createdDate = order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
   
   doc.fillColor(primaryColor).fontSize(22).font("Helvetica-Bold").text("INVOICE", 380, 40, { align: "right" });
   

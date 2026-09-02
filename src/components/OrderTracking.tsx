@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { ArrowLeft, Check, Compass, Truck, RefreshCw, Layers, Calendar, Phone, KeyRound } from "lucide-react";
+import { ArrowLeft, Check, Compass, Truck, RefreshCw, Layers, Calendar, Phone, KeyRound, Receipt } from "lucide-react";
 import { io, Socket } from "socket.io-client";
 import { Order, OrderStatus } from "../types";
 import { orderService } from "../services";
 import { formatRefId } from "../lib/utils";
+import ModernInvoiceModal from "./ModernInvoiceModal";
 
 interface OrderTrackingProps {
   orderId: string;
@@ -14,6 +15,7 @@ interface OrderTrackingProps {
 
 export default function OrderTracking({ orderId, userRole, onBack, onRefreshStats }: OrderTrackingProps) {
   const [order, setOrder] = useState<Order | null>(null);
+  const [showInvoice, setShowInvoice] = useState(false);
 
   const fetchOrder = async () => {
     try {
@@ -104,9 +106,18 @@ export default function OrderTracking({ orderId, userRole, onBack, onRefreshStat
             <span className="text-slate-400 block">সর্বমোট বিল</span>
             <span className="text-sm font-black text-brand-purple font-mono">৳{order.totalAmount.toLocaleString()}</span>
           </div>
-          <div className="text-right">
-            <span className="text-slate-400 block">আনুমানিক ডেলিভারি</span>
-            <span className="font-bold text-slate-700">{order.estimatedDelivery}</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowInvoice(true)}
+              className="bg-purple-50 hover:bg-purple-100 text-brand-purple border border-purple-200/60 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+            >
+              <Receipt className="w-3.5 h-3.5" />
+              <span>চালান / রসিদ</span>
+            </button>
+            <div className="text-right hidden sm:block">
+              <span className="text-slate-400 block">আনুমানিক ডেলিভারি</span>
+              <span className="font-bold text-slate-700">{order.estimatedDelivery}</span>
+            </div>
           </div>
         </div>
 
@@ -234,6 +245,13 @@ export default function OrderTracking({ orderId, userRole, onBack, onRefreshStat
             </span>
           </div>
         </div>
+      )}
+
+      {showInvoice && (
+        <ModernInvoiceModal
+          order={order}
+          onClose={() => setShowInvoice(false)}
+        />
       )}
     </div>
   );

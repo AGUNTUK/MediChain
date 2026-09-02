@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { getRackLocation } from "./depotUtils";
 import MediChainLogo from "../MediChainLogo";
+import ModernInvoiceModal from "../ModernInvoiceModal";
 
 interface OrderCenterProps {
   orders: Order[];
@@ -17,6 +18,7 @@ interface OrderCenterProps {
 export default function OrderCenter({ orders, onAccept, onProcess, onPack }: OrderCenterProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [invoiceOrder, setInvoiceOrder] = useState<Order | null>(null);
   const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"all" | "pending" | "processing" | "packed">("all");
 
@@ -146,6 +148,15 @@ export default function OrderCenter({ orders, onAccept, onProcess, onPack }: Ord
 
                   <div className="flex items-center gap-2">
                     <button
+                      onClick={() => setInvoiceOrder(order)}
+                      className="bg-purple-950/60 hover:bg-purple-900/80 text-purple-300 border border-purple-800/60 px-2.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-[11px] font-bold"
+                      title="চালান প্রিন্ট / Print Invoice"
+                    >
+                      <Printer className="w-3.5 h-3.5 text-purple-400" />
+                      <span className="hidden sm:inline">চালান প্রিন্ট</span>
+                    </button>
+
+                    <button
                       onClick={() => setSelectedOrder(order)}
                       className="bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 p-2 rounded-xl transition-all cursor-pointer"
                       title="Open Picking Path / Work details"
@@ -248,6 +259,13 @@ export default function OrderCenter({ orders, onAccept, onProcess, onPack }: Ord
                       Mark Packed
                     </button>
                   )}
+                  <button
+                    onClick={() => setInvoiceOrder(selectedOrder)}
+                    className="bg-purple-600 hover:bg-purple-500 text-white font-bold py-1.5 px-3 rounded-xl cursor-pointer flex items-center gap-1.5 shadow-xs"
+                    title="অফিসিয়াল চালান প্রিন্ট করুন"
+                  >
+                    <Printer className="w-3.5 h-3.5" /> চালান প্রিন্ট (Invoice)
+                  </button>
                   <button
                     onClick={() => setIsPrintPreviewOpen(true)}
                     className="bg-slate-900 hover:bg-slate-850 text-slate-300 border border-slate-800 font-bold py-1.5 px-3 rounded-xl cursor-pointer flex items-center gap-1.5"
@@ -406,6 +424,14 @@ export default function OrderCenter({ orders, onAccept, onProcess, onPack }: Ord
 
           </div>
         </div>
+      )}
+
+      {/* ==================== OFFICIAL A4 PRINTABLE INVOICE MODAL ==================== */}
+      {invoiceOrder && (
+        <ModernInvoiceModal
+          order={invoiceOrder}
+          onClose={() => setInvoiceOrder(null)}
+        />
       )}
 
     </div>

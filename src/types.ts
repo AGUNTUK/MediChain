@@ -98,6 +98,9 @@ export interface OrderItem {
   sellingPrice: number;
   mrp: number;
   subtotal: number;
+  genericName?: string;
+  company?: string;
+  discountPercentage?: number;
 }
 
 export interface Order {
@@ -106,8 +109,13 @@ export interface Order {
   pharmacyId: string;
   pharmacyName?: string;
   pharmacyPhone?: string;
+  pharmacyOwner?: string;
+  pharmacyAddress?: string;
+  pharmacyLicense?: string;
+  pharmacyBin?: string;
+  salesRep?: string;
   status: OrderStatus;
-  paymentMethod: "Cash on Delivery" | "bKash" | "Nagad";
+  paymentMethod: "Cash on Delivery" | "bKash" | "Nagad" | string;
   paymentStatus: "Pending" | "Paid" | "Failed" | "Refunded";
   totalAmount: number;
   totalSavings: number;

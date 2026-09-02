@@ -4,6 +4,7 @@ import { Order } from "../types";
 import { orderService } from "../services";
 import { formatRefId, generateOrderOTP } from "../lib/utils";
 import MediChainLogo from "./MediChainLogo";
+import ModernInvoiceModal from "./ModernInvoiceModal";
 
 interface OrderHistoryProps {
   onTrackOrder: (orderId: string) => void;
@@ -304,84 +305,12 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
         ))
       )}
 
-      {/* HTML Digital Invoice Modal View */}
+      {/* Official A4 Digital Invoice Modal View */}
       {selectedInvoice && (
-        <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-sm max-h-[85%] overflow-y-auto p-5 text-xs text-slate-800 animate-scale-up border border-slate-100 shadow-2xl relative">
-            {/* Close button */}
-            <button
-              onClick={() => setSelectedInvoice(null)}
-              className="absolute top-4 right-4 p-1.5 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
-            >
-              &times;
-            </button>
-
-            {/* Invoice Design */}
-            <div className="text-center pb-4 border-b border-dashed border-slate-200 mt-2">
-              <div className="flex justify-center mb-2">
-                <MediChainLogo size="sm" withText={true} textColor="dark" />
-              </div>
-              <div className="text-[10px] text-slate-400 mt-1">অনুমোদিত পাইকারি ওষুধ সরবরাহ ও ডিপো চালান</div>
-              <div className="text-[9px] font-mono text-slate-400 mt-0.5">INV-REF: {formatRefId(selectedInvoice.id, "INV")}</div>
-            </div>
-
-            {/* Bill Details */}
-            <div className="py-4 space-y-1 border-b border-dashed border-slate-200 text-[11px]">
-              <div className="flex justify-between text-slate-400">
-                <span>তারিখ:</span>
-                <span className="font-mono text-slate-700">{new Date(selectedInvoice.createdAt).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-slate-400">
-                <span>পেমেন্ট মাধ্যম:</span>
-                <span className="font-bold text-slate-700">{selectedInvoice.paymentMethod}</span>
-              </div>
-              <div className="flex justify-between text-slate-400">
-                <span>পেমেন্ট অবস্থা:</span>
-                <span className="font-extrabold text-emerald-600 uppercase font-mono">{selectedInvoice.paymentStatus}</span>
-              </div>
-            </div>
-
-            {/* Items details table */}
-            <div className="py-4 space-y-3.5 border-b border-dashed border-slate-200">
-              <div className="grid grid-cols-5 font-black text-slate-400 uppercase text-[9px] tracking-wider mb-1">
-                <span className="col-span-3">ওষুধের বিবরণ</span>
-                <span className="text-center col-span-1">পরিমাণ</span>
-                <span className="text-right col-span-1">মোট</span>
-              </div>
-              {selectedInvoice.items.map((item, idx) => (
-                <div key={idx} className="grid grid-cols-5 text-[11px] font-medium leading-relaxed">
-                  <div className="col-span-3 text-slate-800 font-bold">
-                    {item.name}
-                    <span className="text-[9px] text-slate-400 block">{item.strength}</span>
-                  </div>
-                  <span className="text-center col-span-1 text-slate-500 font-mono">{item.quantity}</span>
-                  <span className="text-right col-span-1 text-slate-700 font-mono">৳{item.subtotal.toLocaleString()}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Total pricing */}
-            <div className="py-4 space-y-2 text-[11px]">
-              <div className="flex justify-between text-slate-400">
-                <span>মোট খুচরা মূল্য (MRP):</span>
-                <span className="font-mono text-slate-500 line-through">৳{selectedInvoice.totalMrp.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-brand-purple font-bold">
-                <span>পাইকারি বিশেষ সাশ্রয়:</span>
-                <span className="font-mono">- ৳{selectedInvoice.totalSavings.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-sm font-black text-brand-charcoal pt-1.5 border-t border-slate-100">
-                <span>সর্বমোট প্রদেয় বিল</span>
-                <span className="text-brand-purple font-mono text-base">৳{selectedInvoice.totalAmount.toLocaleString()}</span>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="text-center text-[9px] text-slate-400 mt-4 leading-relaxed font-medium">
-              মেডিচেইন থেকে ওষুধ ক্রয়ের জন্য ধন্যবাদ। যেকোনো প্রয়োজনে ডিপো হেল্পলাইনে যোগাযোগ করুন।
-            </div>
-          </div>
-        </div>
+        <ModernInvoiceModal
+          order={selectedInvoice}
+          onClose={() => setSelectedInvoice(null)}
+        />
       )}
 
       {/* Return dispute popup */}
