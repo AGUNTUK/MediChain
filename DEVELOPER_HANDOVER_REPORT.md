@@ -773,6 +773,16 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 52. Brand Identity & Official Slogan
+- **Official Brand Name:** MediChain (`Medi` in #8B5CF6 / Brand Purple, `Chain` in #8CC63F / Brand Lime).
+- **Official Brand Slogan:** `"ফার্মেসির স্মার্ট পার্টনার"` (*"Pharmacier Smart Partner"*).
+- **Usage Guidelines:**
+  - The slogan MUST appear under the MediChain logo across all UI headers, navigation bars, login screens, splash screens, and invoices.
+  - The legacy English descriptor `"B2B PHARMA PROCUREMENT PLATFORM"` is strictly deprecated as a slogan and must NOT be used under the brand logo.
+  - Bengali typography styling: Use font `Li Alinur Banglaborno` with normal letter tracking (`tracking-normal` or `tracking-wide`, avoiding excessive letter-spacing that breaks Bengali jukta-bornos).
+
+----------------------------------------
+
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

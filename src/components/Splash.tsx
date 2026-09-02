@@ -68,9 +68,9 @@ export default function Splash({ onComplete }: SplashProps) {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5, duration: 0.6 }}
-          className="text-[11px] font-extrabold uppercase tracking-[0.25em] text-slate-500 mt-2"
+          className="text-xs font-bold text-slate-600 mt-2 tracking-normal"
         >
-          B2B Pharmacy Procurement Platform
+          ফার্মেসির স্মার্ট পার্টনার
         </motion.p>
       </div>
 
