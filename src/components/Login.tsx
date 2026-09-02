@@ -1,8 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, Suspense, lazy } from "react";
 import MediChainLogo from "./MediChainLogo";
 import { motion } from "motion/react";
 import { Mail, Lock, User, RefreshCw, AlertCircle, ArrowRight, ShieldCheck, UserPlus, LogIn } from "lucide-react";
 import { authService } from "../services";
+import type { LegalPolicyTab } from "./LegalPolicyModal";
+
+const LegalPolicyModal = lazy(() => import("./LegalPolicyModal"));
 
 interface LoginProps {
   onLoginSuccess: (user: any, needsSetup: boolean) => void;
@@ -16,6 +19,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [legalModalTab, setLegalModalTab] = useState<LegalPolicyTab | null>(null);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -216,12 +220,56 @@ export default function Login({ onLoginSuccess }: LoginProps) {
         </form>
       </motion.div>
 
-      {/* Enterprise Security assurance Footer */}
-      <div className="border-t border-slate-100 pt-4 text-center">
-        <p className="text-[9px] text-slate-400 leading-relaxed">
+      {/* Enterprise Security & Legal Policies Footer */}
+      <div className="border-t border-slate-200/80 pt-4 text-center space-y-2">
+        <div className="flex items-center justify-center gap-3 text-[10px] text-slate-500 font-medium flex-wrap">
+          <button
+            type="button"
+            onClick={() => setLegalModalTab("privacy")}
+            className="hover:text-purple-600 transition-colors cursor-pointer underline-offset-2 hover:underline"
+          >
+            Privacy Policy
+          </button>
+          <span>•</span>
+          <button
+            type="button"
+            onClick={() => setLegalModalTab("terms")}
+            className="hover:text-purple-600 transition-colors cursor-pointer underline-offset-2 hover:underline"
+          >
+            Terms of Service
+          </button>
+          <span>•</span>
+          <button
+            type="button"
+            onClick={() => setLegalModalTab("refund")}
+            className="hover:text-purple-600 transition-colors cursor-pointer underline-offset-2 hover:underline"
+          >
+            Refund & Returns
+          </button>
+          <span>•</span>
+          <button
+            type="button"
+            onClick={() => setLegalModalTab("compliance")}
+            className="hover:text-purple-600 transition-colors cursor-pointer underline-offset-2 hover:underline"
+          >
+            DGDA Compliance
+          </button>
+        </div>
+        <p className="text-[9px] text-slate-400 leading-relaxed max-w-sm mx-auto">
           🔒 Secured by DGDA Bangladesh-approved serialization. Procurement access is exclusively granted to authorized pharmacies holding active trade licenses.
         </p>
       </div>
+
+      {/* Lazy Loaded Legal Policy Modal */}
+      {legalModalTab && (
+        <Suspense fallback={null}>
+          <LegalPolicyModal
+            isOpen={true}
+            initialTab={legalModalTab}
+            onClose={() => setLegalModalTab(null)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

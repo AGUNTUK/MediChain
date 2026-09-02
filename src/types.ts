@@ -60,11 +60,31 @@ export interface Pharmacy {
   thana?: string;
   upazila?: string;
   streetAddress?: string;
-  landmark?: string;
   logoUrl?: string;
   email?: string;
   status?: string;
   submittedAt?: string;
+
+  // Regulatory & Legal Consent Audit Trail
+  legalConsent?: {
+    termsAcceptedAt: string;
+    privacyPolicyVersion: string;
+    ipAddress?: string;
+    verifiedAuthenticityDeclaration: boolean;
+  };
+  legal_consent?: {
+    terms_accepted_at: string;
+    privacy_policy_version: string;
+    ip_address?: string;
+    verified_authenticity_declaration: boolean;
+  };
+}
+
+export interface LegalConsent {
+  termsAcceptedAt: string;
+  privacyPolicyVersion: string;
+  ipAddress?: string;
+  verifiedAuthenticityDeclaration: boolean;
 }
 
 export type OrderStatus = "Pending" | "Confirmed" | "Processing" | "Packed" | "Out for Delivery" | "Delivered" | "Completed" | "Cancelled" | "Failed";

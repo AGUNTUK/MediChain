@@ -29,6 +29,8 @@ const PharmacyPendingScreen = lazy(() => import("./components/PharmacyPendingScr
 const DepotDashboard = lazy(() => import("./components/DepotDashboard"));
 const DeliveryDashboard = lazy(() => import("./components/DeliveryDashboard"));
 const BulkDealsLanding = lazy(() => import("./components/BulkDealsLanding"));
+const LegalPolicyModal = lazy(() => import("./components/LegalPolicyModal"));
+import type { LegalPolicyTab } from "./components/LegalPolicyModal";
 
 const LoadingScreen = () => (
   <div className="flex flex-col items-center justify-center h-full w-full bg-slate-50">
@@ -92,6 +94,40 @@ try {
 }
 
 export default function App() {
+  // Standalone legal deep-link route detector (e.g. /privacy, /terms, /refund-policy, /compliance, or ?policy=terms)
+  const getDirectLegalRoute = (): LegalPolicyTab | null => {
+    try {
+      const path = window.location.pathname.toLowerCase();
+      const params = new URLSearchParams(window.location.search);
+      const policyQuery = params.get("policy") || params.get("legal") || params.get("view");
+      
+      if (policyQuery) {
+        const normalized = policyQuery.toLowerCase();
+        if (["privacy", "terms", "refund", "compliance"].includes(normalized)) {
+          return normalized as LegalPolicyTab;
+        }
+      }
+      
+      if (path.includes("/privacy")) return "privacy";
+      if (path.includes("/terms")) return "terms";
+      if (path.includes("/refund") || path.includes("/return")) return "refund";
+      if (path.includes("/compliance") || path.includes("/regulatory")) return "compliance";
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  const [directLegalTab, setDirectLegalTab] = useState<LegalPolicyTab | null>(getDirectLegalRoute);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setDirectLegalTab(getDirectLegalRoute());
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
   // Mobile app navigation state
   const [appStep, setAppStep] = useState<"splash" | "login" | "setup" | "main" | "cart" | "checkout" | "success" | "tracking" | "bulk_deals">("splash");
   const [activeTab, setActiveTab] = useState<"home" | "search" | "history" | "account">("home");
@@ -609,6 +645,24 @@ export default function App() {
         }
     }
   };
+
+  // If user or app store reviewer navigated directly to a legal deep-link (e.g., /privacy, /terms, ?policy=...)
+  if (directLegalTab) {
+    return (
+      <ErrorBoundary>
+        <Suspense fallback={<LoadingScreen />}>
+          <LegalPolicyModal
+            isStandalone={true}
+            initialTab={directLegalTab}
+            onClose={() => {
+              setDirectLegalTab(null);
+              window.history.pushState({}, "", "/");
+            }}
+          />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
 
   if (currentUser?.role === "Admin") {
     return (

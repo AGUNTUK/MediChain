@@ -76,9 +76,15 @@ export const schemas = {
     nidBackUrl: z.string().optional(),
     drugLicenseExpiry: z.string().optional(),
     dob: z.string().optional(),
-    nidOwnerName: z.string().optional(),
     status: z.string().optional(),
     submittedAt: z.string().optional(),
+    legalConsent: z.object({
+      termsAcceptedAt: z.string().optional(),
+      privacyPolicyVersion: z.string().optional(),
+      ipAddress: z.string().optional(),
+      verifiedAuthenticityDeclaration: z.boolean().optional(),
+    }).optional(),
+    legal_consent: z.any().optional(),
   }),
   orderCreate: z.object({
     paymentMethod: z.string().min(1, "Payment method is required."),

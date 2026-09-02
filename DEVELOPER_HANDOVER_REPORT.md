@@ -783,6 +783,42 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 53. Legal, Privacy & DGDA Regulatory Compliance Framework
+- **Core Architecture & Regulatory Grounding**:
+  - All legal documents are aligned with the Bangladesh Directorate General of Drug Administration (DGDA), Drugs Act 1940, National Digital Commerce Guidelines, and Google Play Console / App Store compliance standards.
+- **1. Privacy Policy (`/privacy`, `?policy=privacy`, `LegalPolicyModal` Tab 1)**:
+  - **Data Protection & Encryption**: Proprietor NID numbers, biometric scans, phone numbers, physical addresses, and trade credentials are encrypted with AES-256 at rest and SSL/TLS 1.3 in transit. Document scans are stored in dedicated private Supabase Storage (`verification-documents`) with strict RLS and accessed exclusively via 1-hour signed URLs.
+  - **Third-Party Sub-processors**: Vercel/Render (hosting), Supabase (PostgreSQL database & private storage), Bangladesh PTA-compliant SMS Gateways (OTP/dispatch notifications), and Google Gemini (OCR optical extraction only; strictly prohibited from storing or training on PHI/NID).
+  - **Data Retention & Deletion**: Medical commerce transactions and licensing records are retained for a minimum mandatory 5-year audit period in compliance with DGDA rules. Account deletion protocols are available via official channels.
+- **2. Terms and Conditions / Terms of Service (`/terms`, `?policy=terms`, Tab 2)**:
+  - **Eligibility & DGDA Licensing Warranty**: Every registered pharmacy explicitly warrants that they possess an active, valid DGDA Drug License and Municipal Trade License.
+  - **B2B Wholesale Rules**: Wholesale prices and bulk deals are confidential trade data restricted to verified pharmacies. Official DGDA tax invoices are generated upon dispatch.
+  - **Payment & Credit Terms**: Governed by COD, MFS (bKash/Nagad), or approved credit lines with 7/15/30-day settlement cycles.
+  - **Limitation of Liability**: MediChain acts as a technology platform and depot fulfillment OS. Manufacturer defects, batch recalls, and adverse drug reactions remain the exclusive legal liability of pharmaceutical manufacturers (Square, Beximco, Incepta, etc.). Platform liability is strictly capped at the invoiced value of the contested order.
+- **3. Refund, Return & Cancellation Policy (`/refund-policy`, `?policy=refund`, Tab 3)**:
+  - **24-Hour Inspection Window**: Broken seals, physical breakage, or short-shipments must be reported within 24 hours with photographic proof.
+  - **Cold-Chain Biologicals Protection (2°C–8°C)**: Biologicals, insulin, and vaccines are strictly non-returnable once accepted to preserve cold-chain integrity.
+  - **Mandatory DGDA Delivery-Inspection Exception**: If at the exact point of delivery the temperature log shows an out-of-range breach (>8°C or <2°C freeze risk) or broken vial security seals, the pharmacy must immediately reject the consignment and record an on-the-spot delivery incident note with the courier.
+  - **Short-Expiry & Batch Recalls**: Stock with <6 months shelf-life is disclosed prior to checkout. DGDA / manufacturer recalls receive 100% immediate credit note and depot collection.
+  - **Refund Settlement**: Digital refunds settled within 3–7 business days; B2B credit ledger adjusted immediately.
+- **4. DGDA Verification & Regulatory Compliance Disclaimer (`/compliance`, `?policy=compliance`, Tab 4)**:
+  - **Zero Tolerance for Fraud**: Submission of forged, altered, or expired drug licenses or NIDs triggers immediate permanent ban and mandatory reporting to the DGDA Enforcement Branch and law enforcement under the Drugs Act 1940.
+- **5. Database-Level Consent Audit Trail**:
+  - `POST /api/pharmacy/profile` stores tamper-resistant legal consent directly inside `pharmacies.license_information` JSONB:
+    ```typescript
+    legal_consent: {
+      terms_accepted_at: string; // ISO 8601 timestamp
+      privacy_policy_version: "v1.0.0";
+      ip_address: string; // Server-resolved client IP
+      verified_authenticity_declaration: true;
+    }
+    ```
+- **6. Code-Splitting & Universal Deep Linking**:
+  - `LegalPolicyModal` is lazily imported via `React.lazy()` to maintain a lean initial bundle.
+  - `App.tsx` supports pathname routes (`/privacy`, `/terms`, `/refund-policy`, `/compliance`) and query parameter routes (`?policy=...`), rendering full standalone responsive legal pages for app store crawlers and external links.
+
+----------------------------------------
+
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

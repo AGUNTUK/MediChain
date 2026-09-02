@@ -490,8 +490,24 @@ app.get("/api/pharmacy/profile", requireAuth, async (req, res) => {
 
 app.post("/api/pharmacy/profile", requireAuth, validateBody(schemas.pharmacyProfile), async (req, res) => {
   try {
+    const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || req.socket.remoteAddress || "127.0.0.1";
+    
+    // Inject and format legal consent audit metadata if present
+    const incomingConsent = req.body.legalConsent || req.body.legal_consent;
+    let legalConsentPayload = undefined;
+    if (incomingConsent) {
+      legalConsentPayload = {
+        terms_accepted_at: incomingConsent.termsAcceptedAt || incomingConsent.terms_accepted_at || new Date().toISOString(),
+        privacy_policy_version: incomingConsent.privacyPolicyVersion || incomingConsent.privacy_policy_version || "v1.0.0",
+        ip_address: clientIp,
+        verified_authenticity_declaration: incomingConsent.verifiedAuthenticityDeclaration !== false && incomingConsent.verified_authenticity_declaration !== false
+      };
+    }
+
     const { data: ph, error, resolvedUserId } = await dbService.updatePharmacyProfile(req.user.id, {
       ...req.body,
+      legal_consent: legalConsentPayload || req.body.legal_consent,
+      legalConsent: legalConsentPayload || req.body.legalConsent,
       email: req.user?.email || req.body.email
     });
 

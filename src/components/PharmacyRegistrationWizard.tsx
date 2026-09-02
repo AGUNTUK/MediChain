@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, Suspense, lazy } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Building2, 
@@ -16,11 +16,17 @@ import {
   FileSpreadsheet,
   Sparkles,
   CreditCard,
-  Check
+  Check,
+  Scale,
+  Lock,
+  FileText
 } from "lucide-react";
 import MediChainLogo from "./MediChainLogo";
 import { profileService } from "../services";
 import { storageService } from "../services/storage";
+import type { LegalPolicyTab } from "./LegalPolicyModal";
+
+const LegalPolicyModal = lazy(() => import("./LegalPolicyModal"));
 
 interface PharmacyRegistrationWizardProps {
   initialPhone?: string;
@@ -54,10 +60,12 @@ export default function PharmacyRegistrationWizard({
   const [address, setAddress] = useState("");
   const [landmark, setLandmark] = useState("");
 
-  // Step 4: Documents Upload
+  // Step 4: Documents Upload & Legal Consent
   const [drugLicenseFile, setDrugLicenseFile] = useState<File | null>(null);
   const [tradeLicenseFile, setTradeLicenseFile] = useState<File | null>(null);
   const [nidFile, setNidFile] = useState<File | null>(null);
+  const [acceptedLegalTerms, setAcceptedLegalTerms] = useState(false);
+  const [legalModalTab, setLegalModalTab] = useState<LegalPolicyTab | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("");
@@ -101,6 +109,11 @@ export default function PharmacyRegistrationWizard({
         setError("Thana / Upazila name is required.");
         return false;
       }
+    } else if (currentStep === 4) {
+      if (!acceptedLegalTerms) {
+        setError("You must agree to the Terms of Service and Privacy Policy, and confirm all submitted regulatory documents are authentic.");
+        return false;
+      }
     }
     return true;
   };
@@ -118,7 +131,7 @@ export default function PharmacyRegistrationWizard({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateStep(1) || !validateStep(2) || !validateStep(3)) {
+    if (!validateStep(1) || !validateStep(2) || !validateStep(3) || !validateStep(4)) {
       return;
     }
 
@@ -184,7 +197,12 @@ export default function PharmacyRegistrationWizard({
         nidUrl: nidUrl || undefined,
         nidFrontUrl: nidUrl || undefined,
         status: "Pending",
-        submittedAt: new Date().toISOString()
+        submittedAt: new Date().toISOString(),
+        legalConsent: {
+          termsAcceptedAt: new Date().toISOString(),
+          privacyPolicyVersion: "v1.0.0",
+          verifiedAuthenticityDeclaration: true
+        }
       };
 
       await profileService.updatePharmacyProfile(payload);
@@ -644,6 +662,64 @@ export default function PharmacyRegistrationWizard({
                       </p>
                     </div>
                   </div>
+
+                  {/* Mandatory Regulatory & Legal Consent Agreement */}
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 mt-4">
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        id="legal-consent-checkbox"
+                        checked={acceptedLegalTerms}
+                        onChange={(e) => {
+                          setAcceptedLegalTerms(e.target.checked);
+                          if (error) setError("");
+                        }}
+                        className="mt-1 w-4 h-4 rounded text-teal-600 focus:ring-teal-500 border-slate-300 cursor-pointer shrink-0"
+                      />
+                      <label htmlFor="legal-consent-checkbox" className="text-xs text-slate-700 leading-relaxed select-none cursor-pointer">
+                        I agree to the{" "}
+                        <button
+                          type="button"
+                          onClick={(e) => { e.preventDefault(); setLegalModalTab("terms"); }}
+                          className="text-teal-700 font-bold underline hover:text-teal-900 cursor-pointer"
+                        >
+                          Terms of Service
+                        </button>
+                        {", "}
+                        <button
+                          type="button"
+                          onClick={(e) => { e.preventDefault(); setLegalModalTab("privacy"); }}
+                          className="text-teal-700 font-bold underline hover:text-teal-900 cursor-pointer"
+                        >
+                          Privacy Policy
+                        </button>
+                        {", and "}
+                        <button
+                          type="button"
+                          onClick={(e) => { e.preventDefault(); setLegalModalTab("refund"); }}
+                          className="text-teal-700 font-bold underline hover:text-teal-900 cursor-pointer"
+                        >
+                          Refund & Return Policy
+                        </button>
+                        {", and confirm all submitted regulatory documents (DGDA Drug License, Trade License, Proprietor NID) are authentic."}
+                      </label>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-200/60 pl-7">
+                      <span className="flex items-center gap-1 text-slate-600">
+                        <Lock className="w-3.5 h-3.5 text-teal-600" />
+                        256-Bit Encrypted Storage
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setLegalModalTab("compliance")}
+                        className="text-purple-700 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Scale className="w-3.5 h-3.5" />
+                        DGDA Regulatory Notice
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -675,7 +751,7 @@ export default function PharmacyRegistrationWizard({
                 ) : (
                   <button
                     type="submit"
-                    disabled={loading}
+                    disabled={loading || !acceptedLegalTerms}
                     className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-lg transition-colors cursor-pointer"
                   >
                     {loading ? (
@@ -693,6 +769,22 @@ export default function PharmacyRegistrationWizard({
           </AnimatePresence>
         )}
       </div>
+
+      {/* Lazy Loaded Legal Policies Modal */}
+      {legalModalTab && (
+        <Suspense fallback={null}>
+          <LegalPolicyModal
+            isOpen={true}
+            initialTab={legalModalTab}
+            onClose={() => setLegalModalTab(null)}
+            showAcceptButton={true}
+            onAccept={() => {
+              setAcceptedLegalTerms(true);
+              setLegalModalTab(null);
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

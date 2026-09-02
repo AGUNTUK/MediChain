@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { User as UserIcon, Heart, Shield, RefreshCcw, LogOut, FileText, Check, ShoppingCart, LifeBuoy, Pencil, Award, Clock, AlertTriangle, Headset, Download, Smartphone, CheckCircle2, BellRing, Bell } from "lucide-react";
+import React, { useState, useEffect, Suspense, lazy } from "react";
+import { User as UserIcon, Heart, Shield, RefreshCcw, LogOut, FileText, Check, ShoppingCart, LifeBuoy, Pencil, Award, Clock, AlertTriangle, Headset, Download, Smartphone, CheckCircle2, BellRing, Bell, ShieldCheck, Scale, RefreshCw } from "lucide-react";
 import { Product, Pharmacy, User, RestockRequest } from "../types";
 import { paymentService } from "../services/payment";
 import { productService } from "../services/product";
@@ -11,6 +11,9 @@ import { pushManager } from "../pwa/pushManager";
 import EditProfileScreen from "./EditProfileScreen";
 import KYCVerificationHub from "./KYCVerificationHub";
 import MediChainLogo from "./MediChainLogo";
+import type { LegalPolicyTab } from "./LegalPolicyModal";
+
+const LegalPolicyModal = lazy(() => import("./LegalPolicyModal"));
 
 interface AccountProps {
   pharmacy: Pharmacy | null;
@@ -38,6 +41,7 @@ export default function Account({
   const [favProducts, setFavProducts] = useState<Product[]>([]);
   const [myRestockRequests, setMyRestockRequests] = useState<RestockRequest[]>([]);
   const [successId, setSuccessId] = useState<string | null>(null);
+  const [selectedLegalTab, setSelectedLegalTab] = useState<LegalPolicyTab | null>(null);
   const [totalPurchased, setTotalPurchased] = useState(0);
 
   // Overlay state triggers
@@ -538,6 +542,67 @@ export default function Account({
         </div>
       </div>
 
+      {/* Legal & Regulatory Compliance Hub */}
+      <div className="bg-gradient-to-r from-slate-900 to-[#17121F] rounded-3xl p-5 border border-purple-500/20 text-white space-y-3.5 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-white/10 rounded-xl">
+              <Scale className="w-4 h-4 text-brand-lime" />
+            </div>
+            <div>
+              <h3 className="text-xs font-black text-white uppercase tracking-wider">আইনি নীতিমালা ও কমপ্লায়েন্স</h3>
+              <p className="text-[10px] text-slate-400">DGDA ও ডিজিটাল কমার্স অ্যাক্ট নির্দেশিকা</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <button
+            onClick={() => setSelectedLegalTab("privacy")}
+            className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-left transition-all cursor-pointer group"
+          >
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200 group-hover:text-white">
+              <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
+              <span>প্রাইভেসি পলিসি</span>
+            </div>
+            <span className="text-[10px] text-slate-400 block mt-1">ডেটা সুরক্ষা ও এনক্রিপশন</span>
+          </button>
+
+          <button
+            onClick={() => setSelectedLegalTab("terms")}
+            className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-left transition-all cursor-pointer group"
+          >
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200 group-hover:text-white">
+              <FileText className="w-3.5 h-3.5 text-emerald-400" />
+              <span>শর্তাবলী ও নিয়ম</span>
+            </div>
+            <span className="text-[10px] text-slate-400 block mt-1">বি২বি ট্রেড চুক্তি ও দায়</span>
+          </button>
+
+          <button
+            onClick={() => setSelectedLegalTab("refund")}
+            className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-left transition-all cursor-pointer group"
+          >
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200 group-hover:text-white">
+              <RefreshCw className="w-3.5 h-3.5 text-teal-400" />
+              <span>রিফান্ড ও রিটার্ন</span>
+            </div>
+            <span className="text-[10px] text-slate-400 block mt-1">কোল্ড চেইন ও ট্রানজিট সুরক্ষা</span>
+          </button>
+
+          <button
+            onClick={() => setSelectedLegalTab("compliance")}
+            className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-left transition-all cursor-pointer group"
+          >
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200 group-hover:text-white">
+              <Scale className="w-3.5 h-3.5 text-amber-400" />
+              <span>ডিজিডিএ নোটিশ</span>
+            </div>
+            <span className="text-[10px] text-slate-400 block mt-1">রেগুলেটরি ডিসক্লেইমার</span>
+          </button>
+        </div>
+      </div>
+
       {/* Overlays */}
       {showEditProfile && (
         <EditProfileScreen
@@ -553,6 +618,16 @@ export default function Account({
           onClose={() => setShowKycHub(false)}
           onSaveSuccess={handleRefresh}
         />
+      )}
+
+      {selectedLegalTab && (
+        <Suspense fallback={null}>
+          <LegalPolicyModal
+            isOpen={true}
+            initialTab={selectedLegalTab}
+            onClose={() => setSelectedLegalTab(null)}
+          />
+        </Suspense>
       )}
     </div>
   );
