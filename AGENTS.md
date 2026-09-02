@@ -7,3 +7,7 @@ Always use `DEVELOPER_HANDOVER_REPORT.md` as the permanent project context and s
 Every time changes, fixes, or new features are implemented and verified:
 1. Stage, commit, and push all changes to GitHub `main` branch (`git add .`, `git commit -m "..."`, `git push origin main`).
 2. Immediately deploy to Vercel production using the Vercel CLI (`npx vercel --prod --yes`).
+
+## 3. Strict Scope & No Unsolicited Additions
+NEVER add any features, options, UI elements, or extra parameters that the user has not explicitly requested or approved. Keep implementations strictly focused and minimal to the user's explicit instructions.
+

@@ -11,7 +11,6 @@ interface CheckoutProps {
 }
 
 export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: CheckoutProps) {
-  const [deliverySlot, setDeliverySlot] = useState<string>("Morning Dispatch (09:00 AM - 01:00 PM)");
   const [notes, setNotes] = useState("");
   const [cartSummary, setCartSummary] = useState<any>(null);
   const [totalPurchased, setTotalPurchased] = useState(0);
@@ -45,10 +44,7 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
     setError("");
 
     try {
-      const finalNotes = [
-        `Slot: ${deliverySlot}`,
-        notes ? `Instructions: ${notes}` : ""
-      ].filter(Boolean).join(" | ");
+      const finalNotes = notes ? `Instructions: ${notes}` : "";
 
       const data = await orderService.createOrder({
         paymentMethod: "Cash on Delivery",
@@ -146,57 +142,6 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
             <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-2.5">
               মোবাইল নম্বর: {pharmacy?.phone}
             </div>
-          </div>
-        </div>
-
-        {/* Delivery Time Slot Picker */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs space-y-2.5">
-          <h3 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-brand-purple" />
-            ডিপো ডেলিভারির সময় বেছে নিন
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <label className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between ${
-              deliverySlot.includes("Morning")
-                ? "border-brand-purple bg-brand-purple/5"
-                : "border-slate-100 bg-slate-50/50 hover:bg-slate-50"
-            }`}>
-              <div className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="slot"
-                  checked={deliverySlot.includes("Morning")}
-                  onChange={() => setDeliverySlot("Morning Dispatch (09:00 AM - 01:00 PM)")}
-                  className="accent-brand-purple cursor-pointer"
-                />
-                <div>
-                  <span className="text-xs font-black text-slate-900 block">সকালের ডেলিভারি</span>
-                  <span className="text-[9px] text-slate-500 font-medium">সকাল ০৯:০০ – দুপুর ০১:০০</span>
-                </div>
-              </div>
-              <span className="text-[8px] bg-indigo-100 text-brand-purple font-black px-2 py-0.5 rounded uppercase">দ্রুততম</span>
-            </label>
-
-            <label className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between ${
-              deliverySlot.includes("Evening")
-                ? "border-brand-purple bg-brand-purple/5"
-                : "border-slate-100 bg-slate-50/50 hover:bg-slate-50"
-            }`}>
-              <div className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="slot"
-                  checked={deliverySlot.includes("Evening")}
-                  onChange={() => setDeliverySlot("Evening Restock (04:00 PM - 08:00 PM)")}
-                  className="accent-brand-purple cursor-pointer"
-                />
-                <div>
-                  <span className="text-xs font-black text-slate-900 block">বিকালের ডেলিভারি</span>
-                  <span className="text-[9px] text-slate-500 font-medium">বিকাল ০৪:০০ – রাত ০৮:০০</span>
-                </div>
-              </div>
-              <span className="text-[8px] bg-slate-100 text-slate-600 font-black px-2 py-0.5 rounded uppercase">স্ট্যান্ডার্ড</span>
-            </label>
           </div>
         </div>
 
