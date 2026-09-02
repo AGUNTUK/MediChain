@@ -100,10 +100,10 @@ export default function NotificationsPanel({ onClose, onRefreshNotifications }: 
         </div>
 
         {/* Mobile Push Notification Quick Toggle Bar */}
-        <div className="bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 text-white p-3 rounded-2xl mb-3 flex items-center justify-between gap-2 shadow-sm">
+        <div className="bg-gradient-to-r from-purple-50 via-white to-lime-50 text-slate-900 p-3 rounded-2xl mb-3 flex items-center justify-between gap-2 shadow-2xs border border-purple-200/70">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-brand-lime animate-ping"></span>
-            <span className="text-xs font-black text-purple-100">মোবাইল পুশ নোটিফিকেশন</span>
+            <span className="text-xs font-black text-slate-900">মোবাইল পুশ নোটিফিকেশন</span>
           </div>
           <button
             type="button"
@@ -112,7 +112,7 @@ export default function NotificationsPanel({ onClose, onRefreshNotifications }: 
               await pushManager.subscribe();
               pushManager.sendTestPush().catch(() => {});
             }}
-            className="text-[10px] font-black bg-brand-lime text-slate-950 px-2.5 py-1 rounded-xl shadow-xs hover:bg-lime-400 transition-all cursor-pointer"
+            className="text-[10px] font-black bg-brand-lime hover:bg-brand-lime-dark text-slate-950 px-2.5 py-1 rounded-xl shadow-2xs transition-all cursor-pointer"
           >
             চালু / টেস্ট
           </button>

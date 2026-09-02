@@ -41,7 +41,7 @@ function getTimeBasedGreeting(): TimeGreetingInfo {
       period: "morning",
       defaultSubtext: "Order before 11:30 AM for express 2:00 PM depot delivery",
       dispatchStatus: "⚡ Express Dispatch Active",
-      gradient: "from-[#2A0845] via-[#4A0E4E] to-[#1E1233]"
+      gradient: "from-amber-50/90 via-purple-50/40 to-lime-50/60"
     };
   } else if (hour >= 12 && hour < 17) {
     return {
@@ -50,7 +50,7 @@ function getTimeBasedGreeting(): TimeGreetingInfo {
       period: "afternoon",
       defaultSubtext: "Same-day depot fulfillment running on standard schedule",
       dispatchStatus: "🚚 Live Depot Fulfillment",
-      gradient: "from-[#1F0A38] via-[#3B0764] to-[#17082A]"
+      gradient: "from-purple-50/90 via-white to-lime-50/70"
     };
   } else if (hour >= 17 && hour < 22) {
     return {
@@ -59,7 +59,7 @@ function getTimeBasedGreeting(): TimeGreetingInfo {
       period: "evening",
       defaultSubtext: "Queue wholesale consignments for early morning delivery",
       dispatchStatus: "📦 Overnight Queue Open",
-      gradient: "from-[#170526] via-[#2E1065] to-[#0F0419]"
+      gradient: "from-purple-50/80 via-white to-amber-50/50"
     };
   } else {
     return {
@@ -68,7 +68,7 @@ function getTimeBasedGreeting(): TimeGreetingInfo {
       period: "night",
       defaultSubtext: "Automated batch allocation active for 6:00 AM packing",
       dispatchStatus: "🌙 24/7 Order Desk Active",
-      gradient: "from-[#0D021A] via-[#1E0836] to-[#080111]"
+      gradient: "from-indigo-50/80 via-white to-purple-50/50"
     };
   }
 }
@@ -215,14 +215,14 @@ export default function HeroCarousel({
   const renderPeriodIcon = () => {
     switch (timeInfo.period) {
       case "morning":
-        return <Sun className="w-3.5 h-3.5 text-amber-300" />;
+        return <Sun className="w-3.5 h-3.5 text-amber-500" />;
       case "afternoon":
-        return <SunMedium className="w-3.5 h-3.5 text-amber-300" />;
+        return <SunMedium className="w-3.5 h-3.5 text-amber-500" />;
       case "evening":
-        return <Sunset className="w-3.5 h-3.5 text-orange-300" />;
+        return <Sunset className="w-3.5 h-3.5 text-orange-500" />;
       case "night":
       default:
-        return <Moon className="w-3.5 h-3.5 text-indigo-300" />;
+        return <Moon className="w-3.5 h-3.5 text-purple-500" />;
     }
   };
 
@@ -236,7 +236,7 @@ export default function HeroCarousel({
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
-      <div className="relative w-full rounded-3xl overflow-hidden shadow-lg shadow-purple-950/20 border border-white/10 bg-slate-900 group">
+      <div className="relative w-full rounded-3xl overflow-hidden shadow-xs border border-purple-200/80 bg-white group">
         
         {/* Animated Carousel Track */}
         <div 
@@ -259,19 +259,19 @@ export default function HeroCarousel({
                 key={slide.id} 
                 className={`w-full min-h-[148px] sm:min-h-[160px] flex-shrink-0 relative px-5 py-4 sm:p-6 flex flex-col justify-between overflow-hidden bg-gradient-to-br ${
                   isPromo 
-                    ? "from-[#2e0854] via-[#581c87] to-[#1e1b4b]" 
+                    ? "from-purple-100/90 via-white to-lime-100/80" 
                     : isGreeting 
                       ? timeInfo.gradient 
-                      : "from-[#2A0845] via-[#4A0E4E] to-[#1E1233]"
-                } text-white`}
+                      : "from-purple-50/90 via-white to-lime-50/70"
+                } text-slate-900`}
               >
                 {/* Visual Depth: Decorative Glow Orbs */}
                 <div className="absolute -top-12 -right-12 w-48 h-48 bg-brand-lime/15 rounded-full blur-3xl pointer-events-none" />
-                <div className="absolute -bottom-12 -left-12 w-44 h-44 bg-brand-purple/20 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute -bottom-12 -left-12 w-44 h-44 bg-brand-purple/15 rounded-full blur-3xl pointer-events-none" />
                 
                 {/* Subtle Geometric Supply Chain Watermark */}
                 <svg 
-                  className="absolute right-2 -bottom-4 w-40 h-40 opacity-[0.07] pointer-events-none select-none text-white" 
+                  className="absolute right-2 -bottom-4 w-40 h-40 opacity-[0.05] pointer-events-none select-none text-purple-900" 
                   viewBox="0 0 100 100" 
                   fill="currentColor"
                 >
@@ -286,39 +286,39 @@ export default function HeroCarousel({
                 {/* Top Row: Context Badges */}
                 <div className="relative z-10 flex items-center justify-between gap-2 flex-wrap mb-1.5">
                   {isGreeting ? (
-                    <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-md border border-white/15 px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white/90 shadow-xs">
+                    <div className="flex items-center gap-1.5 bg-white/90 backdrop-blur-md border border-purple-200/70 px-2.5 py-0.5 rounded-full text-[10px] font-bold text-slate-800 shadow-2xs">
                       {renderPeriodIcon()}
                       <span>{timeInfo.badgeLabel}</span>
-                      <span className="w-1 h-1 rounded-full bg-brand-lime animate-pulse" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-brand-lime animate-pulse" />
                     </div>
                   ) : isPromo ? (
-                    <div className="flex items-center gap-1 bg-brand-lime text-slate-950 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide shadow-xs">
+                    <div className="flex items-center gap-1 bg-brand-lime text-slate-950 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide shadow-2xs">
                       <Flame className="w-3 h-3 fill-slate-950" />
                       <span>Super Wholesale Deal</span>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-1 bg-white/15 backdrop-blur-md border border-white/15 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
-                      <Zap className="w-3 h-3 text-brand-lime" />
+                    <div className="flex items-center gap-1 bg-purple-100/90 backdrop-blur-md border border-purple-200/60 px-2.5 py-0.5 rounded-full text-[10px] font-bold text-purple-900">
+                      <Zap className="w-3 h-3 text-purple-700" />
                       <span>Special Bulletin</span>
                     </div>
                   )}
 
                   {/* Secondary Live Status Indicator */}
-                  <div className="hidden xs:flex items-center gap-1 text-[9px] font-semibold text-slate-300/80 bg-black/20 backdrop-blur-sm px-2 py-0.5 rounded-full border border-white/5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                  <div className="hidden xs:flex items-center gap-1 text-[9px] font-semibold text-emerald-800 bg-emerald-50/90 backdrop-blur-sm px-2 py-0.5 rounded-full border border-emerald-200/80 shadow-2xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                    <ShieldCheck className="w-3 h-3 text-emerald-600" />
                     <span>DGDA Verified B2B</span>
                   </div>
                 </div>
 
                 {/* Center: Main Headline & Dynamic Pharmacy Name */}
                 <div className="relative z-10 my-auto">
-                  <h1 className="text-base sm:text-lg font-black leading-tight tracking-tight text-white drop-shadow-xs">
+                  <h1 className="text-base sm:text-lg font-black leading-tight tracking-tight text-slate-900">
                     {titleText}
                   </h1>
                   
                   {subtitleText && (
-                    <p className="text-[11px] sm:text-xs text-purple-100/85 font-medium mt-1 leading-snug line-clamp-1 max-w-[90%]">
+                    <p className="text-[11px] sm:text-xs text-slate-600 font-medium mt-1 leading-snug line-clamp-1 max-w-[90%]">
                       {subtitleText}
                     </p>
                   )}
@@ -329,7 +329,7 @@ export default function HeroCarousel({
                   {isGreeting && onOpenScanner && (
                     <button
                       onClick={() => { handleInteraction(); onOpenScanner(); }}
-                      className="bg-brand-lime hover:bg-brand-lime-dark text-slate-950 font-black py-1.5 px-3.5 rounded-xl text-[11px] flex items-center gap-1.5 shadow-md shadow-brand-lime/20 active:scale-95 transition-all cursor-pointer"
+                      className="bg-brand-lime hover:bg-brand-lime-dark text-slate-950 font-black py-1.5 px-3.5 rounded-xl text-[11px] flex items-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer"
                     >
                       <Sparkles className="w-3.5 h-3.5 text-slate-950" />
                       <span>Scan Prescription</span>
@@ -348,10 +348,10 @@ export default function HeroCarousel({
                       }}
                       className={`font-extrabold py-1.5 px-3 rounded-xl text-[11px] flex items-center gap-1 active:scale-95 transition-all cursor-pointer ${
                         isGreeting
-                          ? "bg-white/15 hover:bg-white/25 text-white backdrop-blur-md border border-white/20"
+                          ? "bg-purple-600 hover:bg-purple-700 text-white shadow-xs"
                           : isPromo
-                            ? "bg-brand-lime hover:bg-brand-lime-dark text-slate-950 shadow-md shadow-brand-lime/20"
-                            : "bg-white text-slate-900 hover:bg-slate-100"
+                            ? "bg-brand-lime hover:bg-brand-lime-dark text-slate-950 shadow-xs"
+                            : "bg-white text-slate-900 hover:bg-slate-100 border border-slate-200"
                       }`}
                     >
                       <span>{slide.cta_label}</span>
@@ -360,8 +360,8 @@ export default function HeroCarousel({
                   )}
 
                   {/* Dispatch Badge on Mobile */}
-                  <div className="ml-auto hidden sm:flex items-center gap-1 text-[10px] font-mono font-medium text-emerald-300/90">
-                    <Clock className="w-3 h-3 text-emerald-400" />
+                  <div className="ml-auto hidden sm:flex items-center gap-1 text-[10px] font-mono font-medium text-emerald-700">
+                    <Clock className="w-3 h-3 text-emerald-600" />
                     <span>{timeInfo.dispatchStatus}</span>
                   </div>
                 </div>
@@ -378,7 +378,7 @@ export default function HeroCarousel({
                 handleInteraction();
                 setCurrentIndex((prev) => (prev === 0 ? slides.length - 1 : prev - 1));
               }}
-              className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity z-20 cursor-pointer hidden md:flex border border-white/10"
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/90 hover:bg-white text-slate-800 flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity z-20 cursor-pointer hidden md:flex border border-slate-200/80"
               aria-label="Previous Slide"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -388,7 +388,7 @@ export default function HeroCarousel({
                 handleInteraction();
                 setCurrentIndex((prev) => (prev + 1) % slides.length);
               }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity z-20 cursor-pointer hidden md:flex border border-white/10"
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/90 hover:bg-white text-slate-800 flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity z-20 cursor-pointer hidden md:flex border border-slate-200/80"
               aria-label="Next Slide"
             >
               <ChevronRight className="w-4 h-4" />
@@ -405,8 +405,8 @@ export default function HeroCarousel({
                 onClick={() => { handleInteraction(); setCurrentIndex(idx); }}
                 className={`h-1.5 rounded-full transition-all duration-300 pointer-events-auto cursor-pointer ${
                   idx === currentIndex 
-                    ? "bg-brand-lime w-5 shadow-xs shadow-brand-lime" 
-                    : "bg-white/30 hover:bg-white/60 w-1.5"
+                    ? "bg-brand-purple w-5 shadow-2xs" 
+                    : "bg-slate-300 hover:bg-slate-400 w-1.5"
                 }`}
                 aria-label={`Go to slide ${idx + 1}`}
               />

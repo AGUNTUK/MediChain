@@ -256,7 +256,8 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - **Task 21 (SmartOrder Cart Persistence & Real-Time Cart State Synchronization Fix):** Fixed client-side React state mismatch where `SmartOrderModal` batch add succeeded on backend but `App.tsx` lacked an active listener and `onOpenCart` propagation was disconnected in `Home.tsx`, causing the drawer to display "আপনার কার্ট বর্তমানে খালি". Implemented universal event listeners for `cartUpdated`, `cart-updated`, and `storage` in `App.tsx`, wired `onOpenCart` through `Home.tsx` and `PrescriptionScanner`, made drawer triggers auto-refresh cart data, refactored `GET /api/cart` and `POST /api/smart-order/cart-all` with case-insensitive trimmed ID matching to prevent destructive database cart clearing on read errors, and upgraded `dbService.getCart`/`saveCart` with `limit(1)` ordering and duplicate row purging.
   - **Task 22 (Secure Backend Proxy Architecture for Pharmacy Verification Document Storage):** Resolved the Supabase Storage RLS error (`StorageApiError: The database schema is invalid or incompatible.`) during Step 4 (Documents) of the Pharmacy Onboarding Wizard. Direct browser uploads using the public anon key failed against the private `verification-documents` bucket without active Supabase Auth JWTs. Built dedicated backend proxy endpoints `POST /api/upload/verification-document` and `GET /api/upload/document-url` in `server.ts` powered by `multer` and `supabaseAdmin` service role key. Refactored `storageService.uploadVerificationDocument` and `getVerificationDocumentUrl` in `src/services/storage.ts` to route all verification uploads and signed URLs securely through the backend proxy with automatic offline fallbacks.
   - **Task 23 (Foreign Key Constraint Integrity Fix for Pharmacy Profile Submissions `pharmacies_user_id_fkey`):** Resolved the PostgreSQL foreign key constraint violation (`insert or update on table "pharmacies" violates foreign key constraint "pharmacies_user_id_fkey"`) upon completing Step 4 of the Pharmacy Onboarding Wizard. Eliminated non-UUID ID generation (`local-usr-...`) in `server.ts` `/api/auth/local-signup` by standardizing on RFC4122 `crypto.randomUUID()`. Enhanced `dbService.updatePharmacyProfile` and `dbService.syncSession` with UUID format validation (`isValidUUID`) and automatic pre-insertion user existence verification in `public.users` to guarantee FK integrity before upserting into `pharmacies`. Updated `POST /api/pharmacy/profile` to seamlessly sync session user IDs if legacy non-UUID IDs are resolved.
-  - **Task 24 (Automated Character-by-Character Auto-Typing Demo Mode for Pharmacy Onboarding Wizard):** Built a high-precision, realistic auto-typing runner inside `PharmacyRegistrationWizard.tsx` for video tutorials and screen recordings. Features natural character delays (~35-50ms with jitter), 500ms inter-field pauses, automated 4-step progression (Step 1 Business info, Step 2 DGDA licensing, Step 3 Location mapping, Step 4 Mock document attachments and simulated DGDA verification submission). Equipped with floating action button `[▶ Start Auto Demo]` / `[⏹ Stop Demo (Esc)]` (positioned at `top-4 right-4 z-50`), URL query parameter activation (`?demo=true`), `Escape` key listener for instant cancellation without state disruption, and Replay Demo controls on the completion screen.
+  - **Task 24 (Pharmacy Onboarding Wizard Production Purification):** Reverted temporary video recording demo runner and restored clean, robust production state.
+  - **Task 25 (Lightweight Color-Themed Banners & AI Doinik Munafa Miter Removal):** Converted all dark/deep-colored banners across the application (HeroCarousel, Active Order Pulse Card, SmartOrder Card, Live Wholesale Bulk Campaign Card, Notifications push bar, and Account push card) to lightweight, light-themed designs featuring Orchid Purple and Fresh Lime branding over soft tints (`purple-50`, `lime-50`, `white`) with high-contrast slate typography. Removed the unwanted "AI Doinik Munafa Miter" ("AI দৈনিক মুনাফা মিটার") feature and its daily analysis fetching logic from the homepage.
 
 ----------------------------------------
 
@@ -276,11 +277,12 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 | Clean Repository Hygiene | 100% | Completed (Purged 30+ stray files, enhanced .gitignore) | Completed |
 | Product Catalog Management | 100% | Completed (Transparent Field-Level Zod Validation & Inline Editing) | Completed |
 | Pharmaceutical Category System | 100% | Completed (40+ Dosage Forms & Grouped Bilingual Selectors) | Completed |
-| In-Stock Catalog Priority & Profit Meter | 100% | Completed (In-Stock First Everywhere & Dynamic Profit Range) | Completed |
+| In-Stock Catalog Priority & Profit Meter | 100% | Completed (In-Stock First Everywhere) | Completed |
 | Verification Documents Private Storage | 100% | Completed (Private Bucket, RLS, Signed URLs, Backend Proxy) | Completed |
 | High-Speed Query Optimization & LRU Cache | 100% | Completed (Targeted SQL lookups, LRU Cache, HTTP Edge Caching) | Completed |
 | MediChain SmartOrder (OCR & Carting) | 100% | Completed (Gemini 3.7 Flash, 21k Matcher, Safety Rules, Batch Cart) | Completed |
 | Onboarding Wizard (Production Ready) | 100% | Completed (Pure production wizard, multi-step validation & verification storage) | Completed |
+| Light-Themed Branding Banners | 100% | Completed (Lightweight Orchid Purple & Fresh Lime styling across all banners) | Completed |
 
 ----------------------------------------
 
@@ -317,6 +319,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 - **Completed:** Task 22: Secure Backend Proxy Architecture for Pharmacy Verification Document Storage.
 - **Completed:** Task 23: Foreign Key Constraint Integrity Fix for Pharmacy Profile Submissions (`pharmacies_user_id_fkey`).
 - **Completed:** Task 24: Pharmacy Onboarding Wizard Production Purification (Reverted temporary video recording demo runner and restored clean, robust production state).
+- **Completed:** Task 25: Lightweight Color-Themed Banners & AI Doinik Munafa Miter Removal.
 - **Short Term:** Finish FCM Push Notifications.
 - **Long Term:** Implement multi-tenant capability.
 

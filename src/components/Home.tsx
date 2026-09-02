@@ -122,23 +122,6 @@ export default function Home({
   const [catalogTotalPages, setCatalogTotalPages] = useState(1);
   const [catalogTotalProducts, setCatalogTotalProducts] = useState(0);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
-  const [profitMarginRange, setProfitMarginRange] = useState<{ min: number; max: number }>({ min: 4, max: 94 });
-  const [dailyBanner, setDailyBanner] = useState<{
-    headline?: string;
-    subheadline?: string;
-    badgeText?: string;
-    minDiscount: number;
-    maxDiscount: number;
-    avgDiscount?: number;
-    totalProductsChecked?: number;
-    lastUpdated?: string;
-  }>({
-    minDiscount: 4,
-    maxDiscount: 94,
-    headline: "আজকের পাইকারি অর্ডারে ৪% – ৯৪% পর্যন্ত নিশ্চিত লাভ!",
-    subheadline: "কোনো মধ্যস্বত্বভোগী ছাড়াই সরাসরি প্রস্তুতকারক কোম্পানি থেকে সেরা মূল্যে ফার্মেসির ওষুধ অর্ডার করুন।",
-    badgeText: "AI দৈনিক মুনাফা মিটার"
-  });
 
   const DEFAULT_CATEGORIES = ALL_CATEGORY_VALUES;
 
@@ -150,21 +133,6 @@ export default function Home({
       if (aInStock !== bInStock) return bInStock - aInStock;
       return 0;
     });
-  };
-
-  // Helper to dynamically calculate lowest & highest discount % from in-stock items
-  const updateProfitMarginFromInStock = (products: Product[]) => {
-    const inStockWithDiscount = products.filter(
-      p => (p.availableStock ?? 0) > 0 && (p.discountPercentage ?? 0) > 0
-    );
-    if (inStockWithDiscount.length > 0) {
-      const discounts = inStockWithDiscount.map(p => Math.round(p.discountPercentage));
-      const min = Math.min(...discounts);
-      const max = Math.max(...discounts);
-      if (min > 0 && max >= min) {
-        setProfitMarginRange({ min, max });
-      }
-    }
   };
 
   const fetchHomeWidgets = async () => {
@@ -202,21 +170,7 @@ export default function Home({
       });
       setFrequentProducts(inStockFreq.slice(0, 4));
 
-      // 3. Fetch Gemini AI Daily Profit Meter Analysis
-      try {
-        const bannerRes = await fetch("/api/banner/daily-profit-meter");
-        if (bannerRes.ok) {
-          const bannerJson = await bannerRes.json();
-          if (bannerJson && bannerJson.minDiscount !== undefined && bannerJson.maxDiscount !== undefined) {
-            setDailyBanner(bannerJson);
-            setProfitMarginRange({ min: bannerJson.minDiscount, max: bannerJson.maxDiscount });
-          }
-        }
-      } catch (bannerErr) {
-        console.warn("Failed to fetch daily profit meter:", bannerErr);
-      }
-
-      // 4. Fetch Live Campaign
+      // 3. Fetch Live Campaign
       const { bulkDealsService } = await import("../services");
       const activeCampaign = await bulkDealsService.getLiveCampaign();
       setLiveCampaign(activeCampaign);
@@ -264,7 +218,6 @@ export default function Home({
         });
       }
 
-      updateProfitMarginFromInStock(prioritizedList);
       setCatalogTotalProducts(response.total);
       setCatalogTotalPages(response.pages || 1);
     } catch (err) {
@@ -414,21 +367,21 @@ export default function Home({
               return (
                 <div 
                   onClick={() => onTrackOrder?.(activeOrder.id)}
-                  className="bg-linear-to-r from-slate-900 via-indigo-950 to-purple-950 text-white rounded-2xl p-3.5 shadow-lg border border-purple-800/30 flex items-center justify-between gap-3 cursor-pointer hover:scale-[1.01] transition-all group"
+                  className="bg-gradient-to-r from-purple-50/90 via-white to-lime-50/70 text-slate-900 rounded-2xl p-3.5 shadow-xs border border-purple-200/80 flex items-center justify-between gap-3 cursor-pointer hover:scale-[1.01] transition-all group"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-brand-purple/30 border border-brand-purple/40 flex items-center justify-center shrink-0 text-brand-lime relative">
+                    <div className="w-10 h-10 rounded-xl bg-purple-100 border border-purple-200 flex items-center justify-center shrink-0 text-purple-700 relative">
                       <Truck className="w-5 h-5 animate-pulse" />
-                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-brand-lime rounded-full ring-2 ring-slate-950 animate-ping"></span>
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-brand-lime rounded-full ring-2 ring-white animate-ping"></span>
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-black uppercase text-brand-lime tracking-wider font-mono">
+                        <span className="text-[10px] font-black uppercase text-purple-800 tracking-wider font-mono">
                           {activeOrder.status === "Out for Delivery" ? "রাইডার ডেলিভারি নিয়ে আসছেন" : "ডিপোতে প্রসেসিং চলছে"}
                         </span>
-                        <span className="text-[9px] text-slate-400 font-mono">#{activeOrder.id.substring(0, 8)}</span>
+                        <span className="text-[9px] text-slate-500 font-mono">#{activeOrder.id.substring(0, 8)}</span>
                       </div>
-                      <p className="text-xs font-bold text-slate-100 truncate">
+                      <p className="text-xs font-bold text-slate-800 truncate">
                         {activeOrder.items?.length || 1} টি ওষুধ • ৳{activeOrder.totalAmount?.toLocaleString()} (ওটিপি দেখতে ট্যাপ করুন)
                       </p>
                     </div>
@@ -436,7 +389,7 @@ export default function Home({
 
                   <button
                     type="button"
-                    className="shrink-0 bg-brand-lime hover:bg-brand-lime-dark text-slate-950 font-black text-[11px] px-3 py-1.5 rounded-xl flex items-center gap-1 shadow-xs transition-transform group-hover:scale-105"
+                    className="shrink-0 bg-brand-lime hover:bg-brand-lime-dark text-slate-950 font-black text-[11px] px-3 py-1.5 rounded-xl flex items-center gap-1 shadow-xs transition-transform group-hover:scale-105 cursor-pointer"
                   >
                     <span>ট্র্যাক করুন</span>
                     <ArrowRight className="w-3 h-3" />
@@ -513,25 +466,25 @@ export default function Home({
             )}
 
             {/* MediChain SmartOrder Card (Write it. Scan it. Cart it.) */}
-            <div className="bg-linear-to-r from-emerald-950 via-teal-900 to-slate-900 text-white rounded-3xl p-4 sm:p-5 shadow-xl border border-emerald-500/30 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-48 h-48 bg-radial from-emerald-400/15 to-transparent blur-2xl pointer-events-none"></div>
+            <div className="bg-gradient-to-r from-emerald-50/90 via-white to-teal-50/70 text-slate-900 rounded-3xl p-4 sm:p-5 shadow-xs border border-emerald-200/80 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-48 h-48 bg-radial from-emerald-400/10 to-transparent blur-2xl pointer-events-none"></div>
               
               <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="space-y-1.5 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="bg-emerald-400 text-slate-950 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
-                      <Sparkles className="w-3 h-3 text-slate-950" />
+                    <span className="bg-emerald-100 text-emerald-900 border border-emerald-200 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                      <Sparkles className="w-3 h-3 text-emerald-700" />
                       MediChain SmartOrder
                     </span>
-                    <span className="text-[10px] text-emerald-300 font-mono font-bold">
+                    <span className="text-[10px] text-emerald-700 font-mono font-bold">
                       Gemini 3.7 Flash Vision
                     </span>
                   </div>
 
-                  <h3 className="text-base sm:text-lg font-black text-white leading-snug">
-                    MediChain SmartOrder — <span className="text-emerald-300">Write it. Scan it. Cart it.</span>
+                  <h3 className="text-base sm:text-lg font-black text-slate-900 leading-snug">
+                    MediChain SmartOrder — <span className="text-emerald-700">Write it. Scan it. Cart it.</span>
                   </h3>
-                  <p className="text-xs text-slate-300 font-medium">
+                  <p className="text-xs text-slate-600 font-medium">
                     Handwritten medicine list scan করুন এবং কয়েক সেকেন্ডে verified products cart-এ যোগ করুন।
                   </p>
                 </div>
@@ -539,109 +492,11 @@ export default function Home({
                 <button
                   type="button"
                   onClick={() => setIsScannerOpen(true)}
-                  className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-400 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 hover:brightness-110 active:scale-95 transition-all cursor-pointer shrink-0"
+                  className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 active:scale-95 transition-all cursor-pointer shrink-0"
                 >
                   <Camera className="w-4 h-4" />
                   <span>📷 SmartOrder স্ক্যানার</span>
                 </button>
-              </div>
-            </div>
-
-            {/* Wholesale Profit Margin Calculator Card (Point 4) - Gemini AI Daily Dynamic Meter */}
-            <div className="bg-linear-to-r from-purple-950 via-indigo-900 to-slate-900 text-white rounded-3xl p-4 sm:p-5 shadow-xl border border-purple-500/20 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-48 h-48 bg-radial from-brand-lime/15 to-transparent blur-2xl pointer-events-none"></div>
-              
-              <div className="relative z-10 space-y-3">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <span className="bg-brand-lime text-slate-950 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
-                    <Sparkles className="w-3 h-3 text-slate-950" />
-                    {dailyBanner.badgeText || "AI দৈনিক মুনাফা মিটার"}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-brand-lime/90 font-mono font-bold flex items-center gap-1 bg-brand-lime/10 px-2 py-0.5 rounded-full border border-brand-lime/20">
-                      <Sparkles className="w-3 h-3" />
-                      Gemini AI ভেরিফাইড
-                    </span>
-                    <span className="text-[10px] text-purple-200 font-mono font-bold flex items-center gap-1">
-                      <Award className="w-3.5 h-3.5 text-brand-lime" />
-                      সরাসরি প্রস্তুতকারক রেট
-                    </span>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-base sm:text-lg font-black text-white leading-snug">
-                    {dailyBanner.headline ? (
-                      dailyBanner.headline
-                    ) : (
-                      <>
-                        আজকের পাইকারি অর্ডারে গড়ে{" "}
-                        <span className="text-brand-lime font-mono">
-                          {profitMarginRange.min === profitMarginRange.max
-                            ? `${toBengaliNumber(profitMarginRange.max)}%`
-                            : `${toBengaliNumber(profitMarginRange.min)}% – ${toBengaliNumber(profitMarginRange.max)}%`}
-                        </span>{" "}
-                        পর্যন্ত সর্বোচ্চ লাভ!
-                      </>
-                    )}
-                  </h3>
-                  <p className="text-xs text-purple-200/90 font-medium mt-0.5">
-                    {dailyBanner.subheadline || "মেডিচেইন ডিপো থেকে সরাসরি ক্রয়ে কোনো মধ্যস্বত্বভোগী নেই, তাই ফার্মেসির মুনাফা থাকে সর্বোচ্চ।"}
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedFilter("deals");
-                      const el = document.getElementById("home-product-catalog");
-                      if (el) el.scrollIntoView({ behavior: "smooth" });
-                    }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 cursor-pointer ${
-                      selectedFilter === "deals"
-                        ? "bg-brand-lime text-slate-950 shadow-md"
-                        : "bg-white/10 hover:bg-white/20 text-white"
-                    }`}
-                  >
-                    <Flame className="w-3.5 h-3.5 text-brand-lime" />
-                    <span>সর্বোচ্চ লাভ (Deals)</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedFilter("frequent");
-                      const el = document.getElementById("home-product-catalog");
-                      if (el) el.scrollIntoView({ behavior: "smooth" });
-                    }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 cursor-pointer ${
-                      selectedFilter === "frequent"
-                        ? "bg-brand-lime text-slate-950 shadow-md"
-                        : "bg-white/10 hover:bg-white/20 text-white"
-                    }`}
-                  >
-                    <TrendingUp className="w-3.5 h-3.5 text-purple-300" />
-                    <span>জনপ্রিয় ওষুধ</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedFilter("low_stock");
-                      const el = document.getElementById("home-product-catalog");
-                      if (el) el.scrollIntoView({ behavior: "smooth" });
-                    }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 cursor-pointer ${
-                      selectedFilter === "low_stock"
-                        ? "bg-brand-lime text-slate-950 shadow-md"
-                        : "bg-white/10 hover:bg-white/20 text-white"
-                    }`}
-                  >
-                    <Clock className="w-3.5 h-3.5 text-amber-300" />
-                    <span>কম স্টকের ওষুধ</span>
-                  </button>
-                </div>
               </div>
             </div>
 
@@ -783,38 +638,38 @@ export default function Home({
             {liveCampaign && (
               <div 
                 onClick={() => onOpenBulkDeals?.(liveCampaign.id)}
-                className="bg-linear-to-r from-purple-950 via-indigo-900 to-slate-900 rounded-3xl p-4 sm:p-5 text-white shadow-xl border border-purple-500/20 relative overflow-hidden cursor-pointer hover:scale-[1.01] transition-all group"
+                className="bg-gradient-to-r from-purple-50/90 via-white to-lime-50/70 rounded-3xl p-4 sm:p-5 text-slate-900 shadow-xs border border-purple-200/80 relative overflow-hidden cursor-pointer hover:scale-[1.01] transition-all group"
               >
-                <div className="absolute top-0 right-0 w-64 h-64 bg-radial from-purple-500/20 to-transparent blur-2xl pointer-events-none"></div>
+                <div className="absolute top-0 right-0 w-64 h-64 bg-radial from-purple-400/10 to-transparent blur-2xl pointer-events-none"></div>
                 <div className="relative z-10 space-y-2.5">
                   <div className="flex justify-between items-center">
-                    <span className="bg-brand-lime text-slate-950 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <span className="bg-brand-lime text-slate-950 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
                       <Flame className="w-3 h-3 fill-slate-950" />
                       লাইভ পাইকারি স্পেশাল অফার
                     </span>
-                    <span className="text-[10px] text-purple-200 font-mono font-bold flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-brand-lime" />
+                    <span className="text-[10px] text-purple-700 font-mono font-bold flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-purple-600" />
                       সীমিত সময়ের অফার
                     </span>
                   </div>
 
                   <div>
-                    <h3 className="text-base sm:text-lg font-black text-white tracking-tight leading-tight">
+                    <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight">
                       {liveCampaign.title || "ম্যানুফ্যাকচারার কোয়ার্টারলি পাইকারি অফার"}
                     </h3>
-                    <p className="text-xs text-purple-200/80 font-medium line-clamp-1 mt-0.5">
+                    <p className="text-xs text-slate-600 font-medium line-clamp-1 mt-0.5">
                       {liveCampaign.description || "একসাথে বেশি ওষুধ কিনে সর্বোচ্চ ২৮% পর্যন্ত বাড়তি লাভ উপভোগ করুন।"}
                     </p>
                   </div>
 
                   <div className="flex items-center justify-between pt-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-black text-brand-lime">বেশি পরিমাণে বিশেষ ছাড়</span>
-                      <span className="text-[10px] text-purple-300">• সরাসরি ওষুধ কোম্পানি থেকে</span>
+                      <span className="text-xs font-black text-purple-700">বেশি পরিমাণে বিশেষ ছাড়</span>
+                      <span className="text-[10px] text-slate-500">• সরাসরি ওষুধ কোম্পানি থেকে</span>
                     </div>
                     <button
                       type="button"
-                      className="bg-white hover:bg-slate-100 text-brand-purple font-black text-xs px-3.5 py-1.5 rounded-xl flex items-center gap-1 shadow-md group-hover:scale-105 transition-transform cursor-pointer"
+                      className="bg-purple-600 hover:bg-purple-700 text-white font-black text-xs px-3.5 py-1.5 rounded-xl flex items-center gap-1 shadow-xs group-hover:scale-105 transition-transform cursor-pointer"
                     >
                       <span>অফার দেখুন</span>
                       <ChevronRight className="w-3.5 h-3.5" />
