@@ -8,7 +8,7 @@ import type { LegalPolicyTab } from "./LegalPolicyModal";
 const LegalPolicyModal = lazy(() => import("./LegalPolicyModal"));
 
 interface LoginProps {
-  onLoginSuccess: (user: any, needsSetup: boolean) => void;
+  onLoginSuccess: (user: any, needsSetup: boolean, pharmacy?: any) => void;
 }
 
 export default function Login({ onLoginSuccess }: LoginProps) {
@@ -47,7 +47,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
         const data = await authService.login(email, password);
         setSuccessMsg("Logged in successfully!");
         setTimeout(() => {
-          onLoginSuccess(data.user, data.needsSetup);
+          onLoginSuccess(data.user, data.needsSetup, data.pharmacy);
         }, 500);
       } else {
         await authService.signUp(email, password, name, "Pharmacy Owner");

@@ -84,7 +84,7 @@ export const authService = {
   /**
    * Logs in a user using email/password via Supabase (or falls back).
    */
-  async login(email: string, password: string): Promise<{ success: boolean; user: any; needsSetup: boolean }> {
+  async login(email: string, password: string): Promise<{ success: boolean; user: any; needsSetup: boolean; pharmacy?: any }> {
     if (isSupabaseConfigured) {
       // 1. Supabase Auth Login
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({

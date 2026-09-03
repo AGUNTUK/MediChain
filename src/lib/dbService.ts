@@ -395,11 +395,49 @@ export async function getDeliveryStaff() {
 // ==========================================
 
 export async function getPharmacyProfile(userId: string): Promise<Pharmacy | null> {
-  const { data: ph } = await supabaseAdmin
+  let { data: ph } = await supabaseAdmin
     .from("pharmacies")
     .select("id, user_id, pharmacy_name, owner_name, phone, address, city, license_information")
     .eq("user_id", userId)
     .maybeSingle();
+
+  // If not found by user_id, check if user has a pharmacy_id or matching phone in users table
+  if (!ph) {
+    const { data: userRow } = await supabaseAdmin
+      .from("users")
+      .select("id, pharmacy_id, phone, email")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (userRow?.pharmacy_id) {
+      const { data: phById } = await supabaseAdmin
+        .from("pharmacies")
+        .select("id, user_id, pharmacy_name, owner_name, phone, address, city, license_information")
+        .eq("id", userRow.pharmacy_id)
+        .maybeSingle();
+      if (phById) {
+        ph = phById;
+        // Self-heal: ensure user_id is set
+        if (!ph.user_id || ph.user_id !== userId) {
+          await supabaseAdmin.from("pharmacies").update({ user_id: userId }).eq("id", ph.id);
+        }
+      }
+    }
+
+    if (!ph && userRow?.phone) {
+      const { data: phByPhone } = await supabaseAdmin
+        .from("pharmacies")
+        .select("id, user_id, pharmacy_name, owner_name, phone, address, city, license_information")
+        .eq("phone", userRow.phone)
+        .maybeSingle();
+      if (phByPhone) {
+        ph = phByPhone;
+        // Self-heal link
+        await supabaseAdmin.from("pharmacies").update({ user_id: userId }).eq("id", ph.id);
+        await supabaseAdmin.from("users").update({ pharmacy_id: ph.id }).eq("id", userId);
+      }
+    }
+  }
 
   if (!ph) return null;
 
@@ -534,6 +572,34 @@ export async function updatePharmacyProfile(userId: string, data: any) {
 
   // Preserve existing status, default to Pending for new profiles
   const status = existingLicense.verificationStatus || "Pending";
+
+  // If data.logoUrl is a base64 string, upload it to Supabase Storage so it is never saved as huge raw text
+  if (data.logoUrl && typeof data.logoUrl === "string" && data.logoUrl.startsWith("data:image")) {
+    try {
+      const match = data.logoUrl.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+      if (match) {
+        const ext = match[1] === "jpeg" ? "jpg" : match[1];
+        const buffer = Buffer.from(match[2], "base64");
+        const filePath = `pharmacy-logos/${resolvedUserId}_${Date.now()}.${ext}`;
+        const { error: uploadErr } = await supabaseAdmin.storage
+          .from("verification-documents")
+          .upload(filePath, buffer, {
+            contentType: `image/${match[1]}`,
+            upsert: true
+          });
+        if (!uploadErr) {
+          const { data: signedData } = await supabaseAdmin.storage
+            .from("verification-documents")
+            .createSignedUrl(filePath, 60 * 60 * 24 * 365 * 5); // 5-year signed URL
+          if (signedData?.signedUrl) {
+            data.logoUrl = signedData.signedUrl;
+          }
+        }
+      }
+    } catch (logoErr) {
+      console.warn("Could not upload base64 logo to storage:", logoErr);
+    }
+  }
   
   // Merge existing details with incoming data details
   const mergedLicense = {

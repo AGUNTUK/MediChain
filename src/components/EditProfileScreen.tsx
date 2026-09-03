@@ -91,10 +91,37 @@ export default function EditProfileScreen({ pharmacy, onClose, onSaveSuccess }: 
 
   const simulateLogoUpload = (file: File) => {
     const reader = new FileReader();
-    reader.onload = () => {
-      // Simulate successful upload and convert to base64 for local persistence preview
-      if (typeof reader.result === "string") {
-        setLogoUrl(reader.result);
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const maxDim = 256;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxDim) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          }
+        } else {
+          if (height > maxDim) {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.82);
+          setLogoUrl(compressedDataUrl);
+        } else if (typeof e.target?.result === "string") {
+          setLogoUrl(e.target.result);
+        }
+      };
+      if (typeof e.target?.result === "string") {
+        img.src = e.target.result;
       }
     };
     reader.readAsDataURL(file);

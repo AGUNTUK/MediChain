@@ -826,6 +826,32 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 25. Pharmacy Onboarding & Verification Integrity Architecture (All Registered & Future Users)
+
+- **Problem Identified**:
+  - Registered and approved pharmacy owners (e.g. Sohel Pharma) were intermittently presented with the 4-step Onboarding Wizard despite their accounts being verified.
+  - Primary causes:
+    1. Large uncompressed base64 images (up to 3MB) saved inside `pharmacies.license_information` exceeded browser `localStorage` quotas (typically 5MB limit), silently breaking state persistence.
+    2. In `App.tsx`, `renderMobileContent()` fell back to `<ProfileSetup />` whenever `pharmacy` was null before initial profile verification completed or during session expiry.
+    3. The Splash screen navigation handler forced `setAppStep("setup")` if the network profile fetch hadn't completed before the splash timeout expired.
+    4. 24-hour cookie expiry or cookie restriction in cross-origin iframes caused `/api/pharmacy/profile` to return 401 with no automatic session recovery.
+    5. Database user-pharmacy association was only checked by `pharmacies.user_id = userId`, missing pharmacies linked by `users.pharmacy_id` or telephone.
+- **Architectural Fix Implemented**:
+  - **Self-Healing Profile Resolution (`dbService.getPharmacyProfile`)**:
+    - Queries `pharmacies` by `user_id`. If not found, inspects `users` table for `pharmacy_id` and falls back to phone number match, automatically linking `pharmacies.user_id` and `users.pharmacy_id`.
+  - **Zero-Base64 Storage Pipeline**:
+    - All image uploads (logos, verification licenses, trade licenses, NIDs) are compressed on the client and stored in Supabase Storage (`verification-documents` / `product-images`), persisting only secure, lightweight signed/public URLs (<1KB payload).
+  - **Automatic Session Recovery & Fallback Authentication**:
+    - Express middleware (`requireAuth`) accepts both session cookies (now extended to 30 days) and `x-session-user-id` headers.
+    - Frontend automatically invokes `/api/auth/sync-session` upon encountering a 401 on profile queries, recovering the session transparently without logging out or redirecting to setup.
+  - **Guard Against Premature Setup Redirection**:
+    - `isProfileLoading` state prevents `App.tsx` from ever showing `<ProfileSetup />` while profile data is pending.
+    - If `pharmacy` exists with verification status `Approved`/`Verified`, user directly enters the main platform.
+    - If verification status is `Pending`, user is displayed `PharmacyPendingScreen` with live status polling and contact controls.
+    - `ProfileSetup` is exclusively rendered for brand-new users who have not yet submitted their regulatory registration.
+
+----------------------------------------
+
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

@@ -153,9 +153,19 @@ export default function App() {
   });
   const [phone, setPhone] = useState(() => {
     try {
-      return localStorage.getItem("medichain_phone") || "";
+      const stored = localStorage.getItem("medichain_phone") || "";
+      if (stored && stored.includes("@")) return "";
+      return stored;
     } catch {
       return "";
+    }
+  });
+  const [isProfileLoading, setIsProfileLoading] = useState(() => {
+    try {
+      const stored = localStorage.getItem("medichain_user");
+      return Boolean(stored);
+    } catch {
+      return false;
     }
   });
   const [orders, setOrders] = useState<Order[]>([]);
@@ -178,14 +188,79 @@ export default function App() {
   // Sync products and credentials
   const refreshPharmacyProfile = async () => {
     try {
-      const res = await fetch("/api/pharmacy/profile");
+      setIsProfileLoading(true);
+      const headers: Record<string, string> = {};
+      const activeUser = currentUser || (() => {
+        try {
+          const s = localStorage.getItem("medichain_user");
+          return s ? JSON.parse(s) : null;
+        } catch { return null; }
+      })();
+
+      if (activeUser?.id) {
+        headers["x-session-user-id"] = activeUser.id;
+        if (activeUser.email) headers["x-session-user-email"] = activeUser.email;
+        if (activeUser.role) headers["x-session-user-role"] = activeUser.role;
+        if (activeUser.name) headers["x-session-user-name"] = activeUser.name;
+        if (activeUser.pharmacy_id) headers["x-session-pharmacy-id"] = activeUser.pharmacy_id;
+      }
+
+      let res = await fetch("/api/pharmacy/profile", { headers });
+
+      // Auto-reconnect session if 401 occurs
+      if (res.status === 401 && activeUser) {
+        try {
+          const syncRes = await fetch("/api/auth/sync-session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: activeUser.id,
+              email: activeUser.email,
+              name: activeUser.name || "Pharmacy Owner",
+              role: activeUser.role || "Pharmacy Owner"
+            })
+          });
+          if (syncRes.ok) {
+            const syncData = await syncRes.json();
+            if (syncData.user) {
+              setCurrentUser(syncData.user);
+              try { localStorage.setItem("medichain_user", JSON.stringify(syncData.user)); } catch {}
+            }
+            if (syncData.pharmacy) {
+              setPharmacy(syncData.pharmacy);
+              try { localStorage.setItem("medichain_pharmacy", JSON.stringify(syncData.pharmacy)); } catch {}
+              if (syncData.pharmacy.phone) {
+                setPhone(syncData.pharmacy.phone);
+                try { localStorage.setItem("medichain_phone", syncData.pharmacy.phone); } catch {}
+              }
+            }
+            return syncData.pharmacy;
+          }
+        } catch (syncErr) {
+          console.warn("Auto session recovery failed:", syncErr);
+        }
+      }
+
       if (res.ok) {
         const data = await res.json();
-        setCurrentUser(data.user);
-        setPharmacy(data.pharmacy);
+        if (data.user) {
+          setCurrentUser(data.user);
+          try { localStorage.setItem("medichain_user", JSON.stringify(data.user)); } catch {}
+        }
+        if (data.pharmacy) {
+          setPharmacy(data.pharmacy);
+          try { localStorage.setItem("medichain_pharmacy", JSON.stringify(data.pharmacy)); } catch {}
+          if (data.pharmacy.phone) {
+            setPhone(data.pharmacy.phone);
+            try { localStorage.setItem("medichain_phone", data.pharmacy.phone); } catch {}
+          }
+        }
+        return data.pharmacy;
       }
     } catch (err) {
-      console.error(err);
+      console.error("Error refreshing pharmacy profile:", err);
+    } finally {
+      setIsProfileLoading(false);
     }
   };
 
@@ -330,18 +405,45 @@ export default function App() {
   const activeOrderToDeliver = orders.find(o => o.status !== "Delivered");
 
   // Authentication callbacks
-  const handleLoginSuccess = (user: any, needsSetup: boolean) => {
-    setPhone(user.phone || user.email);
+  const handleLoginSuccess = (user: any, needsSetup: boolean, incomingPharmacy?: any) => {
+    const rawPhone = user.phone || incomingPharmacy?.phone || "";
+    const cleanPhone = rawPhone && !rawPhone.includes("@") ? rawPhone : "";
+    setPhone(cleanPhone);
     setCurrentUser(user);
-    localStorage.setItem("medichain_user", JSON.stringify(user));
-    
+    try {
+      localStorage.setItem("medichain_user", JSON.stringify(user));
+    } catch (e) {
+      console.warn(e);
+    }
+    if (cleanPhone) {
+      try {
+        localStorage.setItem("medichain_phone", cleanPhone);
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
+    if (incomingPharmacy && incomingPharmacy.pharmacyName) {
+      setPharmacy(incomingPharmacy);
+      try {
+        localStorage.setItem("medichain_pharmacy", JSON.stringify(incomingPharmacy));
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
     const isSpecialRole = ["Admin", "Depot Staff", "Delivery Staff"].includes(user.role);
-    if (needsSetup && !isSpecialRole) {
+    const hasExistingPharmacy = Boolean(
+      (incomingPharmacy && incomingPharmacy.pharmacyName) || 
+      (pharmacy && pharmacy.pharmacyName)
+    );
+
+    if (needsSetup && !hasExistingPharmacy && !isSpecialRole) {
       setAppStep("setup");
     } else {
-      refreshPharmacyProfile();
       setAppStep("main");
     }
+    refreshPharmacyProfile();
   };
 
   const handleSetupComplete = () => {
@@ -426,7 +528,10 @@ export default function App() {
     // Verification check for non-admin/staff pharmacy users
     if (currentUser && !["Admin", "Depot Staff", "Delivery Staff"].includes(currentUser.role)) {
       if (appStep !== "splash" && appStep !== "login" && appStep !== "setup") {
-        if (!pharmacy) {
+        if (isProfileLoading && !pharmacy) {
+          return <LoadingScreen />;
+        }
+        if (!pharmacy || !pharmacy.pharmacyName) {
           return (
             <Suspense fallback={<LoadingScreen />}>
               <ProfileSetup phone={phone} onSetupComplete={handleSetupComplete} onBack={() => setAppStep("login")} />
@@ -455,7 +560,11 @@ export default function App() {
             onComplete={() => {
               if (currentUser) {
                 const isSpecialRole = ["Admin", "Depot Staff", "Delivery Staff"].includes(currentUser.role);
-                setAppStep(pharmacy || isSpecialRole ? "main" : "setup");
+                if (isSpecialRole || (pharmacy && pharmacy.pharmacyName) || isProfileLoading) {
+                  setAppStep("main");
+                } else {
+                  setAppStep("setup");
+                }
               } else {
                 setAppStep("login");
               }

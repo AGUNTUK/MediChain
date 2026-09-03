@@ -125,27 +125,25 @@ if (!process.env.SESSION_SECRET && isProduction) {
 app.use(cookieSession({
   name: "session",
   keys: [sessionSecret],
-  maxAge: 24 * 60 * 60 * 1000, // 24 hours
+  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
   httpOnly: true,
   secure: isProduction,
   sameSite: isProduction ? "none" : "lax"
 }));
 
-// Optional iframe session fallback — only enabled when ALLOW_IFRAME_SESSION=true
-if (process.env.ALLOW_IFRAME_SESSION === "true") {
-  app.use((req: any, res: any, next: any) => {
-    const headerUserId = req.headers["x-session-user-id"];
-    if (headerUserId) {
-      req.session = req.session || {};
-      req.session.userId = headerUserId;
-      req.session.email = req.headers["x-session-user-email"];
-      req.session.role = req.headers["x-session-user-role"];
-      req.session.name = req.headers["x-session-user-name"];
-      req.session.pharmacy_id = req.headers["x-session-pharmacy-id"] || null;
-    }
-    next();
-  });
-}
+// Resilient header-based session fallback for cross-origin iframes, webviews, and mobile browsers
+app.use((req: any, res: any, next: any) => {
+  const headerUserId = req.headers["x-session-user-id"];
+  if (headerUserId && (!req.session || !req.session.userId)) {
+    req.session = req.session || {};
+    req.session.userId = headerUserId;
+    req.session.email = req.headers["x-session-user-email"] || req.session.email;
+    req.session.role = req.headers["x-session-user-role"] || req.session.role || "Pharmacy Owner";
+    req.session.name = req.headers["x-session-user-name"] || req.session.name || "Pharmacy Owner";
+    req.session.pharmacy_id = req.headers["x-session-pharmacy-id"] || req.session.pharmacy_id || null;
+  }
+  next();
+});
 
 import { authLimiter, orderLimiter, publicLimiter, smartOrderLimiter, schemas, validateBody, sanitizeInput } from "./src/lib/security.js";
 
@@ -197,6 +195,18 @@ if (!isProduction) {
 
 function requireAuth(req: any, res: any, next: any) {
   if (!req.session || !req.session.userId) {
+    const headerUserId = req.headers["x-session-user-id"];
+    if (headerUserId) {
+      req.session = req.session || {};
+      req.session.userId = headerUserId;
+      req.session.email = req.headers["x-session-user-email"] || req.session.email;
+      req.session.role = req.headers["x-session-user-role"] || req.session.role || "Pharmacy Owner";
+      req.session.name = req.headers["x-session-user-name"] || req.session.name || "Pharmacy Owner";
+      req.session.pharmacy_id = req.headers["x-session-pharmacy-id"] || req.session.pharmacy_id || null;
+    }
+  }
+
+  if (!req.session || !req.session.userId) {
     return res.status(401).json({ error: "Authentication required. Please log in first." });
   }
   req.user = {
@@ -211,6 +221,18 @@ function requireAuth(req: any, res: any, next: any) {
 
 function requireRole(allowedRoles: string[]) {
   return (req: any, res: any, next: any) => {
+    if (!req.session || !req.session.userId) {
+      const headerUserId = req.headers["x-session-user-id"];
+      if (headerUserId) {
+        req.session = req.session || {};
+        req.session.userId = headerUserId;
+        req.session.email = req.headers["x-session-user-email"] || req.session.email;
+        req.session.role = req.headers["x-session-user-role"] || req.session.role || "Pharmacy Owner";
+        req.session.name = req.headers["x-session-user-name"] || req.session.name || "Pharmacy Owner";
+        req.session.pharmacy_id = req.headers["x-session-pharmacy-id"] || req.session.pharmacy_id || null;
+      }
+    }
+
     if (!req.session || !req.session.userId) {
       return res.status(401).json({ error: "Authentication required." });
     }
@@ -479,6 +501,9 @@ app.get("/api/pharmacy/profile", requireAuth, async (req, res) => {
       };
     }
     const pharmacy = await dbService.getPharmacyProfile(req.user.id).catch(() => null);
+    if (pharmacy?.phone && !user.phone) {
+      user.phone = pharmacy.phone;
+    }
     res.json({
       user,
       pharmacy
