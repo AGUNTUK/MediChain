@@ -193,18 +193,28 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
       </div>
 
       {/* Bill summary and final submit */}
-      <div className="p-4 bg-white border-t border-slate-100 rounded-t-3xl shadow-xl flex-shrink-0 mt-4">
-        <div className="flex justify-between items-center mb-3">
-          <div>
-            <span className="text-[9px] text-slate-400 block uppercase font-mono">সর্বমোট প্রদেয় বিল</span>
-            <span className="text-lg font-black text-brand-purple font-mono">
-              ৳{cartSummary.totalAmount.toLocaleString()}
-            </span>
+      <div className="p-4 bg-white border-t border-slate-100 rounded-t-3xl shadow-xl flex-shrink-0 mt-4 space-y-3">
+        <div className="space-y-1.5 text-xs">
+          <div className="flex justify-between text-slate-500 font-medium">
+            <span>ওষুধের মোট দাম</span>
+            <span className="font-mono font-bold text-slate-800">৳{cartSummary.totalAmount.toLocaleString()}</span>
           </div>
-          <div className="text-right">
-            <span className="text-[8px] bg-emerald-50 text-emerald-700 font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider">
-              মোট সাশ্রয়: ৳{cartSummary.totalSavings.toLocaleString()}
-            </span>
+          <div className="flex justify-between text-slate-500 font-medium">
+            <span>ডেলিভারি চার্জ</span>
+            <span className="font-mono font-bold text-slate-800">৳40</span>
+          </div>
+          <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+            <div>
+              <span className="text-[9px] text-slate-400 block uppercase font-mono">সর্বমোট প্রদেয় বিল</span>
+              <span className="text-lg font-black text-brand-purple font-mono">
+                ৳{(cartSummary.totalAmount + 40).toLocaleString()}
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="text-[8px] bg-emerald-50 text-emerald-700 font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider">
+                মোট সাশ্রয়: ৳{cartSummary.totalSavings.toLocaleString()}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -217,7 +227,7 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
             <RefreshCw className="w-4 h-4 animate-spin" />
           ) : (
             <>
-              <span>অর্ডার নিশ্চিত করুন (৳{cartSummary.totalAmount.toLocaleString()})</span>
+              <span>অর্ডার নিশ্চিত করুন (৳{(cartSummary.totalAmount + 40).toLocaleString()})</span>
               <ShieldCheck className="w-4 h-4 shrink-0" />
             </>
           )}

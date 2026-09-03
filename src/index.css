@@ -222,8 +222,18 @@ body {
 
   /* Make invoice container visible and full bleed on A4 */
   #medichain-printable-invoice,
-  #medichain-printable-invoice * {
+  #medichain-printable-invoice *,
+  #medichain-printable-invoice-wrapper,
+  #medichain-printable-invoice-wrapper * {
     visibility: visible !important;
+  }
+
+  #medichain-printable-invoice-wrapper {
+    width: 100% !important;
+    height: auto !important;
+    position: static !important;
+    transform: none !important;
+    overflow: visible !important;
   }
 
   #medichain-printable-invoice {
@@ -233,6 +243,7 @@ body {
     top: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
+    transform: none !important;
     margin: 0 !important;
     padding: 4mm 6mm !important;
     background: #ffffff !important;

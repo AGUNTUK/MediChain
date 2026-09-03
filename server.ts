@@ -1620,28 +1620,50 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
   doc.moveTo(40, position).lineTo(doc.page.width - 40, position).strokeColor(primaryColor).lineWidth(1).stroke();
   position += 15;
 
-  // Breakdown costs & totals
-  const totalMrp = order.totalMrp || order.totalAmount || 0;
-  const totalAmount = order.totalAmount || 0;
-  const totalSavings = order.totalSavings || (totalMrp - totalAmount);
+  // Breakdown costs & totals with default 40৳ delivery charge automatically included
+  const DEFAULT_DELIVERY_CHARGE = 40;
+  const deliveryCharge = order.deliveryCharge !== undefined ? order.deliveryCharge : DEFAULT_DELIVERY_CHARGE;
+
+  const itemsList = order.items || [];
+  let calculatedSubtotal = 0;
+  let calculatedMrp = 0;
+  for (const item of itemsList) {
+    const qty = item.quantity || 1;
+    const price = item.sellingPrice || 0;
+    const mrp = item.mrp || (price * 1.25);
+    calculatedSubtotal += (item.subtotal !== undefined ? item.subtotal : price * qty);
+    calculatedMrp += mrp * qty;
+  }
+
+  const subtotal = calculatedSubtotal > 0 ? calculatedSubtotal : Math.max(0, (order.totalAmount || 0) - deliveryCharge);
+  const totalMrp = (order.totalMrp && order.totalMrp > subtotal) ? order.totalMrp : (calculatedMrp || subtotal);
+  const totalSavings = (order.totalSavings && order.totalSavings > 0) ? order.totalSavings : Math.max(0, totalMrp - subtotal);
+  const netPayable = (order.totalAmount && Math.abs(order.totalAmount - (subtotal + deliveryCharge)) < 1)
+    ? order.totalAmount
+    : (subtotal + deliveryCharge);
 
   doc.font("Helvetica-Bold").fontSize(10).fillColor(secondaryColor);
-  doc.text("SUBTOTAL:", 350, position, { width: 100, align: "right" });
-  doc.font("Helvetica").text(`BDT ${totalMrp.toLocaleString()}`, 460, position, { width: 80, align: "right" });
-  position += 20;
+  doc.text("SUBTOTAL (MEDICINES):", 310, position, { width: 140, align: "right" });
+  doc.font("Helvetica").text(`BDT ${subtotal.toLocaleString()}`, 460, position, { width: 80, align: "right" });
+  position += 18;
 
   if (totalSavings > 0) {
     doc.font("Helvetica-Bold").fillColor("#16a34a");
-    doc.text("WHOLESALE SAVINGS:", 300, position, { width: 150, align: "right" });
+    doc.text("WHOLESALE SAVINGS:", 290, position, { width: 160, align: "right" });
     doc.font("Helvetica").text(`- BDT ${totalSavings.toLocaleString()}`, 460, position, { width: 80, align: "right" });
-    position += 20;
+    position += 18;
   }
+
+  doc.font("Helvetica-Bold").fontSize(10).fillColor(secondaryColor);
+  doc.text("DELIVERY CHARGE:", 310, position, { width: 140, align: "right" });
+  doc.font("Helvetica").text(`BDT ${deliveryCharge.toLocaleString()}`, 460, position, { width: 80, align: "right" });
+  position += 22;
 
   // Draw Total Box
   doc.rect(340, position, doc.page.width - 380, 30).fill(lightGray);
   doc.font("Helvetica-Bold").fontSize(12).fillColor(primaryColor);
   doc.text("NET PAYABLE:", 350, position + 8, { width: 100, align: "right" });
-  doc.text(`BDT ${totalAmount.toLocaleString()}`, 460, position + 8, { width: 80, align: "right" });
+  doc.text(`BDT ${netPayable.toLocaleString()}`, 460, position + 8, { width: 80, align: "right" });
   position += 50;
 
   // Barcode / Verification Hash area (Simulated with text font)

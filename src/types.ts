@@ -120,6 +120,7 @@ export interface Order {
   totalAmount: number;
   totalSavings: number;
   totalMrp: number;
+  deliveryCharge?: number;
   items: OrderItem[];
   notes?: string;
   deliveryAddress?: string;

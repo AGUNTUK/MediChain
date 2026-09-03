@@ -1150,7 +1150,9 @@ export async function createOrderTransaction(userId: string, pharmacyId: string,
       });
     }
 
-    const deliveryCharge = totalAmount < 10000 ? 30 : 0;
+    // Default 40৳ delivery charge for all orders
+    const DEFAULT_DELIVERY_CHARGE = 40;
+    const deliveryCharge = DEFAULT_DELIVERY_CHARGE;
     const finalTotalAmount = totalAmount + deliveryCharge;
     const totalSavings = totalMrp - totalAmount;
 
@@ -1289,15 +1291,15 @@ export async function createOrderTransaction(userId: string, pharmacyId: string,
       .insert({
         order_id: insertedOrder.id,
         invoice_number: invoiceNumber,
-        amount_paid: isPaidUpfront ? totalAmount : 0,
-        amount_due: isPaidUpfront ? 0 : totalAmount,
+        amount_paid: isPaidUpfront ? finalTotalAmount : 0,
+        amount_due: isPaidUpfront ? 0 : finalTotalAmount,
         due_date: new Date(Date.now() + 15 * 24 * 3600 * 1000).toISOString() // 15 days net terms
       });
 
     if (invRecordErr) throw new Error("Failed to provision invoices and net terms.");
 
     // 8. Log Audit
-    await logAudit(`Order ${uniqueOrderId} created successfully for ${pharmacy.pharmacyName} totaling ৳${totalAmount.toLocaleString()}`, "Orders", insertedOrder.id, pharmacy.ownerName, "Pharmacy Owner");
+    await logAudit(`Order ${uniqueOrderId} created successfully for ${pharmacy.pharmacyName} totaling ৳${finalTotalAmount.toLocaleString()}`, "Orders", insertedOrder.id, pharmacy.ownerName, "Pharmacy Owner");
 
     // 9. Return structured order object mapped for frontend compatibility
     return {
@@ -1312,6 +1314,7 @@ export async function createOrderTransaction(userId: string, pharmacyId: string,
         totalAmount: parseFloat(insertedOrder.total_amount),
         totalSavings: parseFloat(insertedOrder.total_savings),
         totalMrp: parseFloat(insertedOrder.total_mrp),
+        deliveryCharge: DEFAULT_DELIVERY_CHARGE,
         notes: insertedOrder.notes,
         createdAt: insertedOrder.created_at,
         estimatedDelivery: `Depot shipping in 24 hours. Estimated delivery: Tomorrow`,
@@ -1431,6 +1434,7 @@ export async function getOrders(pharmacyId?: string, page = 1, limit = 100): Pro
         totalAmount: parseFloat(order.total_amount),
         totalSavings: parseFloat(order.total_savings || 0),
         totalMrp: parseFloat(order.total_mrp || 0),
+        deliveryCharge: 40,
         items,
         notes: orderNotes,
         deliveryAddress: order.delivery_address,
@@ -1529,6 +1533,7 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
     totalAmount: parseFloat(data.total_amount),
     totalSavings: parseFloat(data.total_savings || 0),
     totalMrp: parseFloat(data.total_mrp || 0),
+    deliveryCharge: 40,
     items,
     notes: orderNotes,
     deliveryAddress: data.delivery_address,

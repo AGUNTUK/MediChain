@@ -33,8 +33,7 @@ interface CartDrawerProps {
   onBrowseCatalog?: () => void;
 }
 
-const FREE_DELIVERY_THRESHOLD = 10000;
-const DELIVERY_FEE = 30;
+const DELIVERY_FEE = 40;
 
 export default function CartDrawer({
   isOpen,
@@ -51,11 +50,8 @@ export default function CartDrawer({
   const totalSavings = cartData?.totalSavings || 0;
   const totalMrp = cartData?.totalMrp || 0;
 
-  // Free delivery calculation
-  const deliveryNeeded = Math.max(0, FREE_DELIVERY_THRESHOLD - totalAmount);
-  const deliveryProgress = Math.min(100, Math.round((totalAmount / FREE_DELIVERY_THRESHOLD) * 100));
-  const isFreeDelivery = totalAmount >= FREE_DELIVERY_THRESHOLD;
-  const finalPayable = totalAmount + (isFreeDelivery || totalAmount === 0 ? 0 : DELIVERY_FEE);
+  // Default 40৳ delivery charge for all orders
+  const finalPayable = totalAmount + (totalAmount === 0 ? 0 : DELIVERY_FEE);
 
   return (
     <AnimatePresence>
@@ -130,49 +126,16 @@ export default function CartDrawer({
               </div>
             ) : (
               <>
-                {/* 2. Express Delivery Milestone Banner */}
-                <div className="bg-gradient-to-r from-purple-50/80 via-slate-50 to-emerald-50/60 px-5 py-3.5 border-b border-slate-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                      <Truck className="w-4 h-4 text-brand-purple" />
-                      <span>এক্সপ্রেস ডিপো ডেলিভারি</span>
-                    </div>
-                    <span className="text-[11px] font-mono font-bold text-slate-600">
-                      {isFreeDelivery ? (
-                        <span className="text-emerald-600 font-extrabold flex items-center gap-1">
-                          <Sparkles className="w-3.5 h-3.5 text-emerald-500" /> ফ্রি ডেলিভারি!
-                        </span>
-                      ) : (
-                        `৳${totalAmount.toLocaleString()} / ৳${FREE_DELIVERY_THRESHOLD.toLocaleString()}`
-                      )}
-                    </span>
+                {/* 2. Express Delivery Info Banner */}
+                <div className="bg-gradient-to-r from-purple-50/90 via-slate-50 to-indigo-50/60 px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                    <Truck className="w-4 h-4 text-brand-purple shrink-0" />
+                    <span>এক্সপ্রেস ডিপো ডেলিভারি</span>
                   </div>
-
-                  {/* Progress Bar */}
-                  <div className="w-full bg-slate-200/70 h-2 rounded-full overflow-hidden p-0.5">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${deliveryProgress}%` }}
-                      transition={{ duration: 0.5, ease: "easeOut" }}
-                      className={`h-full rounded-full transition-all ${
-                        isFreeDelivery
-                          ? "bg-gradient-to-r from-emerald-400 to-teal-500 shadow-xs"
-                          : "bg-gradient-to-r from-brand-purple to-indigo-600"
-                      }`}
-                    />
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200/80 shadow-2xs">
+                    <span className="text-[10px] text-slate-500">চার্জ:</span>
+                    <span className="font-mono font-black text-brand-purple">৳{DELIVERY_FEE}</span>
                   </div>
-
-                  <p className="text-[11px] text-slate-500 mt-2 font-medium leading-tight">
-                    {isFreeDelivery ? (
-                      <span className="text-emerald-700 font-bold">
-                        🎉 অভিনন্দন! এই অর্ডারে আপনি পাচ্ছেন সম্পূর্ণ ফ্রি এক্সপ্রেস ডেলিভারি।
-                      </span>
-                    ) : (
-                      <>
-                        আর মাত্র <strong className="text-brand-purple font-mono font-extrabold">৳{deliveryNeeded.toLocaleString()}</strong> টাকার ওষুধ কিনলেই ফ্রি ডেলিভারি পাবেন!
-                      </>
-                    )}
-                  </p>
                 </div>
 
                 {/* 3. Cart Items List */}
@@ -300,8 +263,8 @@ export default function CartDrawer({
 
                     <div className="flex justify-between text-slate-500 font-medium">
                       <span>এক্সপ্রেস ডেলিভারি চার্জ</span>
-                      <span className="font-mono font-bold text-emerald-600">
-                        {isFreeDelivery ? "সম্পূর্ণ ফ্রি" : `৳${DELIVERY_FEE}`}
+                      <span className="font-mono font-bold text-slate-800">
+                        ৳{DELIVERY_FEE}
                       </span>
                     </div>
 

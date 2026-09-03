@@ -852,6 +852,48 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 26. Standard Flat 40৳ Delivery Charge & Automated Invoice Generation Architecture
+
+- **Scope & User Intent**:
+  - Apply a default 40৳ flat delivery fee for all orders across the entire procurement cycle.
+  - Automatically incorporate and display the 40৳ delivery fee during invoice generation (web modal and PDF).
+- **Architectural Implementation**:
+  - **1. Order Creation & Database Transaction (`src/lib/dbService.ts`)**:
+    - `createOrderTransaction` assigns `DEFAULT_DELIVERY_CHARGE = 40` to all orders.
+    - `finalTotalAmount` is calculated as `totalAmount + 40` and stored in `orders.total_amount`.
+    - Invoice entry in `invoices` table is provisioned with `finalTotalAmount` (`amount_paid` / `amount_due`) ensuring net terms and accounts receivable match the invoice bill exactly.
+    - `getOrders` and `getOrderById` include `deliveryCharge: 40` for complete frontend mapping.
+  - **2. Cart & Procurement Drawer (`src/components/CartDrawer.tsx`)**:
+    - Replaced variable threshold rules with `DELIVERY_FEE = 40`.
+    - Updated the delivery banner to state depot express delivery charge at ৳40 flat fee.
+    - Displays `৳40` in the order cost breakdown and accurately computes `finalPayable`.
+  - **3. Checkout Process (`src/components/Checkout.tsx`)**:
+    - Itemizes medicines subtotal, 40৳ delivery charge, and final grand total payable.
+    - Order confirmation CTA button reflects the total including the 40৳ delivery fee.
+  - **4. Automatic Invoice Generation (`src/components/ModernInvoiceModal.tsx` & `server.ts`)**:
+    - `ModernInvoiceModal` displays `Delivery Charge: ৳40.00` line item and automatically derives `Grand Total = subtotal + 40`.
+    - `generateInvoicePdf` in `server.ts` includes `DELIVERY CHARGE: BDT 40` in the financial breakdown table and outputs accurate Net Payable.
+
+----------------------------------------
+
+## 27. Full Invoice Preview & Document Scaling Engine (`ModernInvoiceModal.tsx`)
+
+- **Scope & User Intent**:
+  - Ensure the invoice preview displays the complete, full invoice on any screen (mobile phones, tablets, desktops) without text truncation, left/right clipping, or layout collapse.
+  - Elevate modal z-index (`z-[100]`) above bottom navigation bars and floating elements.
+- **Architectural Implementation**:
+  - **1. Auto-Fit Scaling Canvas & Wrapper**:
+    - Introduced dynamic scaling wrapper (`#medichain-printable-invoice-wrapper`) with dimensions `(800 * scale) × (invoiceHeight * scale)` and CSS `transform: scale(scale)`.
+    - Automatically calculates `fitScale` based on container width so the full 800px A4 document fits within the mobile viewport without requiring horizontal scrolling or suffering from browser left-clipping.
+  - **2. Internal Grid Stabilization**:
+    - Converted window-based media queries (`sm:grid-cols-3`, `md:col-span-5`, etc.) into absolute grid structures (`grid-cols-3`, `col-span-5`, `col-span-4`, `grid-cols-4`). This ensures the 800px document canvas maintains its pristine multi-column A4 arrangement even when viewed on a phone browser whose viewport is <640px.
+  - **3. Interactive Zoom & View Controls**:
+    - Added toolbar controls: `Fit to Screen` (default on mobile), `100% Size`, `Zoom In (+)` and `Zoom Out (-)`, allowing users to instantly switch between overview and close-up inspection.
+  - **4. Print & PDF Fidelity**:
+    - Configured `@media print` in `src/index.css` to reset transforms and wrappers to full bleed (`transform: none !important`, `width: 100% !important`), guaranteeing standard vector laser print and PDF downloads.
+
+----------------------------------------
+
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).
@@ -862,5 +904,5 @@ Do not introduce unnecessary routing libraries (react-router), it uses a custom 
 Use Tailwind v4 for all styling.
 Icons must be from `lucide-react`.
 Always respect the existing environment variables and dual-auth structure (Supabase + local proxy).
-**Mandatory Continuous Deployment:** Every time code changes or fixes are made and verified, you MUST push to GitHub (`git add .`, `git commit -m "..."`, `git push origin main`) and deploy to Vercel via CLI (`npx vercel --prod --yes`).
+**Git Push Policy:** Do NOT push automatically. Only stage, commit, and push (`git add .`, `git commit -m "..."`, `git push origin main`) or deploy when the user explicitly requests it (e.g. by saying "push to git").
 **End of Report.**
