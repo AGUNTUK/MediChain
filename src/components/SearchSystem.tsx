@@ -292,6 +292,7 @@ export default function SearchSystem({
     imageSrc?: string
   ) => {
     if (cartAdding[productId]) return; // Throttling safeguard
+    if (stock <= 0) return; // Cannot add out of stock items
 
     if (e) {
       e.stopPropagation();
@@ -575,6 +576,16 @@ export default function SearchSystem({
                                 );
                               }
 
+                              if ((p.availableStock ?? 0) <= 0) {
+                                return (
+                                  <div className="mt-2.5 pt-2 border-t border-slate-50 flex items-center justify-center">
+                                    <span className="w-full text-center py-1 rounded-md text-[10px] font-bold bg-slate-100 text-slate-400">
+                                      স্টক শেষ
+                                    </span>
+                                  </div>
+                                );
+                              }
+
                               return (
                                 <div className="mt-2.5 pt-2 border-t border-slate-50 flex items-center gap-1.5">
                                   <input
@@ -843,14 +854,18 @@ export default function SearchSystem({
                                 <button
                                   type="button"
                                   onClick={(e) => handleAddToCartClick(p.id, p.availableStock, e, p.imageUrl || p.image_url)}
-                                  disabled={cartAdding[p.id]}
+                                  disabled={cartAdding[p.id] || (p.availableStock ?? 0) <= 0}
                                   className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                                    addedSuccess[p.id]
+                                    (p.availableStock ?? 0) <= 0
+                                      ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                                      : addedSuccess[p.id]
                                       ? "bg-emerald-600 text-white shadow-md scale-102"
                                       : "bg-brand-lime text-slate-900 hover:shadow-md hover:shadow-brand-lime/20"
                                   }`}
                                 >
-                                  {addedSuccess[p.id] ? (
+                                  {(p.availableStock ?? 0) <= 0 ? (
+                                    <span>স্টক শেষ (অনুপলব্ধ)</span>
+                                  ) : addedSuccess[p.id] ? (
                                     <>
                                       <Check className="w-4 h-4 text-white" />
                                       ✓ কার্টে যোগ হয়েছে!

@@ -720,11 +720,14 @@ const mapProduct = (p: any): Product => {
     sellingVal = mrpVal;
   }
 
-  const stockVal = inv && inv.available_stock !== undefined && inv.available_stock !== null
-    ? parseInt(inv.available_stock, 10)
-    : (p.stock_quantity !== undefined && p.stock_quantity !== null && p.stock_quantity !== ""
-        ? parseInt(p.stock_quantity, 10)
-        : (p.availableStock !== undefined && p.availableStock !== null ? parseInt(p.availableStock, 10) : 0));
+  const isSquare = (p.company || "").toLowerCase().includes("square");
+  const stockVal = isSquare
+    ? 0
+    : (inv && inv.available_stock !== undefined && inv.available_stock !== null
+        ? parseInt(inv.available_stock, 10)
+        : (p.stock_quantity !== undefined && p.stock_quantity !== null && p.stock_quantity !== ""
+            ? parseInt(p.stock_quantity, 10)
+            : (p.availableStock !== undefined && p.availableStock !== null ? parseInt(p.availableStock, 10) : 0)));
 
   const imgUrl = p.image_url || p.imageUrl || undefined;
 
@@ -1127,6 +1130,9 @@ export async function createOrderTransaction(userId: string, pharmacyId: string,
       const product = mapProduct({ ...rawProd, inventory: inv });
 
       const actualQuantity = item.quantity;
+      if ((product.availableStock ?? 0) <= 0 || (product.availableStock ?? 0) < actualQuantity) {
+        throw new Error(`দুঃখিত, "${product.name}" (${product.company}) বর্তমানে স্টকে নেই বা পর্যাপ্ত মজুদ নেই।`);
+      }
       const itemSubtotal = product.sellingPrice * actualQuantity;
       totalAmount += itemSubtotal;
       totalMrp += product.mrp * actualQuantity;

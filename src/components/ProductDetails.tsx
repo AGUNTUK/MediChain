@@ -46,7 +46,8 @@ export default function ProductDetails({ product, onClose, onAddToCart, onSelect
     ? Math.round(((product.mrp - product.sellingPrice) / product.mrp) * 100)
     : 0;
 
-  const isOutOfStock = product.availableStock <= 0;
+  const isSquare = (product.company || "").toLowerCase().includes("square");
+  const isOutOfStock = isSquare || (product.availableStock ?? 0) <= 0;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 z-[70] select-none animate-fade-in">
@@ -136,7 +137,7 @@ export default function ProductDetails({ product, onClose, onAddToCart, onSelect
               <div className="bg-white p-2.5 rounded-xl border border-slate-100 shadow-2xs">
                 <span className="text-[9px] text-slate-400 block font-mono font-semibold">মজুদ আছে</span>
                 <span className={`text-sm font-black ${isOutOfStock ? "text-rose-600" : "text-brand-purple"}`}>
-                  {product.availableStock} বক্স
+                  {isOutOfStock ? 0 : (product.availableStock ?? 0)} বক্স
                 </span>
               </div>
               <div className="bg-white p-2.5 rounded-xl border border-slate-100 shadow-2xs">

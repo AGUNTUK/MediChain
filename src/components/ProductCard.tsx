@@ -32,8 +32,9 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
   const [imageError, setImageError] = useState(false);
 
   const imageUrl = product.imageUrl || product.image_url;
-  const isOutOfStock = (product.availableStock ?? 100) <= 0;
-  const isLowStock = (product.availableStock ?? 100) > 0 && (product.availableStock ?? 100) <= 20;
+  const isSquare = (product.company || "").toLowerCase().includes("square");
+  const isOutOfStock = isSquare || (product.availableStock ?? 0) <= 0;
+  const isLowStock = !isSquare && (product.availableStock ?? 0) > 0 && (product.availableStock ?? 0) <= 20;
 
   // Calculate discount and profit margin percentage
   const calculatedDiscount =
@@ -129,7 +130,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
             <div className="flex items-center gap-2 text-xs font-mono text-slate-600 pt-1">
               <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold">{product.packSize}</span>
               <span className="text-slate-300">•</span>
-              <span className="font-bold text-slate-700">মজুদ: {product.availableStock ?? 100} বক্স</span>
+              <span className="font-bold text-slate-700">মজুদ: {isOutOfStock ? 0 : (product.availableStock ?? 0)} বক্স</span>
             </div>
           </div>
 

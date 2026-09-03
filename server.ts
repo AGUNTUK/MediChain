@@ -689,11 +689,14 @@ app.get("/api/products", publicLimiter, async (req, res) => {
       } else {
         sellingVal = mrpVal;
       }
-      const stockVal = inv && inv.available_stock !== undefined && inv.available_stock !== null
-        ? parseInt(inv.available_stock, 10)
-        : (p.stock_quantity !== undefined && p.stock_quantity !== null && p.stock_quantity !== ""
-            ? parseInt(p.stock_quantity, 10)
-            : (p.availableStock !== undefined && p.availableStock !== null ? parseInt(p.availableStock, 10) : 0));
+      const isSquare = (p.company || "").toLowerCase().includes("square");
+      const stockVal = isSquare
+        ? 0
+        : (inv && inv.available_stock !== undefined && inv.available_stock !== null
+            ? parseInt(inv.available_stock, 10)
+            : (p.stock_quantity !== undefined && p.stock_quantity !== null && p.stock_quantity !== ""
+                ? parseInt(p.stock_quantity, 10)
+                : (p.availableStock !== undefined && p.availableStock !== null ? parseInt(p.availableStock, 10) : 0)));
 
       return {
         id: String(p.id || "").trim(),
@@ -1048,9 +1051,12 @@ app.get("/api/cart", requireAuth, async (req, res) => {
           }
           
           const inv = Array.isArray(p.inventory) && p.inventory.length > 0 ? p.inventory[0] : (p.inventory || null);
-          const stockVal = p.stock_quantity !== undefined && p.stock_quantity !== null && p.stock_quantity !== ""
-            ? parseInt(p.stock_quantity, 10)
-            : (inv ? (inv.available_stock ?? 0) : (p.availableStock ?? 0));
+          const isSquare = (p.company || "").toLowerCase().includes("square");
+          const stockVal = isSquare
+            ? 0
+            : (p.stock_quantity !== undefined && p.stock_quantity !== null && p.stock_quantity !== ""
+                ? parseInt(p.stock_quantity, 10)
+                : (inv ? (inv.available_stock ?? 0) : (p.availableStock ?? 0)));
 
           const mapped = {
             id: String(p.id).trim(),

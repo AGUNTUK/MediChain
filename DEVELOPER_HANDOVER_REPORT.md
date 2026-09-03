@@ -894,6 +894,24 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 28. Temporary Stock Out Policy for Square Pharmaceuticals Products
+
+- **Scope & User Intent**:
+  - Immediately mark all Square Pharmaceuticals products as "Stock Out" (Out of Stock / 0 available stock) across the entire platform.
+  - Prevent pharmacies from adding Square products to cart or checking out.
+  - Display "স্টক শেষ" (Out of Stock) and the Stock Alert notification button on all Square catalog cards.
+- **Architectural Implementation**:
+  - **1. Supabase Database Update**:
+    - Ran transactional mass update across the live Supabase database setting `stock_quantity = 0` in the `products` table and `available_stock = 0` in the `inventory` table for all 128 Square Pharmaceuticals products.
+  - **2. Server & Service Layer Guard (`server.ts` & `src/lib/dbService.ts`)**:
+    - Added an automatic company check in `server.ts` (`/api/products` and `/api/cart`) and `src/lib/dbService.ts` (`mapProduct`) to guarantee that any item whose company name includes "Square" is strictly surfaced with `availableStock = 0`.
+    - In `createOrderTransaction` (`src/lib/dbService.ts`), enforced validation that rejects checkout if any cart item has `availableStock <= 0` or insufficient inventory.
+  - **3. Frontend State & Alternative Brand Suggestions**:
+    - In `SearchSystem.tsx`, `ProductCard.tsx`, and `ProductDetails.tsx`, all Square products immediately display the red "স্টক শেষ" badge and the stock alert button.
+    - Product alternative algorithms in `ProductDetails.tsx` recommend in-stock alternative brands from Beximco, Incepta, Acme, Renata, etc. for the same active molecule.
+
+----------------------------------------
+
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).
