@@ -9,7 +9,7 @@ import { PWAInstallPrompt } from "./pwa/PWAInstallPrompt";
 import PushNotificationPrompt from "./components/PushNotificationPrompt";
 import { CartFeedbackProvider } from "./context/FlyToCartContext";
 import CartBurst from "./components/CartBurst";
-import ErrorBoundary from "./components/ErrorBoundary";
+import SafeBoundary from "./components/SafeBoundary";
 import { Product, Pharmacy, Order, Notification, User } from "./types";
 import { Home as HomeIcon, Search as SearchIcon, Package as PackageIcon, FileText as FileIcon, ClipboardList as ListIcon, User as UserIcon, Shield, Smartphone, ShoppingBag } from "lucide-react";
 import { authService, productService, orderService, profileService, notificationService } from "./services";
@@ -654,7 +654,7 @@ export default function App() {
   // If user or app store reviewer navigated directly to a legal deep-link (e.g., /privacy, /terms, ?policy=...)
   if (directLegalTab) {
     return (
-      <ErrorBoundary>
+      <SafeBoundary>
         <Suspense fallback={<LoadingScreen />}>
           <LegalPolicyModal
             isStandalone={true}
@@ -665,7 +665,7 @@ export default function App() {
             }}
           />
         </Suspense>
-      </ErrorBoundary>
+      </SafeBoundary>
     );
   }
 
@@ -700,7 +700,7 @@ export default function App() {
   }
 
   return (
-    <ErrorBoundary>
+    <SafeBoundary>
       <CartFeedbackProvider>
         <Analytics />
         <SpeedInsights />
@@ -830,6 +830,6 @@ export default function App() {
         </div>
       </div>
       </CartFeedbackProvider>
-    </ErrorBoundary>
+    </SafeBoundary>
   );
 }

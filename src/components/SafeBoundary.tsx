@@ -10,7 +10,7 @@ interface State {
   error: Error | null;
 }
 
-export class ErrorBoundary extends React.Component<Props, State> {
+export class SafeBoundary extends React.Component<Props, State> {
   public state: State = {
     hasError: false,
     error: null
@@ -22,7 +22,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Uncaught error in ErrorBoundary:', error, errorInfo);
+    console.error('Uncaught error in SafeBoundary:', error, errorInfo);
   }
 
   private handleReload = () => {
@@ -37,7 +37,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
             <AlertOctagon className="w-10 h-10" strokeWidth={1.5} />
           </div>
           <h2 className="text-xl font-bold text-slate-800 mb-3">
-            Application Error
+            Application Issue
           </h2>
           <p className="text-sm text-slate-500 max-w-sm mb-8 leading-relaxed">
             We encountered an unexpected issue while rendering the application. Please reload the app to continue.
@@ -58,4 +58,4 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 }
 
-export default ErrorBoundary;
+export default SafeBoundary;

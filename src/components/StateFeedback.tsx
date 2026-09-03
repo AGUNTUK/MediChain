@@ -1,14 +1,14 @@
 import React from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
-interface ErrorStateProps {
+interface StateFeedbackProps {
   title?: string;
   message?: string;
   onRetry?: () => void;
   className?: string;
 }
 
-export const ErrorState: React.FC<ErrorStateProps> = ({
+export const StateFeedback: React.FC<StateFeedbackProps> = ({
   title = "Something went wrong",
   message = "Couldn't load data. Please check your connection and try again.",
   onRetry,
@@ -37,4 +37,4 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
   );
 };
 
-export default ErrorState;
+export default StateFeedback;

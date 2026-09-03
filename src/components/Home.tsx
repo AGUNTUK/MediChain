@@ -34,7 +34,7 @@ import { productService } from "../services";
 import NotificationBell from "./NotificationBell";
 import ProductCard from "./ProductCard";
 import ProductCardSkeleton from "./ProductCardSkeleton";
-import ErrorState from "./ErrorState";
+import StateFeedback from "./StateFeedback";
 import { formatProductPriceLabel, toBengaliNumber } from "../lib/utils";
 import { apiCache } from "../lib/apiCache";
 import { useCartFeedback } from "../context/FlyToCartContext";
@@ -170,10 +170,14 @@ export default function Home({
       });
       setFrequentProducts(inStockFreq.slice(0, 4));
 
-      // 3. Fetch Live Campaign
-      const { bulkDealsService } = await import("../services");
-      const activeCampaign = await bulkDealsService.getLiveCampaign();
-      setLiveCampaign(activeCampaign);
+      // 3. Fetch Live Campaign (optional widget, non-blocking)
+      try {
+        const { bulkDealsService } = await import("../services");
+        const activeCampaign = await bulkDealsService.getLiveCampaign();
+        setLiveCampaign(activeCampaign);
+      } catch (campaignErr) {
+        console.warn("Could not load live bulk campaign:", campaignErr);
+      }
     } catch (err) {
       console.error(err);
       setError("Failed to load dashboard data. Please check your connection.");
@@ -339,7 +343,7 @@ export default function Home({
       {/* Main Body */}
       {error ? (
         <div className="flex-1 overflow-hidden relative">
-          <ErrorState 
+          <StateFeedback 
             message={error} 
             onRetry={fetchHomeWidgets} 
           />
