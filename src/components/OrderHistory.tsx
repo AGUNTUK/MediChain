@@ -15,6 +15,7 @@ interface OrderHistoryProps {
 export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab }: OrderHistoryProps) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState<Order | null>(null);
   const [showReturnModal, setShowReturnModal] = useState<Order | null>(null);
   const [returnReason, setReturnReason] = useState("");
@@ -23,9 +24,11 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
   const fetchOrders = async () => {
     try {
       const data = await orderService.getOrders();
-      setOrders(data);
+      setOrders(data || []);
     } catch (err) {
-      console.error(err);
+      console.error("Failed to load orders:", err);
+    } finally {
+      setInitialLoading(false);
     }
   };
 
@@ -37,10 +40,14 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
     setLoading(true);
     try {
       await orderService.reorder(orderId);
+      setSuccessMsg("ওষুধগুলো সফলভাবে কার্টে যোগ করা হয়েছে!");
+      setTimeout(() => setSuccessMsg(""), 3500);
       onRefreshCart();
       onTriggerTab("cart");
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setSuccessMsg(err.message || "পুনরায় অর্ডার করতে সমস্যা হয়েছে।");
+      setTimeout(() => setSuccessMsg(""), 3500);
     } finally {
       setLoading(false);
     }
@@ -86,9 +93,21 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
     <div className="h-full bg-brand-bg select-none overflow-y-auto px-4 sm:px-6 pt-6 pb-32 space-y-4 max-w-4xl mx-auto w-full">
       <div className="flex justify-between items-center">
         <h2 className="text-base font-black text-brand-charcoal">অর্ডার ইতিহাস</h2>
-        <span className="text-[10px] text-slate-400 font-bold uppercase font-mono bg-white px-2.5 py-1 rounded-xl border border-slate-100 shadow-2xs">
-          মোট অর্ডার: {orders.length} টি
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setInitialLoading(true);
+              fetchOrders();
+            }}
+            title="অর্ডার রিফ্রেশ করুন"
+            className="p-1.5 bg-white hover:bg-slate-50 border border-slate-100 rounded-xl text-slate-500 hover:text-brand-purple transition-colors cursor-pointer shadow-2xs"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${initialLoading ? "animate-spin text-brand-purple" : ""}`} />
+          </button>
+          <span className="text-[10px] text-slate-400 font-bold uppercase font-mono bg-white px-2.5 py-1 rounded-xl border border-slate-100 shadow-2xs">
+            মোট অর্ডার: {orders.length} টি
+          </span>
+        </div>
       </div>
 
       {successMsg && (
@@ -98,7 +117,20 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
         </div>
       )}
 
-      {orders.length === 0 ? (
+      {initialLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((n) => (
+            <div key={n} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-2xs space-y-3 animate-pulse">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-50">
+                <div className="h-4 w-28 bg-slate-200 rounded"></div>
+                <div className="h-4 w-16 bg-slate-200 rounded"></div>
+              </div>
+              <div className="h-10 bg-slate-100 rounded-xl"></div>
+              <div className="h-12 bg-slate-100 rounded-xl"></div>
+            </div>
+          ))}
+        </div>
+      ) : orders.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center bg-white rounded-3xl border border-slate-100 p-8 shadow-2xs">
           <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 mb-3">
             <ListFilter className="w-6 h-6 text-slate-300" />
@@ -191,15 +223,20 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
                 অর্ডার করা ওষুধসমূহ
               </div>
               <div className="space-y-1">
-                {order.items.slice(0, 3).map((item, idx) => (
+                {(order.items || []).slice(0, 3).map((item, idx) => (
                   <div key={idx} className="flex justify-between text-xs font-medium text-slate-700">
                     <span className="truncate pr-2">{item.name} ({item.quantity} বক্স)</span>
                     <span className="font-mono shrink-0">৳{item.subtotal?.toLocaleString()}</span>
                   </div>
                 ))}
-                {order.items.length > 3 && (
+                {(order.items || []).length > 3 && (
                   <div className="text-[10px] text-brand-purple font-bold">
-                    + আরও {order.items.length - 3} টি ওষুধ
+                    + আরও {(order.items || []).length - 3} টি ওষুধ
+                  </div>
+                )}
+                {(!order.items || order.items.length === 0) && (
+                  <div className="text-[10px] text-slate-400 italic">
+                    ওষুধের আইটেম তালিকা সংরক্ষিত আছে
                   </div>
                 )}
               </div>
@@ -315,7 +352,7 @@ export default function OrderHistory({ onTrackOrder, onRefreshCart, onTriggerTab
 
       {/* Return dispute popup */}
       {showReturnModal && (
-        <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-fade-in">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-white rounded-2xl w-full max-w-sm p-5 text-xs text-slate-800 animate-scale-up shadow-2xl relative">
             <button
               onClick={() => setShowReturnModal(null)}

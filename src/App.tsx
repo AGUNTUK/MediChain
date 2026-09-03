@@ -576,7 +576,12 @@ export default function App() {
                   }}
                   onRefreshCart={refreshCartCounter}
                   onTriggerTab={(tab) => {
-                    setActiveTab(tab as any);
+                    if (tab === "cart") {
+                      refreshCartCounter();
+                      setIsCartDrawerOpen(true);
+                    } else {
+                      setActiveTab(tab as any);
+                    }
                   }}
                 />
               </Suspense>
