@@ -1068,6 +1068,22 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 38. Admin Telegram Notification on New Order Placement
+
+- **Telegram Bot Service (`/src/lib/telegramService.ts`)**:
+  - Implements lightweight HTTPS POST integration with Telegram Bot API (`https://api.telegram.org/bot<TOKEN>/sendMessage`).
+  - Formats order summary using Telegram Markdown with dynamic escaping for safety.
+  - Reads `TELEGRAM_BOT_TOKEN` and `TELEGRAM_ADMIN_CHAT_ID` safely from environment variables without exposing, hardcoding, or logging real values.
+  - Employs single transient retry (2-second backoff) on network or 5xx server failures; immediately bypasses retry on 401/403 authentication failures.
+  - Logs send attempts to console and the audit log system (`dbService.logAudit`).
+- **Order Placement Hook (`/server.ts`)**:
+  - Triggered immediately after `dbService.createOrderTransaction` succeeds inside `POST /api/orders`.
+  - Non-blocking execution wrapped in try/catch to ensure Telegram API status never impacts order creation responses to the pharmacy user.
+- **Environment Declarations (`.env.example`)**:
+  - Documents placeholder keys `TELEGRAM_BOT_TOKEN="your_bot_token_here"` and `TELEGRAM_ADMIN_CHAT_ID="your_admin_chat_id_here"`.
+
+----------------------------------------
+
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

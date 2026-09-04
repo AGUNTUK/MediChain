@@ -31,6 +31,7 @@ import { LRUCache } from "./src/lib/lruCache.js";
 import { DEFAULT_CATEGORY_OPTIONS } from "./src/constants/categories.js";
 import { scanSmartOrderImage, formatFriendlyErrorMessage } from "./src/lib/smartOrderOCR.js";
 import { matchSmartOrderItems } from "./src/lib/productMatcher.js";
+import { sendOrderAlert, logTelegramConfigStatus } from "./src/lib/telegramService.js";
 import cron from "node-cron";
 import multer from "multer";
 
@@ -1506,6 +1507,17 @@ app.post("/api/orders", requireAuth, orderLimiter, validateBody(schemas.orderCre
       url: "/#order-tracking",
       tag: `order_${result.order.id}`
     }, req.user.id).catch(() => {});
+
+    // Send Real-time Telegram Notification to Admin (Non-blocking)
+    sendOrderAlert({
+      orderId: result.order.readableId || result.order.id.slice(0, 8),
+      pharmacyName: pharmacy.pharmacyName || pharmacy.ownerName || "Registered Pharmacy",
+      itemCount: validCartItems.length,
+      totalAmount: result.order.totalAmount || 0,
+      adminOrderUrl: `${(process.env.APP_URL || "https://medichain.app").replace(/\/+$/, "")}/#depot`
+    }).catch((tgErr) => {
+      console.error("[Telegram] Unexpected failure in sendOrderAlert:", tgErr?.message || tgErr);
+    });
 
     res.json({
       success: true,
@@ -3457,6 +3469,7 @@ app.post("/api/admin/enrichment/tick", async (req, res) => {
 
   serverInstance = app.listen(PORT, "0.0.0.0", () => {
     log.info(`[${new Date().toISOString()}] [INFO] [System] MediChain Server running on port ${PORT} in ${process.env.NODE_ENV || "development"} mode.`);
+    logTelegramConfigStatus();
     initDailyBannerScheduler();
   });
 
