@@ -155,6 +155,7 @@ export interface Notification {
   targetType?: string;
   related_id?: string;
   is_read: boolean;
+  read?: boolean;
   created_at: string;
 }
 
@@ -229,17 +230,19 @@ export interface BulkCampaignProduct {
   product?: Product;
 }
 
-export type RestockRequestStatus = "pending" | "restocked" | "cancelled";
+export type RestockRequestStatus = "pending" | "restocked" | "cancelled" | "Pending" | "Restocked" | "Cancelled";
 
 export interface RestockRequest {
   id: string;
   productId: string;
-  pharmacyId: string;
-  requestedByUserId: string;
+  productName?: string;
+  pharmacyId?: string;
+  requestedByUserId?: string;
   requestedQuantity?: number;
   status: RestockRequestStatus;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
+  notifiedAt?: string;
   resolvedAt?: string | null;
   notificationSentAt?: string | null;
   product?: Product;

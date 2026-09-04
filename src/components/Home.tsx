@@ -350,15 +350,17 @@ export default function Home({
         </div>
       ) : (
         <>
-          <HeroCarousel 
-            pharmacyName={pharmacyName} 
-            onOpenScanner={() => setIsScannerOpen(true)} 
-            onBrowseCatalog={() => {
-              const el = document.getElementById("home-product-catalog");
-              if (el) el.scrollIntoView({ behavior: "smooth" });
-            }} 
-            onOpenBulkDeals={onOpenBulkDeals} 
-          />
+          <div className="px-3 sm:px-4 pt-3 sm:pt-4 max-w-7xl mx-auto w-full">
+            <HeroCarousel 
+              pharmacyName={pharmacyName} 
+              onOpenScanner={() => setIsScannerOpen(true)} 
+              onBrowseCatalog={() => {
+                const el = document.getElementById("home-product-catalog");
+                if (el) el.scrollIntoView({ behavior: "smooth" });
+              }} 
+              onOpenBulkDeals={onOpenBulkDeals} 
+            />
+          </div>
           
           <div className="p-4 space-y-5 pb-32">
             {/* Active Order Live Tracker Pulse Card */}

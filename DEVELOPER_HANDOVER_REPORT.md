@@ -940,6 +940,106 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 30. Good Morning Section Redesign (White/Lavender Canvas, 3D MediChain Bag & Dual CTAs)
+
+- **Design Specification**:
+  - Implemented the custom Good Morning hero design matching user-provided specifications:
+    - **Header Pill**: Circular purple sun icon with "GOOD MORNING" bold tracking.
+    - **Dynamic Greeting Title**: `{pharmacyName} 👋` (large high-contrast bold typography with waving hand emoji).
+    - **Subtitle**: "Manage your daily inventory".
+    - **Dual Primary CTAs**:
+      - "Scan Rx ->" in vibrant brand lime green (`#70C016`) with scan icon and direct link to Prescription Scanner.
+      - "Browse Catalog ->" in clean white card with purple package icon and smooth scroll to product catalog.
+    - **Right 3D Visual & Illustration Scene**:
+      - 3D white paper shopping bag branded with official MediChain logo and pharmaceutical bottles (purple cap, foil blister pack, green bottle).
+      - Floating two-tone capsule pill with soft specular reflection and drop shadow.
+      - Floating "Trusted Medicines • Best Prices • Fast Delivery" shield card badge.
+      - Floating circular "Smart Procurement • Better Business" glassmorphic metric badge.
+      - Smooth lavender-to-purple backdrop waves with dot-grid pattern and lime-green corner wave.
+    - **Bottom Carousel Dots**:
+      - Modern lime-green elongated active pill indicator and soft purple pagination dots.
+
+----------------------------------------
+
+## 31. 3D Design Engine: Stitch, Three.js / WebGL, R3F / Spline, Nano Banana 3D & Framer Motion
+
+- **Installed 3D & Animation Infrastructure**:
+  - `three` & `@types/three`: Three.js WebGL rendering engine with ACES Filmic tone mapping and PBR materials.
+  - `@react-three/fiber` & `@react-three/drei`: Declarative React 19-compatible 3D scene graph and shader helpers.
+  - `@splinetool/react-spline` & `@splinetool/runtime`: Spline 3D web runtime for interactive 3D scene embedding.
+  - `framer-motion` & `motion`: Framer Motion animation engine for layout transitions, spring physics, and micro-interactions.
+- **Google Stitch Design Tokens (`/src/lib/stitchDesignTokens.ts`)**:
+  - Tokenized color system (MediChain Orchid Purple `#6344E7`, Brand Lime `#70C016`, Ice Lavender `#FAF8FF`).
+  - Structured elevations: `flat`, `card`, `floating`, `interactive`, and `accentPill`.
+  - Spring motion presets: `springBouncy`, `springGentle`, and `springSnappy`.
+- **Nano Banana 3D Asset Integration (`/src/lib/nanoBananaAssets.ts`)**:
+  - Encapsulates studio-grade 3-point lighting (Key softbox `2.2`, Lavender fill `1.2`, Lime rim light `1.6`).
+  - Procedural 3D collectible capsule generator (`createNanoBananaCapsuleMesh`) with dual-color subsurface shaders, center seam accent, and smooth bevels.
+- **Interactive WebGL Component (`/src/components/ThreeDMedicineViewer.tsx`)**:
+  - Pure Three.js / WebGL 3D canvas with touch/pointer dragging, auto-rotation toggle, pose reset, and ResizeObserver.
+- **Master Reference Guide (`/skills.md` & `/SKILLS.md`)**:
+  - Permanent operational guide covering Stitch tokens, Three.js WebGL setups, Spline integration, Nano Banana studio lighting formulas, and Framer Motion animation presets.
+
+----------------------------------------
+
+## 32. Unified Creative Hero Banner Redesign (Proper MediChain Branding & Seamless Visual Integration)
+
+- **Design Objective**:
+  - Elevated the hero banner with proper MediChain enterprise branding, removed design toggles for a seamless single-view experience, and enhanced visual craftsmanship with creative 3D/vector depth.
+- **Brand Identity & Header Ribbon**:
+  - **Live Network Badge**: Integrated the official MediChain interlocking chain logo badge with pulsating live green status indicator (`MEDICHAIN B2B PHARMA • DGDA VERIFIED`).
+  - **High-Contrast Greeting**: Dynamic greeting (`Good Morning, {pharmacyName} 👋`) paired with contextual subtext highlighting manufacturer-direct sourcing.
+  - **Trust Micro-Ribbon**: Added 3 compact procurement pillars: `100% DGDA Compliant`, `⚡ Same-Day Depot Dispatch`, and `💰 Best Wholesale Rates`.
+- **Dual High-Conversion Action Controls**:
+  - **Scan Prescription**: High-impact brand lime green button (`bg-[#70C016]`) with camera scan icon, instant Rx scan label, and dynamic arrow translation on hover.
+  - **Explore Catalog**: Clean white elevation card with purple package icon, exploring 21k+ verified pharmaceutical SKUs.
+- **Integrated Creative Visual Composition**:
+  - Completely removed the 2D/3D toggle button, presenting a unified, beautifully styled visual composition.
+  - Handcrafted 3D MediChain supply tote with embossed monogram, ambient occlusion, prescription syrup bottle, amber bottle, and scored blister tablet strip.
+  - Smooth Framer Motion floating dynamics on the signature two-tone capsule and glassmorphic metric badge (`99.8% On-Time Fulfillment`).
+  - Layered orchid purple backdrop waves with dot-matrix supply chain grid and energetic lime curve accent.
+
+----------------------------------------
+
+## 33. Banner Script Integration (Bengali B2B Script & MediChain Identity)
+
+- **Exact User Script Implemented in Hero Banner**:
+  - **Eyebrow**: `GOOD MORNING` in tracking uppercase with morning sun accent.
+  - **Pharmacy Greeting**: `{pharmacyName || "Sohel Pharma"} 👋` with high-contrast typography.
+  - **Primary Headline (Bengali)**:
+    `ফার্মেসির কেনাকাটা,`
+    `এখন আরও স্মার্ট` (in MediChain Orchid Purple `#6344E7`).
+  - **Value Proposition Points**:
+    `২১,০০০+ ওষুধ • সাশ্রয়ী দাম`
+    `সহজ অর্ডার • দ্রুত ডেলিভারি` (with emerald checkmarks).
+  - **Primary Call-to-Action**:
+    `[ ক্যাটালগ দেখুন → ]` in brand lime green (`#70C016`) with directional arrow transition.
+  - **Visual Elements**:
+    Pharmaceutical capsule/tablet (`💊`), depot supply tote/package (`📦`), and official `MediChain` monogram & wordmark.
+  - **Pagination Indicators**:
+    Standardized `● ━ ● ●` carousel indicator pills.
+
+----------------------------------------
+
+## 34. Banner Refinement: Wholesale Pricing & Discount Integration
+
+- **Removed DGDA Content from Right Visual**:
+  - Completely removed the floating "DGDA Verified Depot" badge card from the right-hand visual composition in `/src/components/GoodMorningHeroVisual.tsx`, leaving the 3D pharmacy supply tote, blister pack, bottles, and brand monogram clean and unobstructed.
+- **Integrated Wholesale Pricing Copy**:
+  - Embedded the exact requested copy: `"প্রতিযোগিতামূলক wholesale pricing ও আকর্ষণীয় discount"` into the value proposition block in `/src/components/HeroCarousel.tsx` with dedicated brand purple check styling (`#6344E7`), clearly communicating wholesale savings and trade discounts directly to the pharmacy retailer.
+
+----------------------------------------
+
+## 35. Single Static Banner & Real MediChain Logo on Tote Bag
+
+- **Real MediChain Logo on Tote Bag**:
+  - Replaced the mockup SVG geometry in `/src/components/GoodMorningHeroVisual.tsx` with the authentic official `/logo.png` asset rendered cleanly onto the front of the pharmacy supply bag via `<image href="/logo.png" ... />`.
+- **Single Banner (No Carousel / No Second Banner)**:
+  - Removed multi-slide carousel switching, auto-advance timers, slide swipe listeners, chevron buttons, and carousel pagination dots from `/src/components/HeroCarousel.tsx`.
+  - The hero is now a dedicated, fast, single-screen banner presenting the exact requested B2B messaging and visuals without sliding to any secondary banners.
+
+----------------------------------------
+
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

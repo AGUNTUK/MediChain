@@ -506,7 +506,7 @@ export default function App() {
       "Out for Delivery",
       "Delivered"
     ];
-    const currentIdx = statuses.indexOf(activeOrderToDeliver.status);
+    const currentIdx = statuses.indexOf(activeOrderToDeliver.status as any);
     if (currentIdx < statuses.length - 1) {
       const nextStatus = statuses[currentIdx + 1];
       try {
@@ -732,7 +732,7 @@ export default function App() {
                 onAddToCart={handleAddToCart}
                 onToggleFavourite={handleToggleFavourite}
                 favouriteIds={favouriteIds}
-                pharmacyName={pharmacy?.pharmacyName || "City Pharma"}
+                pharmacyName={pharmacy?.pharmacyName || "Sohel Pharma"}
                 onOpenProductDetails={(p) => setSelectedProduct(p)}
                 onOpenNotifications={() => setShowNotifications(true)}
                 unreadNotificationsCount={unreadNotificationsCount}
