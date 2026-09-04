@@ -38,11 +38,9 @@ export default function HeroCarousel({
             <span className="inline-block hover:animate-wiggle shrink-0 cursor-default">👋</span>
           </h1>
 
-          {/* Primary Script Headline: ফার্মেসির কেনাকাটা, এখন আরও স্মার্ট */}
+          {/* Brand Tagline / Slogan: ফার্মেসির স্মার্ট পার্টনার */}
           <div className="mt-2 sm:mt-2.5 text-base sm:text-lg md:text-[22px] font-black text-slate-800 leading-snug tracking-tight">
-            <span>ফার্মেসির কেনাকাটা,</span>
-            <br />
-            <span className="text-[#6344E7]">এখন আরও স্মার্ট</span>
+            <span className="text-[#6344E7]">ফার্মেসির স্মার্ট পার্টনার</span>
           </div>
 
           {/* Value Bullet Points: 

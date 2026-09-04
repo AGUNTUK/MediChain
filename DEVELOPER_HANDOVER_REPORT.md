@@ -1040,6 +1040,18 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 36. Official Brand Tagline & Slogan Enforcement ("ফার্মেসির স্মার্ট পার্টনার")
+
+- **MediChainLogo Component (`/src/components/MediChainLogo.tsx`)**:
+  - Replaced the legacy deprecated English text `"B2B PHARMA PROCUREMENT PLATFORM"` with the official brand slogan `"ফার্মেসির স্মার্ট পার্টনার"` across all instances of the MediChain logo.
+  - Formatted with proper Bengali font sizing and tracking (`tracking-normal` / `tracking-wide`) to ensure crisp, un-broken Bengali typography across all sizes (`sm`, `md`, `lg`, `xl`).
+- **Hero Banner Tagline (`/src/components/HeroCarousel.tsx`)**:
+  - Integrated the official slogan/tagline `"ফার্মেসির স্মার্ট পার্টনার"` into the banner below the pharmacy heading.
+- **Strict Scope**:
+  - Maintained exact user request without unsolicited additions or modifications.
+
+----------------------------------------
+
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

@@ -89,10 +89,10 @@ export default function MediChainLogo({
   orientation = "horizontal",
 }: LogoProps) {
   const sizeMap = {
-    sm: { px: "nav-logo", text: "text-lg", subtitle: "text-[8px]" },
-    md: { px: 72, text: "text-2xl", subtitle: "text-[10px]" },
-    lg: { px: 130, text: "text-4xl", subtitle: "text-xs" },
-    xl: { px: "splash-logo", text: "text-5xl", subtitle: "text-sm" },
+    sm: { px: "nav-logo", text: "text-lg", subtitle: "text-[9px]" },
+    md: { px: 72, text: "text-2xl", subtitle: "text-[11px]" },
+    lg: { px: 130, text: "text-4xl", subtitle: "text-sm" },
+    xl: { px: "splash-logo", text: "text-5xl", subtitle: "text-base" },
   };
 
   const currentSize = sizeMap[size];
@@ -117,11 +117,11 @@ export default function MediChainLogo({
             <span style={{ color: "#8CC63F" }}>Chain</span>
           </div>
           <div
-            className={`${currentSize.subtitle} tracking-[0.25em] font-black uppercase ${
-              textColor === "light" ? "text-slate-400" : "text-gray-500"
-            } select-none ${orientation === "vertical" ? "mt-1.5" : "-mt-1"}`}
+            className={`${currentSize.subtitle} font-bold tracking-wide ${
+              textColor === "light" ? "text-slate-300" : "text-gray-600"
+            } select-none ${orientation === "vertical" ? "mt-1" : "-mt-0.5"}`}
           >
-            B2B PHARMA PROCUREMENT PLATFORM
+            ফার্মেসির স্মার্ট পার্টনার
           </div>
         </div>
       )}
