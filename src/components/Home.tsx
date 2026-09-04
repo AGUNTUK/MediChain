@@ -125,13 +125,13 @@ export default function Home({
 
   const DEFAULT_CATEGORIES = ALL_CATEGORY_VALUES;
 
-  // Helper to ensure in-stock products always appear first
+  // Helper to ensure in-stock products always appear first, and alphabetically
   const prioritizeInStock = (products: Product[]): Product[] => {
     return [...products].sort((a, b) => {
       const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
       const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
       if (aInStock !== bInStock) return bInStock - aInStock;
-      return 0;
+      return (a.name || "").localeCompare(b.name || "", "en", { sensitivity: "base" });
     });
   };
 

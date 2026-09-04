@@ -1052,6 +1052,22 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 37. In-Stock Priority & Alphabetical Ordering for Wholesale Catalog ("ওষুধের সম্পূর্ণ পাইকারি ক্যাটালগ")
+
+- **Server-side Catalog Pipeline (`/server.ts`)**:
+  - Optimized the `/api/products` endpoint to query and cache all 2,202 catalog medicines in memory using parallel chunked fetching.
+  - Implemented strict dual-tier sorting:
+    1. Primary tier: **In-stock medicines first** (`availableStock > 0` before `0` stock).
+    2. Secondary tier: **Alphabetical order (A to Z)** by medicine name (`name.localeCompare(..., "en", { sensitivity: "base" })`).
+    3. Out-of-stock items (e.g. unavailable brands) appear at the very end of the catalog, also organized alphabetically.
+  - Slices paginated windows cleanly (e.g., 24 per page for Home catalog) across the globally ordered dataset.
+  - Integrated automatic cache invalidation (`clearProductCache()`) on order placement, stock modifications, and admin updates.
+- **Home Component (`/src/components/Home.tsx`)**:
+  - Updated the client-side `prioritizeInStock` comparator to enforce alphabetical ordering (`localeCompare`) among items sharing the same stock status.
+  - Preserved existing filters, search, and infinite scrolling while ensuring every loaded page conforms strictly to in-stock-first and alphabetical order.
+
+----------------------------------------
+
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

@@ -623,68 +623,45 @@ app.get("/api/categories", async (req, res) => {
 // Bounded LRU Cache (max 1000 queries, 5-minute TTL) for zero-cost catalog reads
 const productLRUCache = new LRUCache<any>(1000, 300000);
 
+let cachedAllProducts: any[] | null = null;
+let lastAllProductsFetch = 0;
+const ALL_PRODUCTS_TTL = 300000; // 5 minutes
+
 export function clearProductCache() {
   productLRUCache.clear();
+  cachedAllProducts = null;
+  lastAllProductsFetch = 0;
 }
 
-app.get("/api/products", publicLimiter, async (req, res) => {
-  const { search, category, filter, page, limit, paginate } = req.query;
-
-  const pageNum = parseInt(page as string) || 1;
-  const limitNum = parseInt(limit as string) || 50;
-  const searchQuery = ((search as string) || "").trim();
-  const cacheKey = `${filter || "all"}_${category || "all"}_${searchQuery}_${pageNum}_${limitNum}_${paginate || "false"}`;
+async function getAllProductsMaster(): Promise<any[]> {
+  const now = Date.now();
+  if (cachedAllProducts && now - lastAllProductsFetch < ALL_PRODUCTS_TTL) {
+    return cachedAllProducts;
+  }
 
   try {
-    // Strategy 5: HTTP Edge cache header (5-min fresh, 1-hour stale-while-revalidate)
-    res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=3600");
+    // Fetch products in 1000-row chunks in parallel to cover full catalog (2,202+ items)
+    const [c1, c2, c3] = await Promise.all([
+      supabaseAdmin
+        .from("products")
+        .select("id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, image_url, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date)")
+        .range(0, 999),
+      supabaseAdmin
+        .from("products")
+        .select("id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, image_url, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date)")
+        .range(1000, 1999),
+      supabaseAdmin
+        .from("products")
+        .select("id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, image_url, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date)")
+        .range(2000, 2999),
+    ]);
 
-    // Strategy 1: In-memory LRU Cache check
-    const cached = productLRUCache.get(cacheKey);
-    if (cached) {
-      return res.json(cached);
+    const rawProducts = [...(c1.data || []), ...(c2.data || []), ...(c3.data || [])];
+    if (rawProducts.length === 0 && cachedAllProducts) {
+      return cachedAllProducts;
     }
 
-    const from = (pageNum - 1) * limitNum;
-    const to = from + limitNum - 1;
-
-    // Strategy 4: Only request exact count when explicit pagination is requested
-    const isPaginatedRequest = paginate === "true";
-    let query = supabaseAdmin
-      .from("products")
-      .select(
-        "id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, image_url, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date)",
-        isPaginatedRequest ? { count: "exact" } : undefined
-      )
-      .range(from, to);
-
-
-    if (searchQuery) {
-      const searchTerms = searchQuery.split(/\s+/).filter(Boolean);
-      searchTerms.forEach(term => {
-        query = query.or(`name.ilike.%${term}%,generic_name.ilike.%${term}%,company.ilike.%${term}%`);
-      });
-    }
-
-    if (category && category !== "All") {
-      query = query.eq("category_name_fallback", category);
-    }
-
-    // Sort Filters
-    if (filter === "deals") {
-      query = query.order("discount_percentage", { ascending: false });
-    } else if (filter === "low_stock") {
-      query = query.lte("stock_quantity", 150);
-    }
-
-    const { data: rawProducts, count, error } = await query;
-    
-    if (error) {
-      console.error("Supabase products pagination query failed:", error);
-      throw error;
-    }
-
-    const mappedProducts = (rawProducts || []).map((p: any) => {
+    const mappedProducts = rawProducts.map((p: any) => {
       // Map to frontend Product type
       const inv = p.inventory && Array.isArray(p.inventory) ? p.inventory[0] : (p.inventory || null);
       const mrpVal = p.mrp !== undefined && p.mrp !== null ? parseFloat(p.mrp) : 0;
@@ -726,12 +703,64 @@ app.get("/api/products", publicLimiter, async (req, res) => {
       };
     });
 
-    // Universal In-Stock Priority Sorting: Products in stock always appear first
-    mappedProducts.sort((a, b) => {
+    cachedAllProducts = mappedProducts;
+    lastAllProductsFetch = now;
+    return mappedProducts;
+  } catch (e) {
+    console.error("Error loading products master cache:", e);
+    if (cachedAllProducts) return cachedAllProducts;
+    return [];
+  }
+}
+
+app.get("/api/products", publicLimiter, async (req, res) => {
+  const { search, category, filter, page, limit, paginate } = req.query;
+
+  const pageNum = parseInt(page as string) || 1;
+  const limitNum = parseInt(limit as string) || 50;
+  const searchQuery = ((search as string) || "").trim();
+  const cacheKey = `${filter || "all"}_${category || "all"}_${searchQuery}_${pageNum}_${limitNum}_${paginate || "false"}`;
+
+  try {
+    // Strategy 5: HTTP Edge cache header (5-min fresh, 1-hour stale-while-revalidate)
+    res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=3600");
+
+    // Strategy 1: In-memory LRU Cache check
+    const cached = productLRUCache.get(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
+
+    const allProducts = await getAllProductsMaster();
+    let filtered = allProducts;
+
+    if (searchQuery) {
+      const searchTerms = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+      filtered = filtered.filter(p => {
+        const n = (p.name || "").toLowerCase();
+        const g = (p.genericName || "").toLowerCase();
+        const c = (p.company || "").toLowerCase();
+        return searchTerms.every(term => n.includes(term) || g.includes(term) || c.includes(term));
+      });
+    }
+
+    if (category && category !== "All") {
+      filtered = filtered.filter(p => p.category === category);
+    }
+
+    if (filter === "low_stock") {
+      filtered = filtered.filter(p => (p.availableStock ?? 0) <= 150);
+    }
+
+    // Strict Ordering:
+    // 1. In-stock products ALWAYS appear first (availableStock > 0)
+    // 2. Default: Alphabetical order (A to Z) by medicine name
+    // 3. Or specific sort filter (deals, frequent, low_stock)
+    filtered = [...filtered].sort((a, b) => {
       const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
       const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
       if (aInStock !== bInStock) {
-        return bInStock - aInStock; // In-stock (1) comes before Out-of-stock (0)
+        return bInStock - aInStock; // In-stock comes before out-of-stock
       }
       if (filter === "deals") {
         return (b.discountPercentage ?? 0) - (a.discountPercentage ?? 0);
@@ -740,15 +769,20 @@ app.get("/api/products", publicLimiter, async (req, res) => {
       } else if (filter === "low_stock") {
         return (a.availableStock ?? 0) - (b.availableStock ?? 0);
       }
-      return 0;
+      // Default: Alphabetical (A to Z)
+      return (a.name || "").localeCompare(b.name || "", "en", { sensitivity: "base" });
     });
 
+    const isPaginatedRequest = paginate === "true";
     let responseData: any;
     if (isPaginatedRequest || page || limit) {
-      const total = count || mappedProducts.length;
-      const pages = count ? Math.ceil(count / limitNum) : 1;
+      const total = filtered.length;
+      const pages = Math.ceil(total / limitNum) || 1;
+      const from = (pageNum - 1) * limitNum;
+      const pagedItems = filtered.slice(from, from + limitNum);
+
       responseData = {
-        products: mappedProducts,
+        products: pagedItems,
         total,
         page: pageNum,
         pageSize: limitNum,
@@ -758,7 +792,7 @@ app.get("/api/products", publicLimiter, async (req, res) => {
         correctedQuery: undefined
       };
     } else {
-      responseData = mappedProducts;
+      responseData = filtered;
     }
 
     productLRUCache.set(cacheKey, responseData, 300000);
