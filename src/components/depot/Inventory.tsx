@@ -108,9 +108,6 @@ export default function Inventory({ products, onQuickEdit }: InventoryProps) {
       });
 
       if (res.ok) {
-        localEditProduct.availableStock = editStockQty;
-        localEditProduct.batchNumber = editBatchNo;
-        localEditProduct.expiryDate = editExpiryDate;
         saveRackLocation(localEditProduct.id, editRackLoc);
         setSuccessBanner(`Inventory details updated successfully for ${localEditProduct.name}.`);
         setLocalEditProduct(null);

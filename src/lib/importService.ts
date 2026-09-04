@@ -1,6 +1,5 @@
 import { Product } from "../types";
 import { checkDuplicate } from "./productValidator.js";
-import { ALL_CATEGORY_VALUES } from "../constants/categories";
 
 export interface RawImportRow {
   productName: string;
@@ -133,87 +132,24 @@ export function mapRowToFields(row: Record<string, string>): RawImportRow {
   const rawCategory = findVal(["Category", "product_category", "type"]);
   const strength = findVal(["Strength", "power", "dose"]) || "N/A";
   
-  // Robust category mapping to match standard pharmaceutical classifications
+  // Robust category mapping to meet the strict 6 healthcare categories in types.ts
   let category = "Tablet";
   if (rawCategory) {
     const normCat = rawCategory.trim().toLowerCase();
-    const matched = ALL_CATEGORY_VALUES.find(c => c.toLowerCase() === normCat);
-    if (matched) {
-      category = matched;
-    } else if (normCat.includes("chewable")) {
-      category = "Chewable Tablet";
-    } else if (normCat.includes("effervescent")) {
-      category = "Effervescent Tablet";
-    } else if (normCat.includes("tablet") || normCat.includes("bolus") || normCat.includes("pill")) {
+    if (normCat.includes("tablet") || normCat.includes("bolus") || normCat.includes("suppository") || normCat.includes("pill")) {
       category = "Tablet";
-    } else if (normCat.includes("softgel") || normCat.includes("rotacap")) {
+    } else if (normCat.includes("capsule") || normCat.includes("cozycap") || normCat.includes("licap") || normCat.includes("softgel")) {
       category = "Capsule";
-    } else if (normCat.includes("capsule") || normCat.includes("cozycap") || normCat.includes("licap")) {
-      category = "Capsule";
-    } else if (normCat.includes("suspension")) {
-      category = "Suspension";
-    } else if (normCat.includes("saline") || normCat.includes("ors")) {
-      category = "Oral Saline";
-    } else if (normCat.includes("solution")) {
-      category = "Oral Solution";
-    } else if (normCat.includes("eye drop") || normCat.includes("eye")) {
-      category = "Eye Drops";
-    } else if (normCat.includes("ear drop") || normCat.includes("ear")) {
-      category = "Ear Drops";
-    } else if (normCat.includes("nasal") || normCat.includes("spray")) {
-      category = "Nasal Spray";
-    } else if (normCat.includes("drop")) {
-      category = "Oral Drops";
-    } else if (normCat.includes("syrup") || normCat.includes("elixir") || normCat.includes("mixture")) {
+    } else if (normCat.includes("syrup") || normCat.includes("solution") || normCat.includes("suspension") || normCat.includes("drops") || normCat.includes("elixir") || normCat.includes("paste") || normCat.includes("wash") || normCat.includes("mixture")) {
       category = "Syrup";
-    } else if (normCat.includes("infusion") || normCat.includes("iv drip")) {
-      category = "Infusion";
-    } else if (normCat.includes("insulin")) {
-      category = "Insulin";
-    } else if (normCat.includes("vaccine")) {
-      category = "Vaccine";
-    } else if (normCat.includes("inhaler") || normCat.includes("aerosol") || normCat.includes("rotahaler")) {
-      category = "Inhaler";
-    } else if (normCat.includes("nebulizer")) {
-      category = "Nebulizer Solution";
-    } else if (normCat.includes("injection") || normCat.includes("inj") || normCat.includes("vial") || normCat.includes("ampoule")) {
+    } else if (normCat.includes("injection") || normCat.includes("inj") || normCat.includes("vial") || normCat.includes("ampoule") || normCat.includes("infusion")) {
       category = "Injection";
-    } else if (normCat.includes("ointment")) {
-      category = "Ointment";
-    } else if (normCat.includes("gel")) {
-      category = "Gel";
-    } else if (normCat.includes("lotion")) {
-      category = "Lotion";
-    } else if (normCat.includes("cream")) {
+    } else if (normCat.includes("cream") || normCat.includes("ointment") || normCat.includes("gel") || normCat.includes("lotion") || normCat.includes("spray") || normCat.includes("rub") || normCat.includes("paste")) {
       category = "Cream";
-    } else if (normCat.includes("suppository")) {
-      category = "Suppository";
-    } else if (normCat.includes("pessary")) {
-      category = "Pessary";
-    } else if (normCat.includes("patch")) {
-      category = "Patch";
-    } else if (normCat.includes("vitamin")) {
-      category = "Vitamins";
-    } else if (normCat.includes("supplement")) {
+    } else if (normCat.includes("supplement") || normCat.includes("powder") || normCat.includes("sachet") || normCat.includes("granule")) {
       category = "Supplement";
-    } else if (normCat.includes("herbal") || normCat.includes("ayurvedic")) {
-      category = "Herbal";
-    } else if (normCat.includes("homeopathic")) {
-      category = "Homeopathic";
-    } else if (normCat.includes("device") || normCat.includes("surgical")) {
-      category = "Medical Device";
-    } else if (normCat.includes("bandage") || normCat.includes("dressing") || normCat.includes("gauze")) {
-      category = "Dressing & Bandage";
-    } else if (normCat.includes("first aid")) {
-      category = "First Aid";
-    } else if (normCat.includes("glove") || normCat.includes("mask")) {
-      category = "Gloves & Masks";
-    } else if (normCat.includes("powder")) {
-      category = "Powder";
-    } else if (normCat.includes("sachet")) {
-      category = "Sachet";
     } else {
-      category = rawCategory.trim();
+      category = "Tablet";
     }
   }
 
@@ -283,7 +219,7 @@ export function mapToProduct(row: RawImportRow, nextId: string): Product {
     name: row.productName,
     genericName: row.genericName,
     company: row.companyName,
-    category: row.category,
+    category: row.category as "Tablet" | "Capsule" | "Syrup" | "Injection" | "Cream" | "Supplement",
     strength: row.strength,
     packSize: row.packSize,
     mrp: mrpValue,

@@ -1,6 +1,5 @@
 import { Product } from "../types";
 import { apiCache } from "../lib/apiCache";
-import { restockService } from "./restockService";
 
 /**
  * MediChain Product Catalog Service
@@ -35,12 +34,7 @@ export const productService = {
       const res = await fetch(`/api/products${queryStr}`);
       if (!res.ok) return [];
       const data = await res.json();
-      const list: Product[] = Array.isArray(data) ? data : (data.products || []);
-      return [...list].sort((a, b) => {
-        const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
-        const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
-        return bInStock - aInStock;
-      });
+      return Array.isArray(data) ? data : (data.products || []);
     });
   },
 
@@ -90,15 +84,7 @@ export const productService = {
       if (!res.ok) {
         throw new Error("Failed to fetch paginated product list from MediChain catalog.");
       }
-      const result = await res.json();
-      if (result && Array.isArray(result.products)) {
-        result.products = [...result.products].sort((a, b) => {
-          const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
-          const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
-          return bInStock - aInStock;
-        });
-      }
-      return result;
+      return res.json();
     });
   },
 
@@ -188,73 +174,16 @@ export const productService = {
   },
 
   /**
-   * Fetches alternative brands sharing the exact same active generic molecule.
+   * Fetches alternative products with the same generic molecule name.
    */
-  async getGenericAlternatives(genericName: string, excludeId?: string): Promise<Product[]> {
-    if (!genericName || !genericName.trim()) return [];
+  async getGenericAlternatives(genericName: string, currentProductId: string): Promise<Product[]> {
+    if (!genericName) return [];
     try {
-      const cleanGeneric = genericName.trim();
-      const allMatches = await this.getProducts({ search: cleanGeneric, limit: 30 });
-      return allMatches.filter(p => 
-        p.id !== excludeId && 
-        p.genericName && 
-        p.genericName.toLowerCase().trim() === cleanGeneric.toLowerCase()
-      );
-    } catch (err) {
-      console.warn("Failed to fetch generic alternatives:", err);
+      const all = await this.getProducts({ search: genericName, limit: 10 });
+      return all.filter(p => p.id !== currentProductId && p.genericName.toLowerCase() === genericName.toLowerCase());
+    } catch {
       return [];
     }
-  },
-
-  /**
-   * Returns list of product IDs subscribed to restock alerts.
-   */
-  getRestockAlerts(): string[] {
-    try {
-      const saved = localStorage.getItem("medichain_restock_alerts");
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      return [];
-    }
-  },
-
-  /**
-   * Checks if a product has an active restock alert.
-   */
-  hasRestockAlert(productId: string): boolean {
-    const alerts = this.getRestockAlerts();
-    return alerts.includes(productId);
-  },
-
-  /**
-   * Submits restock request / stock alert for an out-of-stock product. Returns new state and syncs with server.
-   */
-  async toggleRestockAlert(productId: string, requestedQuantity: number = 1): Promise<boolean> {
-    const alerts = this.getRestockAlerts();
-    let updated: string[];
-    let isSubscribed: boolean;
-
-    if (alerts.includes(productId)) {
-      // Keep optimistic state active since pending requests remain active until resolved by admin/replenishment
-      isSubscribed = true;
-      updated = alerts;
-    } else {
-      updated = [...alerts, productId];
-      isSubscribed = true;
-      try {
-        localStorage.setItem("medichain_restock_alerts", JSON.stringify(updated));
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    try {
-      await restockService.requestStockAlert(productId, requestedQuantity);
-    } catch (err) {
-      console.warn("Stock alert backend sync:", err);
-    }
-
-    return isSubscribed;
   },
 };
 

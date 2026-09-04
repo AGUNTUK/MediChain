@@ -20,14 +20,6 @@ export const orderLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-export const smartOrderLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 20,
-  message: { error: "অনেকগুলো স্ক্যান রিকোয়েস্ট পাঠানো হয়েছে। অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করে আবার চেষ্টা করুন।" },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
 export const publicLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 100,
@@ -35,6 +27,15 @@ export const publicLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+export const smartOrderLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  message: { error: "Too many OCR requests. Please try again after 1 minute." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 
 // Zod Schemas
 export const schemas = {
@@ -54,37 +55,9 @@ export const schemas = {
     phone: z.string().regex(/^(?:\+88|88)?01[3-9]\d{8}$/, "Invalid phone number. Must be a valid 11-digit BD number."),
     address: z.string().min(5, "Address must be at least 5 characters long."),
     licenseNo: z.string().min(4, "Drug License Number is required."),
-    nidNumber: z.string().optional().or(z.literal("")),
-    tradeLicenseNo: z.string().optional(),
-    tinNumber: z.string().optional(),
-    division: z.string().optional(),
-    district: z.string().optional(),
-    thana: z.string().optional(),
-    upazila: z.string().optional(),
-    streetAddress: z.string().optional(),
-    landmark: z.string().optional(),
-    city: z.string().optional(),
-    email: z.string().email("Invalid email format.").optional().or(z.literal("")),
-    logoUrl: z.string().optional(),
-    drugLicensePath: z.string().optional(),
-    tradeLicensePath: z.string().optional(),
-    nidDocumentPath: z.string().optional(),
-    drugLicenseUrl: z.string().optional(),
+    nidNumber: z.string().min(10, "National ID number must be at least 10 characters long."),
     tradeLicenseUrl: z.string().optional(),
     nidUrl: z.string().optional(),
-    nidFrontUrl: z.string().optional(),
-    nidBackUrl: z.string().optional(),
-    drugLicenseExpiry: z.string().optional(),
-    dob: z.string().optional(),
-    status: z.string().optional(),
-    submittedAt: z.string().optional(),
-    legalConsent: z.object({
-      termsAcceptedAt: z.string().optional(),
-      privacyPolicyVersion: z.string().optional(),
-      ipAddress: z.string().optional(),
-      verifiedAuthenticityDeclaration: z.boolean().optional(),
-    }).optional(),
-    legal_consent: z.any().optional(),
   }),
   orderCreate: z.object({
     paymentMethod: z.string().min(1, "Payment method is required."),
@@ -121,16 +94,14 @@ export const validateBody = (schema: z.ZodType<any>) => (req: Request, res: Resp
   } catch (error: any) {
     if (error instanceof z.ZodError) {
       const fieldErrors: Record<string, string> = {};
-      const issues = (error as any).issues || (error as any).errors || [];
-      issues.forEach((err: any) => {
+      (error as any).errors.forEach((err: any) => {
         if (err.path.length > 0) {
           fieldErrors[err.path[0]] = err.message;
         } else {
           fieldErrors["_general"] = err.message;
         }
       });
-      const detailedError = Object.values(fieldErrors).filter(Boolean).join(". ") || "Validation failed";
-      return res.status(400).json({ error: detailedError, fields: fieldErrors });
+      return res.status(400).json({ error: "Validation failed", fields: fieldErrors });
     }
     return res.status(400).json({ error: "Invalid request payload" });
   }

@@ -3,7 +3,7 @@ import { supabaseAdmin } from "./supabaseAdmin.js";
 import { ENRICHMENT_SOURCES, EnrichmentSourceKey } from "./enrichmentSources";
 
 // Firecrawl configuration
-const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY || "";
+const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY || "fc-ccc5bfe9944141948d4179fa25f4bffa";
 const FIRECRAWL_BASE_URL = 'https://api.firecrawl.dev/v2';
 
 
@@ -84,8 +84,12 @@ const MAX_IN_MEMORY_LOGS = 200;
 const TICK_LOCK_MS = 2000;
 
 let cachedLogs: EnrichmentLog[] = [];
+let cachedState: EnrichmentState | null = null;
 
 async function loadState(): Promise<EnrichmentState> {
+  if (cachedState && cachedState.status !== "running") {
+    return cachedState;
+  }
   try {
     const { data, error } = await supabaseAdmin
       .from("notifications")
@@ -98,15 +102,18 @@ async function loadState(): Promise<EnrichmentState> {
 
     if (data && data.length > 0) {
       const cloudState = JSON.parse(data[0].message);
-      return { ...DEFAULT_STATE, ...cloudState, logs: cachedLogs };
+      cachedState = { ...DEFAULT_STATE, ...cloudState, logs: cachedLogs };
+      return cachedState;
     }
   } catch (e) {
     console.error("Failed to load enrichment state from cloud:", e);
   }
-  return { ...DEFAULT_STATE, logs: cachedLogs };
+  cachedState = { ...DEFAULT_STATE, logs: cachedLogs };
+  return cachedState;
 }
 
 async function saveState(state: EnrichmentState): Promise<void> {
+  cachedState = state;
   try {
     const stateToSave = { ...state, logs: [] };
     const { data } = await supabaseAdmin
@@ -132,6 +139,7 @@ async function saveState(state: EnrichmentState): Promise<void> {
     console.error("Failed to save enrichment state to cloud:", e);
   }
 }
+
 
 function addLog(state: EnrichmentState, log: Omit<EnrichmentLog, "timestamp">) {
   const fullLog = { ...log, timestamp: new Date().toISOString(), source: log.source || state.config?.source || "medex" };
@@ -369,6 +377,9 @@ async function processProduct(state: EnrichmentState, productId: string) {
   }
 }
 async function processOneBatch(): Promise<EnrichmentState> {
+  if (cachedState && cachedState.status !== "running") {
+    return cachedState;
+  }
   const state = await loadState();
   if (state.status !== "running" || !state.config) {
     return state;
@@ -490,5 +501,10 @@ export const aiEnrichmentService = {
     return processOneBatch();
   },
 
-  tick: processOneBatch
+  tick: processOneBatch,
+
+  isRunning(): boolean {
+    return cachedState?.status === "running";
+  }
 };
+

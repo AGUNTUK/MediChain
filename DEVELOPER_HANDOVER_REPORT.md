@@ -912,6 +912,34 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 29. Supabase Egress Quota Optimization & Zero-Cost Scale Architecture (300+ Pharmacies)
+
+- **Problem Identified**:
+  - Project incurred 7.486 GB of uncached egress (150% of the 5 GB Free tier quota) with minimal user activity.
+  - Primary causes:
+    1. Server-side `cron.schedule("* * * * *")` ticked every 60 seconds 24/7, repeatedly querying Supabase `notifications` table for state even when idle.
+    2. Admin `AIEnrichmentPanel.tsx` polled `/api/admin/enrichment/status` every 4 seconds via `setInterval` unconditionally.
+    3. Express server had a short 60-second product cache TTL, querying Supabase for full catalog rows on every new pharmacy request.
+    4. `/api/products` executed `{ count: "exact" }` on every request, triggering full-table PostgreSQL scans across 21,000 products even for non-paginated requests.
+    5. `DepotDashboard.tsx` fetched unbounded products without pagination limits.
+- **Architectural Implementation**:
+  - **Strategy 1: 5-Minute In-Memory Server Catalog Caching (`server.ts`)**:
+    - Upgraded `productLRUCache` TTL from 60 seconds to 300,000 ms (5 minutes) and 1,000 entries.
+    - Added instant cache purge on product mutations (`clearProductCache()`).
+  - **Strategy 2: Zero-Cost Idle Background Cron Execution (`src/lib/aiEnrichmentService.ts` & `server.ts`)**:
+    - Maintained in-memory running status flag (`isRunning()`).
+    - Made `aiEnrichmentService.tick()` an instant zero-network return if the service is idle or stopped. No network queries to Supabase occur while no job is active.
+  - **Strategy 3: Conditional Smart Polling in Admin Panel (`src/components/AIEnrichmentPanel.tsx`)**:
+    - Replaced unconditional 4s polling with smart polling that only triggers when `state.status === "running"`.
+    - Increased polling interval to 8 seconds during active jobs, and added a manual "Refresh" trigger.
+  - **Strategy 4: Elimination of Costly Full-Table Scans (`server.ts` & `src/components/DepotDashboard.tsx`)**:
+    - Restricted `{ count: "exact" }` exclusively to explicit pagination requests (`paginate === "true"`), skipping count scans on deals and frequent product feeds.
+    - Enforced `limit: 50` on depot inventory lookups.
+  - **Strategy 5: HTTP Edge Caching & Client-Side Stale-While-Revalidate Headers (`server.ts`)**:
+    - Standardized `Cache-Control: public, max-age=300, stale-while-revalidate=3600` on catalog responses to leverage browser/PWA caching and reduce repeat queries.
+
+----------------------------------------
+
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

@@ -89,8 +89,8 @@ export default function MediChainLogo({
   orientation = "horizontal",
 }: LogoProps) {
   const sizeMap = {
-    sm: { px: "nav-logo", text: "text-lg", subtitle: "text-[9px]" },
-    md: { px: 72, text: "text-2xl", subtitle: "text-[11px]" },
+    sm: { px: "nav-logo", text: "text-lg", subtitle: "text-[8px]" },
+    md: { px: 72, text: "text-2xl", subtitle: "text-[10px]" },
     lg: { px: 130, text: "text-4xl", subtitle: "text-xs" },
     xl: { px: "splash-logo", text: "text-5xl", subtitle: "text-sm" },
   };
@@ -112,16 +112,16 @@ export default function MediChainLogo({
       {/* Brand Typography perfectly aligned */}
       {withText && (
         <div className={orientation === "vertical" ? "mt-3" : "flex flex-col"}>
-          <div className={`${currentSize.text} font-black tracking-tight select-none leading-none`}>
+          <div className={`${currentSize.text} font-black tracking-tight select-none`}>
             <span style={{ color: "#8B5CF6" }}>Medi</span>
             <span style={{ color: "#8CC63F" }}>Chain</span>
           </div>
           <div
-            className={`${currentSize.subtitle} font-bold tracking-normal ${
+            className={`${currentSize.subtitle} tracking-[0.25em] font-black uppercase ${
               textColor === "light" ? "text-slate-400" : "text-gray-500"
-            } select-none ${orientation === "vertical" ? "mt-1.5" : "mt-0.5"}`}
+            } select-none ${orientation === "vertical" ? "mt-1.5" : "-mt-1"}`}
           >
-            ফার্মেসির স্মার্ট পার্টনার
+            B2B PHARMA PROCUREMENT PLATFORM
           </div>
         </div>
       )}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { X, Bell, CheckCheck, RefreshCw, Sparkles, Tag, Package, Coins, PackageCheck, AlertTriangle } from "lucide-react";
+import { X, Bell, CheckCheck, RefreshCw, Sparkles, Tag, Package, Coins } from "lucide-react";
 import { Notification } from "../types";
 import { notificationService } from "../services";
 
@@ -52,12 +52,7 @@ export default function NotificationsPanel({ onClose, onRefreshNotifications }: 
 
   const getIcon = (type: string) => {
     switch (type) {
-      case "stock_restock":
-        return <PackageCheck className="w-4 h-4 text-emerald-600" />;
-      case "stock_alert":
-        return <AlertTriangle className="w-4 h-4 text-amber-500" />;
       case "price_drop":
-      case "offer":
         return <Tag className="w-4 h-4 text-brand-purple" />;
       case "order_update":
         return <Package className="w-4 h-4 text-brand-lime" />;
@@ -69,26 +64,25 @@ export default function NotificationsPanel({ onClose, onRefreshNotifications }: 
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 z-[70] select-none animate-fade-in">
-      <div className="absolute inset-0" onClick={onClose} />
-      <div className="relative w-full max-w-xl bg-brand-bg rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 border-t sm:border border-slate-200 shadow-2xl overflow-y-auto max-h-[85vh] sm:max-h-[80vh] animate-slide-up flex flex-col justify-between z-10">
+    <div className="absolute inset-0 bg-black/60 flex items-end z-50 select-none animate-fade-in">
+      <div className="w-full bg-brand-bg rounded-t-3xl p-5 border-t border-slate-200 shadow-2xl overflow-y-auto max-h-[80%] animate-slide-up flex flex-col justify-between">
         {/* Header */}
-        <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-100">
+        <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-50">
           <div>
             <h3 className="text-xs font-black text-brand-charcoal flex items-center gap-1.5">
               <Bell className="w-4 h-4 text-brand-purple" />
-              মেডিচেইন ডিপো ব্রডকাস্টার
+              MediChain Depot Broadcaster
             </h3>
-            <p className="text-[10px] text-slate-400 mt-0.5">রিয়েল-টাইম অর্ডার ডেলিভারি ও পাইকারি ডিল</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">Real-time supply-chain updates and offers</p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex gap-2">
             <button
               onClick={handleMarkAllRead}
               className="text-[10px] text-brand-purple font-extrabold hover:underline cursor-pointer flex items-center gap-1"
             >
               <CheckCheck className="w-3.5 h-3.5" />
-              সব পঠিত
+              Mark all read
             </button>
             <button
               onClick={onClose}
@@ -97,25 +91,6 @@ export default function NotificationsPanel({ onClose, onRefreshNotifications }: 
               <X className="w-4 h-4 text-slate-500" />
             </button>
           </div>
-        </div>
-
-        {/* Mobile Push Notification Quick Toggle Bar */}
-        <div className="bg-gradient-to-r from-purple-50 via-white to-lime-50 text-slate-900 p-3 rounded-2xl mb-3 flex items-center justify-between gap-2 shadow-2xs border border-purple-200/70">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-brand-lime animate-ping"></span>
-            <span className="text-xs font-black text-slate-900">মোবাইল পুশ নোটিফিকেশন</span>
-          </div>
-          <button
-            type="button"
-            onClick={async () => {
-              const { pushManager } = await import("../pwa/pushManager");
-              await pushManager.subscribe();
-              pushManager.sendTestPush().catch(() => {});
-            }}
-            className="text-[10px] font-black bg-brand-lime hover:bg-brand-lime-dark text-slate-950 px-2.5 py-1 rounded-xl shadow-2xs transition-all cursor-pointer"
-          >
-            চালু / টেস্ট
-          </button>
         </div>
 
         {/* List of broadcasts */}

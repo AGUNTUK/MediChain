@@ -16,7 +16,6 @@ import {
   Trash2
 } from "lucide-react";
 import { Product } from "../types";
-import { CATEGORY_GROUPS, ALL_CATEGORY_VALUES } from "../constants/categories";
 
 interface ProductEditModalProps {
   product?: Product | null;
@@ -34,7 +33,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [name, setName] = useState("");
   const [genericName, setGenericName] = useState("");
   const [company, setCompany] = useState("");
-  const [category, setCategory] = useState<string>("Tablet");
+  const [category, setCategory] = useState<Product["category"]>("Tablet");
   const [strength, setStrength] = useState("");
   const [packSize, setPackSize] = useState("");
   const [mrp, setMrp] = useState<number | "">("");
@@ -151,39 +150,14 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || name.trim().length < 2) {
-      setErrorMessage("Product Name is required (at least 2 characters).");
-      return;
-    }
-    if (!genericName.trim() || genericName.trim().length < 2) {
-      setErrorMessage("Generic Formula is required (at least 2 characters).");
-      return;
-    }
-    if (!company.trim() || company.trim().length < 2) {
-      setErrorMessage("Manufacturer / Supplier Company is required.");
+    if (!name.trim()) {
+      setErrorMessage("Product name is required");
       return;
     }
 
     const numMrp = typeof mrp === "number" ? mrp : parseFloat(mrp as string) || 0;
     const numSelling = typeof sellingPrice === "number" ? sellingPrice : parseFloat(sellingPrice as string) || 0;
     const numStock = typeof availableStock === "number" ? availableStock : parseInt(availableStock as string) || 0;
-
-    if (numMrp <= 0) {
-      setErrorMessage("Wholesale MRP must be a positive number greater than ৳0.");
-      return;
-    }
-    if (numSelling <= 0) {
-      setErrorMessage("Trade Price must be a positive number greater than ৳0.");
-      return;
-    }
-    if (numSelling > numMrp) {
-      setErrorMessage(`Trade Price (৳${numSelling}) cannot exceed Wholesale MRP (৳${numMrp}).`);
-      return;
-    }
-    if (numStock < 0) {
-      setErrorMessage("Available Stock cannot be a negative number.");
-      return;
-    }
 
     const discountPercentage = numMrp > 0 ? Math.round(((numMrp - numSelling) / numMrp) * 100) : 0;
 
@@ -416,29 +390,17 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               </label>
               <select
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-3 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 cursor-pointer font-medium"
+                onChange={(e) => setCategory(e.target.value as any)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-3 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 cursor-pointer"
                 required
               >
-                {/* Fallback for any existing custom category not in predefined list */}
-                {category && !ALL_CATEGORY_VALUES.includes(category) && (
-                  <option value={category} className="bg-slate-950 text-white font-bold">
-                    {category} (Current)
-                  </option>
-                )}
-                {CATEGORY_GROUPS.map((group) => (
-                  <optgroup
-                    key={group.groupName}
-                    label={`--- ${group.groupName} (${group.groupNameBn}) ---`}
-                    className="bg-slate-900 text-emerald-400 font-bold py-1"
-                  >
-                    {group.items.map((item) => (
-                      <option key={item.value} value={item.value} className="bg-slate-950 text-slate-200 py-1 font-normal">
-                        {item.label} ({item.labelBn})
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
+                <option value="Tablet">Tablet</option>
+                <option value="Capsule">Capsule</option>
+                <option value="Syrup">Syrup</option>
+                <option value="Injection">Injection</option>
+                <option value="Cream">Cream</option>
+                <option value="Supplement">Supplement</option>
+                <option value="Medical Device">Medical Device</option>
               </select>
             </div>
           </div>

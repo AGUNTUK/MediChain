@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { ArrowLeft, Check, Compass, Truck, RefreshCw, Layers, Calendar, Phone, KeyRound, Receipt } from "lucide-react";
+import { ArrowLeft, Check, Compass, Truck, RefreshCw, Layers, Calendar, Phone, KeyRound } from "lucide-react";
 import { io, Socket } from "socket.io-client";
 import { Order, OrderStatus } from "../types";
 import { orderService } from "../services";
 import { formatRefId } from "../lib/utils";
-import ModernInvoiceModal from "./ModernInvoiceModal";
 
 interface OrderTrackingProps {
   orderId: string;
@@ -15,7 +14,6 @@ interface OrderTrackingProps {
 
 export default function OrderTracking({ orderId, userRole, onBack, onRefreshStats }: OrderTrackingProps) {
   const [order, setOrder] = useState<Order | null>(null);
-  const [showInvoice, setShowInvoice] = useState(false);
 
   const fetchOrder = async () => {
     try {
@@ -55,13 +53,13 @@ export default function OrderTracking({ orderId, userRole, onBack, onRefreshStat
   }
 
   const steps: Array<{ key: OrderStatus; label: string; desc: string }> = [
-    { key: "Pending", label: "অর্ডার প্রক্রিয়াধীন", desc: "অর্ডারটি গ্রহণ করা হয়েছে এবং অনুমোদনের অপেক্ষায় রয়েছে।" },
-    { key: "Confirmed", label: "অর্ডার নিশ্চিত", desc: "পাইকারি অর্ডারটি গৃহীত হয়েছে এবং ডিপোতে ওষুধ বরাদ্দ করা হয়েছে।" },
-    { key: "Processing", label: "ব্যাচ ও মেয়াদ যাচাই", desc: "ওষুধের ব্যাচ নম্বর ও মেয়াদ (FEFO) ডিপোতে যাচাই করা হচ্ছে।" },
-    { key: "Packed", label: "প্যাকিং সম্পন্ন", desc: "থার্মাল বক্সে কোল্ড-চেইন প্যাকিং সম্পন্ন, ডিপো ডিসপ্যাচ বে-তে প্রস্তুত।" },
-    { key: "Out for Delivery", label: "রাইডার পথে আছেন", desc: "মেডিচেইন ডেলিভারি রাইডার আপনার ফার্মেসির উদ্দেশ্যে রওনা হয়েছেন।" },
-    { key: "Delivered", label: "ডেলিভারি সম্পন্ন", desc: "ওষুধ বুঝিয়ে দেওয়া হয়েছে এবং ডিজিটাল চালান ইস্যু করা হয়েছে।" },
-    { key: "Completed", label: "সম্পন্ন", desc: "অর্ডারটি সফলভাবে সম্পন্ন হয়েছে।" }
+    { key: "Pending", label: "Pending", desc: "Order initiated and pending approval." },
+    { key: "Confirmed", label: "Confirmed", desc: "Wholesale order received and stock reserved at depot." },
+    { key: "Processing", label: "Processing", desc: "Drug batch verification and FEFO compliance audit." },
+    { key: "Packed", label: "Packed", desc: "Bulk thermal packaging completed, ready in dispatch bay." },
+    { key: "Out for Delivery", label: "Out for Delivery", desc: "MediChain logistics container dispatched to your city." },
+    { key: "Delivered", label: "Delivered", desc: "Consignment handed over. Digital invoice generated." },
+    { key: "Completed", label: "Completed", desc: "Order completely fulfilled and closed." }
   ];
 
   // If order is cancelled, we should show that
@@ -70,10 +68,10 @@ export default function OrderTracking({ orderId, userRole, onBack, onRefreshStat
       <div className="w-full h-full bg-brand-bg flex flex-col p-4">
         <div className="flex items-center gap-2 mb-4">
           <button onClick={onBack} className="p-1.5 rounded-full bg-white border border-slate-100"><ArrowLeft className="w-4 h-4" /></button>
-          <h2 className="text-sm font-black">অর্ডার বাতিল হয়েছে</h2>
+          <h2 className="text-sm font-black">Order Cancelled</h2>
         </div>
         <div className="bg-rose-50 text-rose-600 p-4 rounded-xl text-xs font-bold text-center">
-          এই অর্ডারটি বাতিল করা হয়েছে।
+          This order has been cancelled and reversed.
         </div>
       </div>
     );
@@ -95,7 +93,7 @@ export default function OrderTracking({ orderId, userRole, onBack, onRefreshStat
             <ArrowLeft className="w-4 h-4 text-slate-600" />
           </button>
           <div>
-            <h2 className="text-sm font-black text-brand-charcoal">{userRole === "Pharmacy Owner" ? "লাইভ ডেলিভারি ট্র্যাকিং" : "ডিপো অর্ডার ট্র্যাকিং"}</h2>
+            <h2 className="text-sm font-black text-brand-charcoal">{userRole === "Pharmacy Owner" ? "Track My Order" : "Depot Order Tracking"}</h2>
             <p className="text-[10px] text-slate-400 font-mono font-bold">{formatRefId(order.id, "ORD")}</p>
           </div>
         </div>
@@ -103,27 +101,18 @@ export default function OrderTracking({ orderId, userRole, onBack, onRefreshStat
         {/* Order Details Header */}
         <div className="bg-white rounded-2xl p-4 border border-slate-100 flex justify-between items-center text-xs">
           <div>
-            <span className="text-slate-400 block">সর্বমোট বিল</span>
+            <span className="text-slate-400 block">Total Amount</span>
             <span className="text-sm font-black text-brand-purple font-mono">৳{order.totalAmount.toLocaleString()}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowInvoice(true)}
-              className="bg-purple-50 hover:bg-purple-100 text-brand-purple border border-purple-200/60 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-            >
-              <Receipt className="w-3.5 h-3.5" />
-              <span>চালান / রসিদ</span>
-            </button>
-            <div className="text-right hidden sm:block">
-              <span className="text-slate-400 block">আনুমানিক ডেলিভারি</span>
-              <span className="font-bold text-slate-700">{order.estimatedDelivery}</span>
-            </div>
+          <div className="text-right">
+            <span className="text-slate-400 block">Est. Arrival</span>
+            <span className="font-bold text-slate-700">{order.estimatedDelivery}</span>
           </div>
         </div>
 
         {/* 4-Stage Horizontal Progress Tracker (Premium Widget) */}
         <div className="bg-white rounded-2xl p-4 border border-slate-100 space-y-3 shadow-3xs">
-          <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">ডেলিভারি ট্র্যাকিং অগ্রগতি</span>
+          <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Live Delivery Progress</span>
           <div className="flex items-center justify-between relative px-2.5 pt-1">
             {/* Background line */}
             <div className="absolute top-[13px] left-4 right-4 h-0.5 bg-slate-100 z-0" />
@@ -139,10 +128,10 @@ export default function OrderTracking({ orderId, userRole, onBack, onRefreshStat
 
             {/* 4 dots */}
             {[
-              { label: "গৃহীত", active: ["Confirmed", "Processing", "Packed", "Out for Delivery", "Delivered", "Completed"].includes(order.status) },
-              { label: "প্যাকিং", active: ["Packed", "Out for Delivery", "Delivered", "Completed"].includes(order.status) },
-              { label: "পথে আছেন", active: ["Out for Delivery", "Delivered", "Completed"].includes(order.status) },
-              { label: "ডেলিভারি", active: ["Delivered", "Completed"].includes(order.status) }
+              { label: "Confirmed", active: ["Confirmed", "Processing", "Packed", "Out for Delivery", "Delivered", "Completed"].includes(order.status) },
+              { label: "Packed", active: ["Packed", "Out for Delivery", "Delivered", "Completed"].includes(order.status) },
+              { label: "In Transit", active: ["Out for Delivery", "Delivered", "Completed"].includes(order.status) },
+              { label: "Delivered", active: ["Delivered", "Completed"].includes(order.status) }
             ].map((st, sIdx) => (
               <div key={sIdx} className="flex flex-col items-center z-10 relative">
                 <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
@@ -162,12 +151,12 @@ export default function OrderTracking({ orderId, userRole, onBack, onRefreshStat
         {order.status === "Out for Delivery" && (
           <div className="bg-brand-purple/5 border border-brand-purple/15 p-3 rounded-2xl flex items-center justify-between gap-2 animate-fade-in shadow-3xs">
             <div>
-              <span className="text-[8px] text-brand-purple font-black uppercase tracking-wider block font-bold">🔒 নিরাপদ ডেলিভারি ওটিপি পিন</span>
+              <span className="text-[8px] text-brand-purple font-black uppercase tracking-wider block font-bold">Secure Rider Handover</span>
               <div className="flex items-center gap-1.5 mt-1">
                 <span className="bg-brand-purple text-white font-mono font-black text-xs px-2 py-0.5 rounded shadow-sm">
                   OTP: {order.handoverOtp || "------"}
                 </span>
-                <span className="text-[8.5px] text-slate-500 font-semibold leading-tight">ওষুধ বুঝে পাওয়ার পর রাইডারকে দিন</span>
+                <span className="text-[8.5px] text-slate-500 font-semibold leading-tight">Provide OTP only after checking goods</span>
               </div>
             </div>
             <a
@@ -175,7 +164,7 @@ export default function OrderTracking({ orderId, userRole, onBack, onRefreshStat
               className="bg-brand-lime text-slate-900 px-3 py-2 rounded-xl text-[9px] font-black flex items-center gap-1 hover:shadow-xs transition-all cursor-pointer flex-shrink-0"
             >
               <Phone className="w-3 h-3" />
-              রাইডারকে কল দিন
+              Call Rider
             </a>
           </div>
         )}
@@ -184,7 +173,7 @@ export default function OrderTracking({ orderId, userRole, onBack, onRefreshStat
         <div className="bg-white rounded-2xl p-5 border border-slate-100 space-y-6">
           <h3 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-50 pb-3">
             <Compass className="w-4 h-4 text-brand-purple animate-spin-slow" />
-            অর্ডারের বিস্তারিত ট্র্যাকিং টাইমলাইন
+            Consignment Progress Timeline
           </h3>
 
           <div className="relative pl-6 space-y-6">
@@ -234,10 +223,10 @@ export default function OrderTracking({ orderId, userRole, onBack, onRefreshStat
         <div className="p-5 bg-brand-bg border-t border-slate-100 rounded-t-3xl shadow-xl flex-shrink-0 mt-4 text-center">
           <h4 className="text-[11px] font-extrabold text-brand-purple uppercase tracking-widest mb-2 flex items-center justify-center gap-1.5">
             <KeyRound className="w-4 h-4 text-brand-purple" />
-            ডেলিভারি হ্যান্ডওভার ওটিপি পিন
+            Delivery Handover OTP
           </h4>
           <p className="text-xs text-slate-500 mb-3 leading-relaxed">
-            ওষুধের কার্টন ও চালান মিলিয়ে নেওয়ার পর কেবল এই পিনটি মেডিচেইন ডেলিভারি রাইডারকে দিন।
+            Provide this secure pin to the MediChain delivery rider to confirm receipt of your consignment.
           </p>
           <div className="bg-white px-6 py-3 rounded-xl inline-block border border-brand-purple/20 shadow-sm">
             <span className="text-3xl font-black text-brand-charcoal tracking-widest font-mono">
@@ -245,13 +234,6 @@ export default function OrderTracking({ orderId, userRole, onBack, onRefreshStat
             </span>
           </div>
         </div>
-      )}
-
-      {showInvoice && (
-        <ModernInvoiceModal
-          order={order}
-          onClose={() => setShowInvoice(false)}
-        />
       )}
     </div>
   );

@@ -1,17 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { 
-  ChevronRight, 
-  ChevronLeft, 
-  Sparkles, 
-  Sun, 
-  SunMedium, 
-  Sunset, 
-  Moon, 
-  ShieldCheck, 
-  Zap, 
-  Flame, 
-  Clock 
-} from "lucide-react";
+import { ChevronRight, Sparkles, AlertCircle } from "lucide-react";
 import { HeroSlide, heroCarouselService, bulkDealsService } from "../services";
 import { useReducedMotion } from "motion/react";
 
@@ -20,57 +8,6 @@ interface HeroCarouselProps {
   onOpenScanner?: () => void;
   onBrowseCatalog?: () => void;
   onOpenBulkDeals?: (campaignId?: string) => void;
-}
-
-interface TimeGreetingInfo {
-  greeting: string;
-  badgeLabel: string;
-  period: "morning" | "afternoon" | "evening" | "night";
-  defaultSubtext: string;
-  dispatchStatus: string;
-  gradient: string;
-}
-
-function getTimeBasedGreeting(): TimeGreetingInfo {
-  const hour = new Date().getHours();
-  
-  if (hour >= 5 && hour < 12) {
-    return {
-      greeting: "Good morning",
-      badgeLabel: "Morning Dispatch",
-      period: "morning",
-      defaultSubtext: "Order before 11:30 AM for express 2:00 PM depot delivery",
-      dispatchStatus: "⚡ Express Dispatch Active",
-      gradient: "from-amber-50/90 via-purple-50/40 to-lime-50/60"
-    };
-  } else if (hour >= 12 && hour < 17) {
-    return {
-      greeting: "Good afternoon",
-      badgeLabel: "Afternoon Restock",
-      period: "afternoon",
-      defaultSubtext: "Same-day depot fulfillment running on standard schedule",
-      dispatchStatus: "🚚 Live Depot Fulfillment",
-      gradient: "from-purple-50/90 via-white to-lime-50/70"
-    };
-  } else if (hour >= 17 && hour < 22) {
-    return {
-      greeting: "Good evening",
-      badgeLabel: "Evening Restock",
-      period: "evening",
-      defaultSubtext: "Queue wholesale consignments for early morning delivery",
-      dispatchStatus: "📦 Overnight Queue Open",
-      gradient: "from-purple-50/80 via-white to-amber-50/50"
-    };
-  } else {
-    return {
-      greeting: "Working late?",
-      badgeLabel: "24/7 Digital Depot",
-      period: "night",
-      defaultSubtext: "Automated batch allocation active for 6:00 AM packing",
-      dispatchStatus: "🌙 24/7 Order Desk Active",
-      gradient: "from-indigo-50/80 via-white to-purple-50/50"
-    };
-  }
 }
 
 export default function HeroCarousel({
@@ -83,20 +20,10 @@ export default function HeroCarousel({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [autoAdvanceInterval, setAutoAdvanceInterval] = useState(5000);
   const [isPaused, setIsPaused] = useState(false);
-  const [timeInfo, setTimeInfo] = useState<TimeGreetingInfo>(() => getTimeBasedGreeting());
   const pauseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const touchStartX = useRef<number>(0);
   
   const prefersReducedMotion = useReducedMotion();
-
-  // Keep time greeting freshly synced
-  useEffect(() => {
-    setTimeInfo(getTimeBasedGreeting());
-    const interval = setInterval(() => {
-      setTimeInfo(getTimeBasedGreeting());
-    }, 60000); // Check every minute
-    return () => clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     fetchSlides();
@@ -117,14 +44,15 @@ export default function HeroCarousel({
           id: `promo-${liveCampaign.id}`,
           type: "promo",
           title: liveCampaign.title || "Super Bulk Savings",
-          subtitle: liveCampaign.subtext || "Unlock bulk pricing on key wholesale consignments!",
+          subtitle: liveCampaign.subtext || "Unlock bulk pricing on key consignments!",
           cta_label: liveCampaign.cta_text || "Shop Bulk Deals",
-          cta_route: `/bulk-deals/${liveCampaign.id}`,
+          cta_route: `/bulk-deals/${liveCampaign.id}`, // Custom handling
           background_preset: liveCampaign.banner_color || "purple-dominant",
-          display_order: 1.5,
+          display_order: 1.5, // Slide it after greeting, before others generally, though order can be configured if it was in DB. Let's just put it at 1.5.
           is_active: true
         };
         
+        // Check if there is already a placeholder promo slide in DB to take its order
         const existingPromoIndex = finalSlides.findIndex(s => s.type === "promo");
         if (existingPromoIndex !== -1) {
           promoSlide.display_order = finalSlides[existingPromoIndex].display_order;
@@ -133,19 +61,22 @@ export default function HeroCarousel({
           finalSlides.push(promoSlide);
         }
       } else {
+        // Remove promo slide placeholder if no live campaign
         finalSlides = finalSlides.filter(s => s.type !== "promo");
       }
+
+      // Add reorder nudge later...
 
       // Sort by display order
       finalSlides.sort((a, b) => a.display_order - b.display_order);
       
-      // If no slides, fallback to greeting
+      // If no slides, fallback
       if (finalSlides.length === 0) {
         finalSlides = [{
           id: "fallback-greeting",
           type: "greeting",
-          title: "{greeting}, {pharmacyName}",
-          subtitle: "Manage your daily inventory & bulk wholesale orders",
+          title: "Good morning, {pharmacyName}",
+          subtitle: "Manage your daily inventory",
           cta_label: "Browse Catalog",
           cta_route: "/search",
           background_preset: "purple-lime",
@@ -186,43 +117,27 @@ export default function HeroCarousel({
     const touchEndX = e.changedTouches[0].clientX;
     const diff = touchStartX.current - touchEndX;
 
-    if (Math.abs(diff) > 40) {
+    if (Math.abs(diff) > 50) {
       handleInteraction();
       if (diff > 0) {
-        // swipe left -> next
+        // swipe left
         setCurrentIndex((prev) => (prev + 1) % slides.length);
       } else {
-        // swipe right -> prev
+        // swipe right
         setCurrentIndex((prev) => (prev === 0 ? slides.length - 1 : prev - 1));
       }
     }
   };
 
-  const resolveTitle = (slide: HeroSlide) => {
-    let raw = slide.title || "";
-    // Dynamically replace template variables
-    raw = raw.replace(/\{pharmacyName\}/g, pharmacyName || "Valued Pharmacy");
-    raw = raw.replace(/\{greeting\}/gi, timeInfo.greeting);
-    
-    // If title has a static greeting hardcoded like "Good morning", dynamically adapt it
-    if (/^Good (morning|afternoon|evening|night)/i.test(raw)) {
-      raw = raw.replace(/^Good (morning|afternoon|evening|night)/i, timeInfo.greeting);
-    }
-    
-    return raw;
-  };
-
-  const renderPeriodIcon = () => {
-    switch (timeInfo.period) {
-      case "morning":
-        return <Sun className="w-3.5 h-3.5 text-amber-500" />;
-      case "afternoon":
-        return <SunMedium className="w-3.5 h-3.5 text-amber-500" />;
-      case "evening":
-        return <Sunset className="w-3.5 h-3.5 text-orange-500" />;
-      case "night":
+  const getBackgroundClass = (preset: string) => {
+    switch (preset) {
+      case "purple-dominant":
+        return "bg-gradient-to-r from-brand-purple to-indigo-800 text-white";
+      case "lime-dominant":
+        return "bg-gradient-to-r from-brand-lime to-emerald-400 text-slate-900";
+      case "purple-lime":
       default:
-        return <Moon className="w-3.5 h-3.5 text-purple-500" />;
+        return "bg-gradient-to-r from-brand-purple to-brand-purple-dark text-white";
     }
   };
 
@@ -230,190 +145,104 @@ export default function HeroCarousel({
 
   return (
     <div 
-      className="w-full px-4 pt-3 pb-1 flex-shrink-0"
+      className="relative w-full h-36 overflow-hidden bg-white border-b border-slate-100 flex-shrink-0"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
     >
-      <div className="relative w-full rounded-3xl overflow-hidden shadow-xs border border-purple-200/80 bg-white group">
-        
-        {/* Animated Carousel Track */}
-        <div 
-          className={`flex w-full ${prefersReducedMotion ? '' : 'transition-transform duration-500 ease-out'}`}
-          style={{ 
-            transform: prefersReducedMotion ? 'none' : `translateX(-${currentIndex * 100}%)`,
-          }}
-        >
-          {slides.map((slide, idx) => {
-            const isVisible = prefersReducedMotion ? idx === currentIndex : true;
-            if (prefersReducedMotion && !isVisible) return null;
-            
-            const isGreeting = slide.type === "greeting";
-            const isPromo = slide.type === "promo";
-            const titleText = resolveTitle(slide);
-            const subtitleText = slide.subtitle || (isGreeting ? timeInfo.defaultSubtext : null);
+      <div 
+        className={`flex h-full w-full ${prefersReducedMotion ? '' : 'transition-transform duration-300 ease-out'}`}
+        style={{ 
+          transform: prefersReducedMotion ? 'none' : `translateX(-${currentIndex * 100}%)`,
+        }}
+      >
+        {slides.map((slide, idx) => {
+          const isVisible = prefersReducedMotion ? idx === currentIndex : true;
+          if (prefersReducedMotion && !isVisible) return null;
+          
+          return (
+            <div 
+              key={slide.id} 
+              className={`w-full h-full flex-shrink-0 relative ${getBackgroundClass(slide.background_preset)} px-5 py-4 flex flex-col justify-center ${prefersReducedMotion ? 'animate-fade-in' : ''}`}
+            >
+              {/* Decorative Blur */}
+              <div className="absolute top-[-20%] right-[-10%] w-40 h-40 bg-white/10 rounded-full blur-3xl pointer-events-none" />
 
-            return (
-              <div 
-                key={slide.id} 
-                className={`w-full min-h-[148px] sm:min-h-[160px] flex-shrink-0 relative px-5 py-4 sm:p-6 flex flex-col justify-between overflow-hidden bg-gradient-to-br ${
-                  isPromo 
-                    ? "from-purple-100/90 via-white to-lime-100/80" 
-                    : isGreeting 
-                      ? timeInfo.gradient 
-                      : "from-purple-50/90 via-white to-lime-50/70"
-                } text-slate-900`}
-              >
-                {/* Visual Depth: Decorative Glow Orbs */}
-                <div className="absolute -top-12 -right-12 w-48 h-48 bg-brand-lime/15 rounded-full blur-3xl pointer-events-none" />
-                <div className="absolute -bottom-12 -left-12 w-44 h-44 bg-brand-purple/15 rounded-full blur-3xl pointer-events-none" />
+              <div className="relative z-10 w-full">
+                {slide.type === "greeting" && (
+                  <span className="text-[9px] uppercase font-bold tracking-wider opacity-80 block mb-1">
+                    Logged Pharmacy
+                  </span>
+                )}
+                {slide.type === "promo" && (
+                  <span className="bg-brand-lime text-slate-950 text-[8px] font-black uppercase px-2 py-0.5 rounded-lg tracking-wider mb-2 inline-block">
+                    Super Bulk Savings
+                  </span>
+                )}
+
+                <h1 className="text-base font-black truncate max-w-[85%] leading-tight">
+                  {slide.title.replace("{pharmacyName}", pharmacyName)}
+                </h1>
                 
-                {/* Subtle Geometric Supply Chain Watermark */}
-                <svg 
-                  className="absolute right-2 -bottom-4 w-40 h-40 opacity-[0.05] pointer-events-none select-none text-purple-900" 
-                  viewBox="0 0 100 100" 
-                  fill="currentColor"
-                >
-                  <circle cx="50" cy="50" r="40" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path d="M50 20 L50 80 M20 50 L80 50" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
-                  <circle cx="25" cy="25" r="8" />
-                  <circle cx="75" cy="25" r="8" />
-                  <circle cx="25" cy="75" r="8" />
-                  <circle cx="75" cy="75" r="8" />
-                </svg>
+                {slide.subtitle && (
+                  <p className="text-[10px] mt-1 font-medium opacity-90 max-w-[80%] leading-snug">
+                    {slide.subtitle}
+                  </p>
+                )}
 
-                {/* Top Row: Context Badges */}
-                <div className="relative z-10 flex items-center justify-between gap-2 flex-wrap mb-1.5">
-                  {isGreeting ? (
-                    <div className="flex items-center gap-1.5 bg-white/90 backdrop-blur-md border border-purple-200/70 px-2.5 py-0.5 rounded-full text-[10px] font-bold text-slate-800 shadow-2xs">
-                      {renderPeriodIcon()}
-                      <span>{timeInfo.badgeLabel}</span>
-                      <span className="w-1.5 h-1.5 rounded-full bg-brand-lime animate-pulse" />
-                    </div>
-                  ) : isPromo ? (
-                    <div className="flex items-center gap-1 bg-brand-lime text-slate-950 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide shadow-2xs">
-                      <Flame className="w-3 h-3 fill-slate-950" />
-                      <span>Super Wholesale Deal</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1 bg-purple-100/90 backdrop-blur-md border border-purple-200/60 px-2.5 py-0.5 rounded-full text-[10px] font-bold text-purple-900">
-                      <Zap className="w-3 h-3 text-purple-700" />
-                      <span>Special Bulletin</span>
-                    </div>
+                <div className="mt-3 flex items-center gap-2">
+                  {slide.type === "greeting" && onOpenScanner && (
+                     <button
+                       onClick={() => { handleInteraction(); onOpenScanner(); }}
+                       className="bg-brand-lime text-slate-900 font-extrabold py-1.5 px-3 rounded-xl text-[10px] flex items-center gap-1 hover:shadow-md cursor-pointer transition-all"
+                     >
+                       <Sparkles className="w-3.5 h-3.5" />
+                       Scan Rx
+                     </button>
                   )}
-
-                  {/* Secondary Live Status Indicator */}
-                  <div className="hidden xs:flex items-center gap-1 text-[9px] font-semibold text-emerald-800 bg-emerald-50/90 backdrop-blur-sm px-2 py-0.5 rounded-full border border-emerald-200/80 shadow-2xs">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-                    <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                    <span>DGDA Verified B2B</span>
-                  </div>
-                </div>
-
-                {/* Center: Main Headline & Dynamic Pharmacy Name */}
-                <div className="relative z-10 my-auto">
-                  <h1 className="text-base sm:text-lg font-black leading-tight tracking-tight text-slate-900">
-                    {titleText}
-                  </h1>
-                  
-                  {subtitleText && (
-                    <p className="text-[11px] sm:text-xs text-slate-600 font-medium mt-1 leading-snug line-clamp-1 max-w-[90%]">
-                      {subtitleText}
-                    </p>
-                  )}
-                </div>
-
-                {/* Bottom Row: Call-to-Actions & Micro-Interactions */}
-                <div className="relative z-10 flex items-center gap-2.5 mt-2.5 pt-1">
-                  {isGreeting && onOpenScanner && (
-                    <button
-                      onClick={() => { handleInteraction(); onOpenScanner(); }}
-                      className="bg-brand-lime hover:bg-brand-lime-dark text-slate-950 font-black py-1.5 px-3.5 rounded-xl text-[11px] flex items-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-slate-950" />
-                      <span>Scan Prescription</span>
-                    </button>
-                  )}
-
                   {slide.cta_label && (
                     <button
                       onClick={() => {
                         handleInteraction();
-                        if (isPromo && slide.cta_route?.startsWith("/bulk-deals/") && onOpenBulkDeals) {
-                          onOpenBulkDeals(slide.cta_route.split("/").pop());
+                        if (slide.type === "promo" && slide.cta_route?.startsWith("/bulk-deals/") && onOpenBulkDeals) {
+                           onOpenBulkDeals(slide.cta_route.split("/").pop());
                         } else if (onBrowseCatalog) {
-                          onBrowseCatalog();
+                           onBrowseCatalog();
                         }
                       }}
-                      className={`font-extrabold py-1.5 px-3 rounded-xl text-[11px] flex items-center gap-1 active:scale-95 transition-all cursor-pointer ${
-                        isGreeting
-                          ? "bg-purple-600 hover:bg-purple-700 text-white shadow-xs"
-                          : isPromo
-                            ? "bg-brand-lime hover:bg-brand-lime-dark text-slate-950 shadow-xs"
-                            : "bg-white text-slate-900 hover:bg-slate-100 border border-slate-200"
+                      className={`font-extrabold py-1.5 px-3 rounded-xl text-[10px] flex items-center gap-0.5 hover:shadow-md cursor-pointer transition-all ${
+                        slide.type === "greeting" 
+                          ? "bg-white/20 text-white" 
+                          : slide.background_preset === "lime-dominant" 
+                            ? "bg-slate-900 text-white" 
+                            : "bg-brand-lime text-slate-900"
                       }`}
                     >
-                      <span>{slide.cta_label}</span>
-                      <ChevronRight className="w-3.5 h-3.5 stroke-[2.5]" />
+                      {slide.cta_label}
+                      <ChevronRight className="w-3.5 h-3.5" />
                     </button>
                   )}
-
-                  {/* Dispatch Badge on Mobile */}
-                  <div className="ml-auto hidden sm:flex items-center gap-1 text-[10px] font-mono font-medium text-emerald-700">
-                    <Clock className="w-3 h-3 text-emerald-600" />
-                    <span>{timeInfo.dispatchStatus}</span>
-                  </div>
                 </div>
               </div>
-            );
-          })}
-        </div>
-
-        {/* Carousel Desktop Navigation Chevrons */}
-        {slides.length > 1 && (
-          <>
-            <button
-              onClick={() => {
-                handleInteraction();
-                setCurrentIndex((prev) => (prev === 0 ? slides.length - 1 : prev - 1));
-              }}
-              className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/90 hover:bg-white text-slate-800 flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity z-20 cursor-pointer hidden md:flex border border-slate-200/80"
-              aria-label="Previous Slide"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => {
-                handleInteraction();
-                setCurrentIndex((prev) => (prev + 1) % slides.length);
-              }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/90 hover:bg-white text-slate-800 flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity z-20 cursor-pointer hidden md:flex border border-slate-200/80"
-              aria-label="Next Slide"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </>
-        )}
-
-        {/* Pagination Indicator Dots */}
-        {slides.length > 1 && (
-          <div className="absolute bottom-2.5 left-0 right-0 flex justify-center items-center gap-1.5 z-20 pointer-events-none">
-            {slides.map((_, idx) => (
-              <button
-                key={idx}
-                onClick={() => { handleInteraction(); setCurrentIndex(idx); }}
-                className={`h-1.5 rounded-full transition-all duration-300 pointer-events-auto cursor-pointer ${
-                  idx === currentIndex 
-                    ? "bg-brand-purple w-5 shadow-2xs" 
-                    : "bg-slate-300 hover:bg-slate-400 w-1.5"
-                }`}
-                aria-label={`Go to slide ${idx + 1}`}
-              />
-            ))}
-          </div>
-        )}
+            </div>
+          );
+        })}
       </div>
+
+      {/* Dots */}
+      {slides.length > 1 && (
+        <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 z-20">
+          {slides.map((_, idx) => (
+            <button
+              key={idx}
+              onClick={() => { handleInteraction(); setCurrentIndex(idx); }}
+              className={`w-1.5 h-1.5 rounded-full transition-all ${
+                idx === currentIndex ? "bg-brand-lime w-3" : "bg-white/40"
+              }`}
+              aria-label={`Go to slide ${idx + 1}`}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

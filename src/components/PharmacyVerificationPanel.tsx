@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { 
   Building2, 
   ShieldCheck, 
@@ -14,32 +14,15 @@ import {
   Calendar, 
   CircleDollarSign, 
   Eye, 
-  Sparkles, 
-  RefreshCw, 
-  X,
-  ExternalLink,
-  FileCheck,
-  FileSpreadsheet,
-  User,
-  CreditCard,
-  Lock,
-  Download
+  Sparkles,
+  RefreshCw,
+  X
 } from "lucide-react";
 import { Pharmacy } from "../types";
 
 interface PharmacyVerificationPanelProps {
   pharmacies: Pharmacy[];
   onPharmacyUpdated?: () => void;
-}
-
-interface PharmacyDocumentsState {
-  loading: boolean;
-  error: string;
-  documents: {
-    drugLicense?: { path: string | null; url: string | null };
-    tradeLicense?: { path: string | null; url: string | null };
-    proprietorNid?: { path: string | null; url: string | null };
-  } | null;
 }
 
 export default function PharmacyVerificationPanel({
@@ -53,11 +36,6 @@ export default function PharmacyVerificationPanel({
   const [actionLoading, setActionLoading] = useState(false);
   const [actionSuccess, setActionSuccess] = useState("");
   const [actionError, setActionError] = useState("");
-  const [docsState, setDocsState] = useState<PharmacyDocumentsState>({
-    loading: false,
-    error: "",
-    documents: null
-  });
 
   const checkStatus = (p: Pharmacy) => {
     const st = (p.verificationStatus || (p as any).status || "").toString().toLowerCase();
@@ -89,48 +67,6 @@ export default function PharmacyVerificationPanel({
 
     return matchesSearch && matchesStatus;
   });
-
-  // Fetch signed URLs when a pharmacy is inspected
-  useEffect(() => {
-    if (!selectedPharmacy) {
-      setDocsState({ loading: false, error: "", documents: null });
-      return;
-    }
-
-    let isMounted = true;
-    setDocsState({ loading: true, error: "", documents: null });
-
-    const fetchDocuments = async () => {
-      try {
-        const res = await fetch(`/api/admin/pharmacies/${selectedPharmacy.id}/documents`);
-        if (!res.ok) {
-          throw new Error("Failed to load secure document signed URLs.");
-        }
-        const data = await res.json();
-        if (isMounted) {
-          setDocsState({
-            loading: false,
-            error: "",
-            documents: data.documents || null
-          });
-        }
-      } catch (err: any) {
-        if (isMounted) {
-          setDocsState({
-            loading: false,
-            error: err.message || "Failed to load verification documents.",
-            documents: null
-          });
-        }
-      }
-    };
-
-    fetchDocuments();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [selectedPharmacy]);
 
   const handleUpdateStatus = async (pharmacyId: string, status: "Verified" | "Suspended" | "Pending") => {
     setActionLoading(true);
@@ -177,7 +113,7 @@ export default function PharmacyVerificationPanel({
             <h2 className="text-xl font-bold tracking-tight">Pharmacy Compliance & Verification Hub</h2>
           </div>
           <p className="text-xs text-slate-300 mt-1">
-            Validate DGDA drug license credentials, trade licenses, and proprietor NIDs across Bangladesh.
+            Validate DGDA drug license credentials and verify B2B accounts across Bangladesh.
           </p>
         </div>
 
@@ -204,7 +140,7 @@ export default function PharmacyVerificationPanel({
       </div>
 
       {actionSuccess && (
-        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between animate-fade-in">
+        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             <span>{actionSuccess}</span>
@@ -216,7 +152,7 @@ export default function PharmacyVerificationPanel({
       )}
 
       {actionError && (
-        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center justify-between animate-fade-in">
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center justify-between">
           <div className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-rose-600" />
             <span>{actionError}</span>
@@ -348,167 +284,40 @@ export default function PharmacyVerificationPanel({
       {/* Verification Inspection Modal */}
       {selectedPharmacy && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="p-5 bg-gradient-to-r from-teal-900 via-slate-900 to-indigo-950 text-white flex items-center justify-between">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-5 bg-gradient-to-r from-teal-800 to-slate-900 text-white flex items-center justify-between">
               <div>
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
-                  <h3 className="font-bold text-base">{selectedPharmacy.pharmacyName}</h3>
-                </div>
-                <p className="text-xs text-teal-200 mt-0.5">DGDA Compliance & Legal Document Verification</p>
+                <h3 className="font-bold text-base">{selectedPharmacy.pharmacyName}</h3>
+                <p className="text-xs text-teal-200">DGDA Compliance Approval Inspection</p>
               </div>
               <button
                 onClick={() => setSelectedPharmacy(null)}
-                className="text-slate-300 hover:text-white p-1.5 rounded-xl hover:bg-white/10 transition-colors"
+                className="text-slate-300 hover:text-white p-1 rounded-lg hover:bg-white/10"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Modal Content */}
-            <div className="p-6 space-y-5 overflow-y-auto flex-1 text-xs">
-              {/* Profile Details Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
+            <div className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+              <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
                 <div>
-                  <span className="text-slate-400 block text-[11px] font-medium">Proprietor Name</span>
-                  <span className="font-bold text-slate-850 text-sm">{selectedPharmacy.ownerName}</span>
+                  <span className="text-slate-400 block text-[11px]">Proprietor Name</span>
+                  <span className="font-bold text-slate-800 text-sm">{selectedPharmacy.ownerName}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-[11px] font-medium">DGDA License No</span>
+                  <span className="text-slate-400 block text-[11px]">DGDA License Number</span>
                   <span className="font-mono font-bold text-teal-800 text-sm">{selectedPharmacy.licenseNo || "Pending"}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-[11px] font-medium">Trade License No</span>
-                  <span className="font-mono font-semibold text-slate-800 text-xs">{selectedPharmacy.tradeLicenseNo || "N/A"}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[11px] font-medium">Contact Phone</span>
+                  <span className="text-slate-400 block text-[11px]">Contact Number</span>
                   <span className="font-semibold text-slate-800">{selectedPharmacy.phone}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-[11px] font-medium">National ID (NID)</span>
-                  <span className="font-mono font-semibold text-slate-800 text-xs">{selectedPharmacy.nidNumber || "Not Provided"}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[11px] font-medium">Current Status</span>
-                  <span className={`font-bold uppercase tracking-wider text-[11px] ${
-                    checkStatus(selectedPharmacy).isVerified ? "text-emerald-700" : checkStatus(selectedPharmacy).isPending ? "text-amber-700" : "text-rose-700"
-                  }`}>
-                    {selectedPharmacy.verificationStatus || selectedPharmacy.status || "Pending"}
-                  </span>
-                </div>
-                <div className="col-span-full border-t border-slate-200/60 pt-2 mt-1">
-                  <span className="text-slate-400 block text-[11px] font-medium">Registered Address</span>
-                  <span className="font-medium text-slate-700">{selectedPharmacy.address || `${selectedPharmacy.city || "Dhaka"}, Bangladesh`}</span>
+                  <span className="text-slate-400 block text-[11px]">Current Status</span>
+                  <span className="font-bold text-amber-700">{selectedPharmacy.status || "Pending"}</span>
                 </div>
               </div>
 
-              {/* Private Verification Documents Attachments */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
-                    <Lock className="w-4 h-4 text-teal-600" />
-                    Private Storage Attachments (verification-documents)
-                  </h4>
-                  <span className="text-[10px] text-slate-500 font-mono">Protected by Authenticated Signed URLs</span>
-                </div>
-
-                {docsState.loading ? (
-                  <div className="py-6 text-center bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-center gap-2">
-                    <RefreshCw className="w-4 h-4 text-teal-600 animate-spin" />
-                    <span className="text-xs text-slate-600 font-medium">Generating secure signed preview links...</span>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {/* Drug License */}
-                    <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col justify-between space-y-3">
-                      <div>
-                        <div className="flex items-center gap-2 text-teal-800 font-bold mb-1">
-                          <FileCheck className="w-4 h-4 text-teal-600" />
-                          <span>Drug License</span>
-                        </div>
-                        <p className="text-[10px] text-slate-500">Official DGDA Retail/Wholesale Scan</p>
-                      </div>
-
-                      {docsState.documents?.drugLicense?.url ? (
-                        <div className="space-y-2">
-                          <a
-                            href={docsState.documents.drugLicense.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-full py-1.5 px-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-semibold text-[11px] flex items-center justify-center gap-1.5 transition-colors shadow-sm"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            View Document
-                            <ExternalLink className="w-3 h-3 ml-auto opacity-70" />
-                          </a>
-                        </div>
-                      ) : (
-                        <span className="text-[11px] text-slate-400 italic font-medium">No document attached</span>
-                      )}
-                    </div>
-
-                    {/* Trade License */}
-                    <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col justify-between space-y-3">
-                      <div>
-                        <div className="flex items-center gap-2 text-teal-800 font-bold mb-1">
-                          <FileSpreadsheet className="w-4 h-4 text-teal-600" />
-                          <span>Trade License</span>
-                        </div>
-                        <p className="text-[10px] text-slate-500">Municipal Trade Certification</p>
-                      </div>
-
-                      {docsState.documents?.tradeLicense?.url ? (
-                        <div className="space-y-2">
-                          <a
-                            href={docsState.documents.tradeLicense.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-full py-1.5 px-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-semibold text-[11px] flex items-center justify-center gap-1.5 transition-colors shadow-sm"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            View Document
-                            <ExternalLink className="w-3 h-3 ml-auto opacity-70" />
-                          </a>
-                        </div>
-                      ) : (
-                        <span className="text-[11px] text-slate-400 italic font-medium">No document attached</span>
-                      )}
-                    </div>
-
-                    {/* Proprietor NID */}
-                    <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col justify-between space-y-3">
-                      <div>
-                        <div className="flex items-center gap-2 text-teal-800 font-bold mb-1">
-                          <User className="w-4 h-4 text-teal-600" />
-                          <span>Proprietor NID</span>
-                        </div>
-                        <p className="text-[10px] text-slate-500">National ID Card / Smart Card</p>
-                      </div>
-
-                      {docsState.documents?.proprietorNid?.url ? (
-                        <div className="space-y-2">
-                          <a
-                            href={docsState.documents.proprietorNid.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-full py-1.5 px-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-semibold text-[11px] flex items-center justify-center gap-1.5 transition-colors shadow-sm"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            View Document
-                            <ExternalLink className="w-3 h-3 ml-auto opacity-70" />
-                          </a>
-                        </div>
-                      ) : (
-                        <span className="text-[11px] text-slate-400 italic font-medium">No document attached</span>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Status Action Notes */}
               {selectedPharmacy.status !== "Suspended" && (
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Rejection or Suspension Reason (Optional)</label>
@@ -517,17 +326,16 @@ export default function PharmacyVerificationPanel({
                     value={rejectionReason}
                     onChange={(e) => setRejectionReason(e.target.value)}
                     placeholder="Provide reason if rejecting or suspending this pharmacy..."
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500"
                   />
                 </div>
               )}
             </div>
 
-            {/* Modal Actions */}
             <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3">
               <button
                 onClick={() => setSelectedPharmacy(null)}
-                className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-xl font-medium cursor-pointer transition-colors"
+                className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-xl font-medium cursor-pointer"
               >
                 Close
               </button>
@@ -535,7 +343,7 @@ export default function PharmacyVerificationPanel({
               <button
                 disabled={actionLoading}
                 onClick={() => handleUpdateStatus(selectedPharmacy.id, "Suspended")}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer shadow transition-colors disabled:opacity-50"
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-xl flex items-center gap-1 cursor-pointer"
               >
                 <XCircle className="w-4 h-4" />
                 Reject / Suspend
@@ -543,8 +351,10 @@ export default function PharmacyVerificationPanel({
 
               <button
                 disabled={actionLoading}
-                onClick={() => handleUpdateStatus(selectedPharmacy.id, "Verified")}
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl flex items-center gap-1.5 shadow-md cursor-pointer transition-colors disabled:opacity-50"
+                onClick={() =>
+                  handleUpdateStatus(selectedPharmacy.id, "Verified")
+                }
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl flex items-center gap-1 shadow-md cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 Approve & Verify

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 
 export interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -9,47 +9,39 @@ export interface BeforeInstallPromptEvent extends Event {
 }
 
 export function usePWAInstall() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(() => {
-    if (typeof window !== 'undefined' && window.__pwaInstallPrompt) {
-      return window.__pwaInstallPrompt;
-    }
-    return null;
-  });
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [showPrompt, setShowPrompt] = useState(false);
 
   useEffect(() => {
-    // 1. Detect Standalone Mode
+    // 1. Detect Standalone
     const checkStandalone = () => {
-      const isStandaloneMedia = window.matchMedia('(display-mode: standalone)').matches ||
-                                window.matchMedia('(display-mode: window-controls-overlay)').matches ||
-                                window.matchMedia('(display-mode: minimal-ui)').matches;
+      const isStandaloneMedia = window.matchMedia('(display-mode: standalone)').matches;
       // @ts-ignore
       const isStandaloneIOS = ('standalone' in navigator) && !!navigator.standalone;
-      return Boolean(isStandaloneMedia || isStandaloneIOS);
+      return isStandaloneMedia || isStandaloneIOS;
     };
 
-    const standaloneState = checkStandalone();
-    setIsStandalone(standaloneState);
+    setIsStandalone(checkStandalone());
 
-    if (standaloneState) {
-      return; // Already running standalone
+    if (checkStandalone()) {
+      return; // Already installed, no need to do anything else
     }
 
-    // 2. Detect iOS Safari
+    // 2. Detect iOS
     const userAgent = window.navigator.userAgent.toLowerCase();
     const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
     setIsIOS(isIOSDevice);
 
-    // 3. Check dismissal cooldown (24 hours)
+    // 3. Check dismissal cooldown (7 days)
     const checkCooldown = () => {
       const dismissedAt = localStorage.getItem('medichain_pwa_install_dismissed_at');
       if (dismissedAt) {
         const timeDiff = Date.now() - parseInt(dismissedAt, 10);
-        const hoursDiff = timeDiff / (1000 * 3600);
-        if (hoursDiff < 24) {
-          return true; // Dismissed recently
+        const daysDiff = timeDiff / (1000 * 3600 * 24);
+        if (daysDiff < 7) {
+          return true; // Still on cooldown
         }
       }
       return false;
@@ -57,102 +49,71 @@ export function usePWAInstall() {
 
     const onCooldown = checkCooldown();
 
-    // Check if global prompt was already caught
-    if (window.__pwaInstallPrompt) {
-      setDeferredPrompt(window.__pwaInstallPrompt);
-      if (!onCooldown) {
-        setShowPrompt(true);
-      }
-    }
-
     // 4. Handle beforeinstallprompt (Chromium)
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
-      const promptEvent = e as BeforeInstallPromptEvent;
-      window.__pwaInstallPrompt = promptEvent;
-      setDeferredPrompt(promptEvent);
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
       if (!onCooldown) {
-        setShowPrompt(true);
-      }
-    };
-
-    const handlePromptAvailable = () => {
-      if (window.__pwaInstallPrompt) {
-        setDeferredPrompt(window.__pwaInstallPrompt);
-        if (!onCooldown) {
+        // Optional delay before showing
+        setTimeout(() => {
           setShowPrompt(true);
-        }
+        }, 1500);
       }
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    window.addEventListener('pwa-prompt-available', handlePromptAvailable);
 
-    // 5. iOS Prompt Trigger (if on iOS and not installed and not on cooldown)
+    // 5. iOS UI trigger (if on iOS and not installed and not on cooldown)
     if (isIOSDevice && !onCooldown) {
-      const timer = setTimeout(() => {
+      setTimeout(() => {
         setShowPrompt(true);
       }, 1500);
-      return () => clearTimeout(timer);
     }
 
     // 6. Handle successful installation
     const handleAppInstalled = () => {
       setShowPrompt(false);
       setDeferredPrompt(null);
-      window.__pwaInstallPrompt = undefined;
       setIsStandalone(true);
-      localStorage.removeItem('medichain_pwa_install_dismissed_at');
-      console.log('[MediChain PWA] App successfully installed as standalone!');
+      localStorage.removeItem('medichain_pwa_install_dismissed_at'); // Clear dismissal if installed
     };
 
     window.addEventListener('appinstalled', handleAppInstalled);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('pwa-prompt-available', handlePromptAvailable);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
 
-  const install = useCallback(async () => {
-    const promptToUse = deferredPrompt || window.__pwaInstallPrompt;
-    if (!promptToUse) {
-      console.warn('[MediChain PWA] No active install prompt event available.');
+  const install = async () => {
+    if (!deferredPrompt) {
       return;
     }
 
-    try {
-      await promptToUse.prompt();
-      const result = await promptToUse.userChoice;
-      if (result.outcome === 'accepted') {
-        setShowPrompt(false);
-        setIsStandalone(true);
-      }
-    } catch (err) {
-      console.error('[MediChain PWA] Error triggering install prompt:', err);
-    } finally {
-      setDeferredPrompt(null);
-      window.__pwaInstallPrompt = undefined;
-    }
-  }, [deferredPrompt]);
+    deferredPrompt.prompt();
+    const result = await deferredPrompt.userChoice;
 
-  const dismiss = useCallback(() => {
+    if (result.outcome === 'accepted') {
+      setShowPrompt(false);
+    }
+    
+    setDeferredPrompt(null);
+  };
+
+  const dismiss = () => {
     setShowPrompt(false);
     localStorage.setItem('medichain_pwa_install_dismissed_at', Date.now().toString());
-  }, []);
-
-  const openInstallBanner = useCallback(() => {
-    setShowPrompt(true);
-  }, []);
+  };
 
   return {
     showPrompt,
     isIOS,
     isStandalone,
-    canInstall: Boolean(deferredPrompt || window.__pwaInstallPrompt),
+    canInstall: !!deferredPrompt,
     install,
     dismiss,
-    openInstallBanner
+    openInstallBanner: () => setShowPrompt(true)
   };
+
 }

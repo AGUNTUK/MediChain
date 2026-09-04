@@ -620,8 +620,8 @@ app.get("/api/categories", async (req, res) => {
   }
 });
 
-// Bounded LRU Cache (max 500 queries, 60-second TTL) to eliminate V8 GC memory pauses
-const productLRUCache = new LRUCache<any>(500, 60000);
+// Bounded LRU Cache (max 1000 queries, 5-minute TTL) for zero-cost catalog reads
+const productLRUCache = new LRUCache<any>(1000, 300000);
 
 export function clearProductCache() {
   productLRUCache.clear();
@@ -636,9 +636,10 @@ app.get("/api/products", publicLimiter, async (req, res) => {
   const cacheKey = `${filter || "all"}_${category || "all"}_${searchQuery}_${pageNum}_${limitNum}_${paginate || "false"}`;
 
   try {
-    // Edge cache header: 30s fresh, 120s stale-while-revalidate
-    res.setHeader("Cache-Control", "public, max-age=30, stale-while-revalidate=120");
+    // Strategy 5: HTTP Edge cache header (5-min fresh, 1-hour stale-while-revalidate)
+    res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=3600");
 
+    // Strategy 1: In-memory LRU Cache check
     const cached = productLRUCache.get(cacheKey);
     if (cached) {
       return res.json(cached);
@@ -647,10 +648,16 @@ app.get("/api/products", publicLimiter, async (req, res) => {
     const from = (pageNum - 1) * limitNum;
     const to = from + limitNum - 1;
 
+    // Strategy 4: Only request exact count when explicit pagination is requested
+    const isPaginatedRequest = paginate === "true";
     let query = supabaseAdmin
       .from("products")
-      .select("id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, image_url, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date)", { count: "exact" })
+      .select(
+        "id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, image_url, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date)",
+        isPaginatedRequest ? { count: "exact" } : undefined
+      )
       .range(from, to);
+
 
     if (searchQuery) {
       const searchTerms = searchQuery.split(/\s+/).filter(Boolean);
@@ -737,9 +744,9 @@ app.get("/api/products", publicLimiter, async (req, res) => {
     });
 
     let responseData: any;
-    if (paginate === "true" || page || limit) {
-      const total = count || 0;
-      const pages = Math.ceil(total / limitNum);
+    if (isPaginatedRequest || page || limit) {
+      const total = count || mappedProducts.length;
+      const pages = count ? Math.ceil(count / limitNum) : 1;
       responseData = {
         products: mappedProducts,
         total,
@@ -754,7 +761,7 @@ app.get("/api/products", publicLimiter, async (req, res) => {
       responseData = mappedProducts;
     }
 
-    productLRUCache.set(cacheKey, responseData, 60000);
+    productLRUCache.set(cacheKey, responseData, 300000);
     
     return res.json(responseData);
   } catch (err: any) {
@@ -1456,6 +1463,7 @@ app.post("/api/orders", requireAuth, orderLimiter, validateBody(schemas.orderCre
     });
 
     await dbService.saveCart(req.user.id, []);
+    clearProductCache();
 
     // Send Real-time Web Push to Pharmacy Owner's mobile
     pushNotificationService.sendPushNotification({
@@ -3470,15 +3478,17 @@ app.post("/api/admin/enrichment/tick", async (req, res) => {
 }
 
 // Advances the AI enrichment queue by one batch every minute while the
-// server process is alive. Safe to call even when idle/paused — it's a
-// no-op unless status is "running".
+// server process is alive. Strategy 2: Only ticks if there is an active running job.
 cron.schedule("* * * * *", async () => {
   try {
-    await aiEnrichmentService.tick();
+    if (aiEnrichmentService.isRunning()) {
+      await aiEnrichmentService.tick();
+    }
   } catch (err) {
     console.error("[enrichment] cron tick failed:", err);
   }
 });
+
 
 // Auto-expire Bulk Campaigns every hour
 cron.schedule("0 * * * *", async () => {

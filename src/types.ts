@@ -152,10 +152,12 @@ export interface Notification {
   title: string;
   message: string;
   type: string;
+  targetType?: string;
   related_id?: string;
   is_read: boolean;
   created_at: string;
 }
+
 
 export interface NotificationPreference {
   user_id: string;

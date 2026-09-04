@@ -41,13 +41,29 @@ export default function AIEnrichmentPanel() {
 
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(() => {
-      if (!document.hidden) {
-        fetchStatus();
-      }
-    }, 4000);
-    return () => clearInterval(interval);
-  }, []);
+
+    // Strategy 3: Conditional smart polling - only poll when active running/paused
+    let timer: NodeJS.Timeout;
+    const scheduleNextPoll = () => {
+      const isRunning = state?.status === "running";
+      const isPaused = state?.status === "paused";
+
+      // If stopped/idle, do not poll automatically
+      if (!isRunning && !isPaused) return;
+
+      const pollDelay = isRunning ? 6000 : 15000;
+      timer = setTimeout(async () => {
+        if (!document.hidden) {
+          await fetchStatus();
+        }
+        scheduleNextPoll();
+      }, pollDelay);
+    };
+
+    scheduleNextPoll();
+    return () => clearTimeout(timer);
+  }, [state?.status]);
+
 
   const handleAction = async (action: "start" | "pause" | "resume" | "stop" | "retry") => {
     setActionLoading(action);
@@ -151,8 +167,18 @@ export default function AIEnrichmentPanel() {
             <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Active Model</span>
             <span className="text-sm font-bold text-indigo-400 truncate max-w-[150px]">{state.currentAiModel}</span>
           </div>
+          <div className="w-px h-8 bg-slate-200 hidden sm:block"></div>
+          <button
+            onClick={fetchStatus}
+            disabled={loading}
+            title="Refresh status now"
+            className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          </button>
         </div>
       </div>
+
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         

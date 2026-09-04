@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import MediChainLogo from './MediChainLogo';
+import { MediChainIconOnly } from './MediChainLogo';
 import { io } from "socket.io-client";
 import { User, Order, Product } from "../types";
 import { 
@@ -188,7 +188,11 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
       <aside className="hidden md:flex w-64 bg-slate-950 border-r border-slate-800 flex-col justify-between shrink-0">
         <div className="p-6">
           <div className="flex items-center gap-3 mb-8 select-none">
-            <MediChainLogo size="sm" withText={true} textColor="light" />
+            <MediChainIconOnly className="w-9 h-9 object-contain" />
+            <div>
+              <h1 className="text-sm font-black tracking-wider text-slate-100">MEDICHAIN</h1>
+              <p className="text-[9px] text-indigo-400 font-bold uppercase tracking-widest">WMS WAREHOUSE</p>
+            </div>
           </div>
 
           <nav className="space-y-1.5">
@@ -249,7 +253,11 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
       {/* MOBILE RESPONSIVE TOP HEADER */}
       <header className="md:hidden w-full bg-slate-950 border-b border-slate-800 p-4 flex items-center justify-between z-20">
         <div className="flex items-center gap-2">
-          <MediChainLogo size="sm" withText={true} textColor="light" />
+          <MediChainIconOnly className="w-8 h-8 object-contain" />
+          <div>
+            <h1 className="text-xs font-black tracking-wider text-slate-100">MEDICHAIN</h1>
+            <p className="text-[8px] text-indigo-400 font-bold uppercase tracking-widest">WMS Mobile</p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <NotificationBell />

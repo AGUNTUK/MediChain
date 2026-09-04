@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { ShoppingBag, Trash2, Plus, Minus, Receipt, ArrowRight, ShieldCheck, ArrowLeft, Package, AlertTriangle } from "lucide-react";
+import { ShoppingBag, Trash2, Plus, Minus, Receipt, ArrowRight, ShieldCheck, ArrowLeft, Package } from "lucide-react";
 import { Product } from "../types";
 import { orderService } from "../services";
-import MediChainLogo from "./MediChainLogo";
-import StockAlertButton from "./StockAlertButton";
 
 interface CartProps {
   onCheckoutTrigger: () => void;
@@ -66,27 +64,18 @@ export default function Cart({ onCheckoutTrigger, onRefreshCartCounter, onBack }
           </button>
           <h2 className="text-sm font-black text-brand-charcoal">Procurement Cart</h2>
         </div>
-        <div className="flex-1 flex flex-col items-center justify-center p-6 bg-white relative overflow-hidden">
-          {/* Subtle watermark */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.08]">
-            <MediChainLogo size="xl" withText={true} textColor="dark" />
-          </div>
-          
-          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center border border-slate-100 shadow-sm mb-4 relative z-10">
+        <div className="flex-1 flex flex-col items-center justify-center p-6 bg-white">
+          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center border border-slate-100 shadow-sm mb-4">
             <ShoppingBag className="w-6 h-6 text-slate-300" />
           </div>
-          <h3 className="text-xs font-black text-slate-700 relative z-10">Your Procurement Cart is Empty</h3>
-          <p className="text-[10px] text-slate-400 max-w-[200px] text-center mt-1.5 leading-relaxed relative z-10">
+          <h3 className="text-xs font-black text-slate-700">Your Procurement Cart is Empty</h3>
+          <p className="text-[10px] text-slate-400 max-w-[200px] text-center mt-1.5 leading-relaxed">
             Browse medicines, check today's bulk discounts, and add items to place wholesale orders.
           </p>
         </div>
       </div>
     );
   }
-
-  const hasStockoutItems = cartData.items.some(
-    ({ product, quantity }) => (product.availableStock !== undefined && product.availableStock <= 0) || (product.availableStock !== undefined && product.availableStock < quantity)
-  );
 
   return (
     <div className="w-full h-full bg-brand-bg flex flex-col justify-between select-none">
@@ -109,93 +98,74 @@ export default function Cart({ onCheckoutTrigger, onRefreshCartCounter, onBack }
           </span>
         </div>
 
-        {cartData.items.map(({ product, quantity }) => {
-          const isItemStockout = (product.availableStock !== undefined && product.availableStock <= 0);
-          return (
-            <div
-              key={product.id}
-              className={`bg-white rounded-2xl p-3.5 border transition-all ${
-                isItemStockout ? "border-rose-300 bg-rose-50/20" : "border-slate-100"
-              }`}
+        {cartData.items.map(({ product, quantity }) => (
+          <div
+            key={product.id}
+            className="bg-white rounded-2xl p-3.5 border border-slate-100 flex gap-3 relative group"
+          >
+            {/* Remove item absolute */}
+            <button
+              onClick={() => handleRemoveItem(product.id)}
+              className="absolute top-3 right-3 text-slate-300 hover:text-rose-500 p-1 rounded-lg hover:bg-slate-50 transition-all cursor-pointer"
             >
-              <div className="flex gap-3 relative group">
-                {/* Remove item absolute */}
-                <button
-                  onClick={() => handleRemoveItem(product.id)}
-                  className="absolute top-0 right-0 text-slate-300 hover:text-rose-500 p-1 rounded-lg hover:bg-slate-50 transition-all cursor-pointer"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+              <Trash2 className="w-4 h-4" />
+            </button>
 
-                {/* Product image */}
-                <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-50 border border-slate-100 flex-shrink-0 flex items-center justify-center">
-                  {product.imageUrl || product.image_url ? (
-                    <img src={product.imageUrl || product.image_url} alt={product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                  ) : (
-                    <Package className="w-6 h-6 text-slate-300" />
-                  )}
-                </div>
-
-                {/* Icon / Brand block */}
-                <div className="flex-1 min-w-0 pr-6">
-                  <span className="text-[8px] bg-brand-purple/10 text-brand-purple font-extrabold px-1.5 py-0.5 rounded tracking-wide">
-                    {product.category}
-                  </span>
-                  <h4 className="text-xs font-black text-brand-charcoal mt-1 leading-tight truncate">
-                    {product.name} <span className="text-[10px] font-bold text-slate-400">{product.strength}</span>
-                  </h4>
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider truncate">{product.genericName}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <p className="text-[8px] text-slate-400 font-semibold truncate">{product.company}</p>
-                    <span className="text-slate-300 text-[8px]">•</span>
-                    <p className="text-[8px] text-brand-purple font-bold">Pack: {product.packSize || "N/A"}</p>
-                  </div>
-
-                  {/* Subtotal & item calculation */}
-                  <div className="flex items-center gap-3 mt-3">
-                    <span className="text-[10px] font-bold text-slate-400 font-mono">
-                      ৳{product.sellingPrice} &times; {quantity}
-                    </span>
-                    <span className="text-xs font-extrabold text-brand-purple font-mono">
-                      ৳{(product.sellingPrice * quantity).toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Vertical Increment/Decrement controller */}
-                <div className="flex flex-col justify-center items-center bg-slate-100 rounded-xl px-1.5 py-1.5 border border-slate-200/40 self-center">
-                  <button
-                    onClick={() => handleUpdateQty(product.id, quantity, 1)}
-                    className="text-slate-500 hover:text-brand-purple p-1 rounded hover:bg-white transition-all cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
-                  <span className="w-6 text-center text-xs font-black text-slate-800 font-mono py-1">
-                    {quantity}
-                  </span>
-                  <button
-                    onClick={() => handleUpdateQty(product.id, quantity, -1)}
-                    className="text-slate-500 hover:text-brand-purple p-1 rounded hover:bg-white transition-all cursor-pointer"
-                  >
-                    <Minus className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Stockout message & button */}
-              {isItemStockout && (
-                <div className="mt-3 pt-2.5 border-t border-rose-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-rose-50/80 p-2 rounded-xl">
-                  <p className="text-[11px] text-rose-800 font-bold leading-snug">
-                    বর্তমানে স্টক শেষ। নতুন স্টক আসার তাৎক্ষণিক নোটিফিকেশন পেতে 'স্টক এলার্ট' বাটনে ট্যাপ করুন।
-                  </p>
-                  <div className="shrink-0 self-end sm:self-auto">
-                    <StockAlertButton productId={product.id} productName={product.name} compact={true} />
-                  </div>
-                </div>
+            {/* Product image */}
+            <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-50 border border-slate-100 flex-shrink-0 flex items-center justify-center">
+              {product.imageUrl || product.image_url ? (
+                <img src={product.imageUrl || product.image_url} alt={product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              ) : (
+                <Package className="w-6 h-6 text-slate-300" />
               )}
             </div>
-          );
-        })}
+
+            {/* Icon / Brand block */}
+            <div className="flex-1 min-w-0">
+              <span className="text-[8px] bg-brand-purple/10 text-brand-purple font-extrabold px-1.5 py-0.5 rounded tracking-wide">
+                {product.category}
+              </span>
+              <h4 className="text-xs font-black text-brand-charcoal mt-1 leading-tight truncate">
+                {product.name} <span className="text-[10px] font-bold text-slate-400">{product.strength}</span>
+              </h4>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider truncate">{product.genericName}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-[8px] text-slate-400 font-semibold truncate">{product.company}</p>
+                <span className="text-slate-300 text-[8px]">•</span>
+                <p className="text-[8px] text-brand-purple font-bold">Pack: {product.packSize || "N/A"}</p>
+              </div>
+
+              {/* Subtotal & item calculation */}
+              <div className="flex items-center gap-3 mt-3">
+                <span className="text-[10px] font-bold text-slate-400 font-mono">
+                  ৳{product.sellingPrice} &times; {quantity}
+                </span>
+                <span className="text-xs font-extrabold text-brand-purple font-mono">
+                  ৳{(product.sellingPrice * quantity).toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            {/* Vertical Increment/Decrement controller */}
+            <div className="flex flex-col justify-center items-center bg-slate-100 rounded-xl px-1.5 py-1.5 border border-slate-200/40">
+              <button
+                onClick={() => handleUpdateQty(product.id, quantity, 1)}
+                className="text-slate-500 hover:text-brand-purple p-1 rounded hover:bg-white transition-all cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+              <span className="w-6 text-center text-xs font-black text-slate-800 font-mono py-1">
+                {quantity}
+              </span>
+              <button
+                onClick={() => handleUpdateQty(product.id, quantity, -1)}
+                className="text-slate-500 hover:text-brand-purple p-1 rounded hover:bg-white transition-all cursor-pointer"
+              >
+                <Minus className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Cart Summary & Order Trigger Section */}

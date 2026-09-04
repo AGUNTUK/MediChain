@@ -6,9 +6,7 @@ import Login from "./components/Login";
 import Home from "./components/Home";
 import CartDrawer from "./components/CartDrawer";
 import { PWAInstallPrompt } from "./pwa/PWAInstallPrompt";
-import PushNotificationPrompt from "./components/PushNotificationPrompt";
 import { CartFeedbackProvider } from "./context/FlyToCartContext";
-import CartBurst from "./components/CartBurst";
 import SafeBoundary from "./components/SafeBoundary";
 import { Product, Pharmacy, Order, Notification, User } from "./types";
 import { Home as HomeIcon, Search as SearchIcon, Package as PackageIcon, FileText as FileIcon, ClipboardList as ListIcon, User as UserIcon, Shield, Smartphone, ShoppingBag } from "lucide-react";
@@ -867,10 +865,7 @@ export default function App() {
             }}
           />
 
-          {/* Cart feedback burst */}
-          <CartBurst />
           <PWAInstallPrompt />
-          <PushNotificationPrompt userId={currentUser?.id} pharmacyName={pharmacy?.pharmacyName} />
 
           {/* Bottom persistent Nav Bar */}
           {appStep === "main" && (
