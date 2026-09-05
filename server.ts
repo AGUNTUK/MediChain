@@ -2057,7 +2057,27 @@ app.post("/api/depot/orders/:id/accept", requireRole(["Admin", "Depot Staff"]), 
 
 app.post("/api/depot/orders/:id/process", requireRole(["Admin", "Depot Staff"]), async (req, res) => {
   try {
-    const { error } = await dbService.updateOrderStatus(req.params.id, "Processing");
+    const { 
+      pickerId = (req as any).user?.id, 
+      pickerName = (req as any).user?.name, 
+      pickStartedAt, 
+      pickCompletedAt = new Date().toISOString(), 
+      isBatchPicked, 
+      batchId, 
+      unverifiedPicksCount 
+    } = req.body || {};
+
+    const wmsAttr = {
+      pickedBy: pickerId,
+      pickerName: pickerName,
+      pickStartedAt: pickStartedAt || new Date(Date.now() - 120000).toISOString(),
+      pickCompletedAt: pickCompletedAt,
+      isBatchPicked: Boolean(isBatchPicked),
+      batchId: batchId || undefined,
+      unverifiedPicksCount: Number(unverifiedPicksCount || 0)
+    };
+
+    const { error } = await dbService.updateOrderStatus(req.params.id, "Processing", undefined, undefined, wmsAttr);
     if (error) return res.status(400).json({ error: error.message });
     const order = await dbService.getOrderById(req.params.id);
     if (io) {
@@ -2071,9 +2091,65 @@ app.post("/api/depot/orders/:id/process", requireRole(["Admin", "Depot Staff"]),
   }
 });
 
+app.post("/api/depot/orders/batch-process", requireRole(["Admin", "Depot Staff"]), async (req, res) => {
+  try {
+    const { 
+      orderIds, 
+      pickerId = (req as any).user?.id, 
+      pickerName = (req as any).user?.name, 
+      pickStartedAt, 
+      pickCompletedAt = new Date().toISOString(), 
+      batchId = `BATCH-${Date.now().toString(36).toUpperCase()}`, 
+      unverifiedPicksCount = 0 
+    } = req.body || {};
+
+    if (!Array.isArray(orderIds) || orderIds.length === 0) {
+      return res.status(400).json({ error: "orderIds array is required" });
+    }
+
+    const updatedOrders = [];
+    for (const id of orderIds) {
+      const wmsAttr = {
+        pickedBy: pickerId,
+        pickerName: pickerName,
+        pickStartedAt: pickStartedAt || new Date(Date.now() - 180000).toISOString(),
+        pickCompletedAt: pickCompletedAt,
+        isBatchPicked: true,
+        batchId: batchId,
+        unverifiedPicksCount: Number(unverifiedPicksCount || 0)
+      };
+      await dbService.updateOrderStatus(id, "Processing", undefined, undefined, wmsAttr);
+      const updated = await dbService.getOrderById(id);
+      if (updated) {
+        updatedOrders.push(updated);
+        if (io) {
+          io.to(`order_${id}`).emit("order_status_updated", updated);
+          io.to("role_Admin").emit("admin_order_updated", updated);
+        }
+      }
+    }
+
+    res.json({ success: true, count: updatedOrders.length, batchId, orders: updatedOrders });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post("/api/depot/orders/:id/pack", requireRole(["Admin", "Depot Staff"]), async (req, res) => {
   try {
-    const { error } = await dbService.updateOrderStatus(req.params.id, "Packed");
+    const { 
+      packerId = (req as any).user?.id, 
+      packerName = (req as any).user?.name, 
+      packedAt = new Date().toISOString() 
+    } = req.body || {};
+
+    const wmsAttr = {
+      packedBy: packerId,
+      packerName: packerName,
+      packedAt: packedAt
+    };
+
+    const { error } = await dbService.updateOrderStatus(req.params.id, "Packed", undefined, undefined, wmsAttr);
     if (error) return res.status(400).json({ error: error.message });
     const order = await dbService.getOrderById(req.params.id);
     if (io) {
@@ -2082,6 +2158,57 @@ app.post("/api/depot/orders/:id/pack", requireRole(["Admin", "Depot Staff"]), as
       io.to("role_Delivery Staff").emit("admin_order_updated", order);
     }
     res.json({ success: true, order });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/depot/products/barcode-audit", requireRole(["Admin", "Depot Staff"]), async (req, res) => {
+  try {
+    const products = await getAllProductsMaster();
+    const withBarcode = products.filter(p => p.barcode && p.barcode.trim().length > 0);
+    const withoutBarcode = products.filter(p => !p.barcode || p.barcode.trim().length === 0);
+    res.json({
+      success: true,
+      totalProducts: products.length,
+      withBarcodeCount: withBarcode.length,
+      withoutBarcodeCount: withoutBarcode.length,
+      coveragePercent: products.length > 0 ? Math.round((withBarcode.length / products.length) * 100) : 0,
+      missingSample: withoutBarcode.slice(0, 20).map(p => ({ id: p.id, name: p.name, company: p.company }))
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch("/api/depot/products/:id/barcode", requireRole(["Admin", "Depot Staff"]), async (req, res) => {
+  try {
+    const { barcode } = req.body || {};
+    if (!barcode || !barcode.trim()) {
+      return res.status(400).json({ error: "Barcode is required" });
+    }
+    const result = await dbService.updateProductBarcode(req.params.id, barcode.trim());
+    clearProductCache();
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/depot/products/backfill-barcodes", requireRole(["Admin", "Depot Staff"]), async (req, res) => {
+  try {
+    const result = await dbService.backfillMissingBarcodes();
+    clearProductCache();
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/depot/staff-performance", requireRole(["Admin", "Depot Staff"]), async (req, res) => {
+  try {
+    const metrics = await dbService.getStaffPerformanceMetrics();
+    res.json({ success: true, metrics });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

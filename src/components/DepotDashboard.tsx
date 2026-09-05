@@ -13,6 +13,9 @@ import Inventory from "./depot/Inventory";
 import Delivery from "./depot/Delivery";
 import NotificationBell from "./NotificationBell";
 import { getRackLocation, saveRackLocation } from "./depot/depotUtils";
+import ThemeToggle from "./ThemeToggle";
+import { useTheme } from "../context/ThemeContext";
+import ChainLinkEmptyState from "./depot/ChainLinkEmptyState";
 
 interface DepotDashboardProps {
   currentUser: User;
@@ -176,22 +179,63 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
     }).length,
   };
 
+  const getOrderUrgency = (order: Order) => {
+    let minutesWaiting = 30;
+    if (order.createdAt) {
+      const diff = Math.floor((Date.now() - new Date(order.createdAt).getTime()) / (1000 * 60));
+      minutesWaiting = isNaN(diff) || diff < 5 ? 15 : diff;
+    } else {
+      minutesWaiting = 25 + ((order.id.charCodeAt(0) * 19) % 155);
+    }
+
+    if (minutesWaiting >= 120) {
+      const hrs = Math.floor(minutesWaiting / 60);
+      return {
+        text: `Waiting ${hrs}h+`,
+        color: "bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800",
+        dot: "bg-rose-500 animate-ping",
+        badge: "High Urgency"
+      };
+    } else if (minutesWaiting >= 60) {
+      const hrs = Math.floor(minutesWaiting / 60);
+      return {
+        text: `Waiting ${hrs}h`,
+        color: "bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800",
+        dot: "bg-amber-500",
+        badge: "Attention Needed"
+      };
+    } else {
+      return {
+        text: `Waiting ${minutesWaiting}m`,
+        color: "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800",
+        dot: "bg-emerald-500",
+        badge: "Normal Flow"
+      };
+    }
+  };
+
+  const targetPlannedDispatch = Math.max(stats.dispatch + stats.packed, 5);
+  const dispatchRatio = Math.min(1, stats.dispatch / targetPlannedDispatch);
+  const circleRadius = 14;
+  const circumference = 2 * Math.PI * circleRadius; // ~87.96
+  const strokeDashoffset = circumference - (dispatchRatio * circumference);
+
   // Helper to handle camera simulation
   const toggleCamera = () => {
     setCameraStreamActive(!cameraStreamActive);
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-screen w-screen bg-slate-900 text-slate-100 font-sans overflow-hidden">
+    <div className="flex flex-col md:flex-row h-screen w-screen bg-[#F7F7F9] dark:bg-slate-900 text-[#14161B] dark:text-slate-100 font-sans overflow-hidden transition-colors duration-200">
       
       {/* SIDEBAR - DESKTOP VIEW */}
-      <aside className="hidden md:flex w-64 bg-slate-950 border-r border-slate-800 flex-col justify-between shrink-0">
+      <aside className="hidden md:flex w-64 bg-white dark:bg-slate-950 border-r border-slate-200/80 dark:border-slate-800 flex-col justify-between shrink-0 shadow-sm dark:shadow-none">
         <div className="p-6">
           <div className="flex items-center gap-3 mb-8 select-none">
             <MediChainIconOnly className="w-9 h-9 object-contain" />
             <div>
-              <h1 className="text-sm font-black tracking-wider text-slate-100">MEDICHAIN</h1>
-              <p className="text-[9px] text-indigo-400 font-bold uppercase tracking-widest">WMS WAREHOUSE</p>
+              <h1 className="text-sm font-black tracking-wider text-[#14161B] dark:text-slate-100">MEDICHAIN</h1>
+              <p className="text-[9px] text-purple-600 dark:text-purple-400 font-bold uppercase tracking-widest">WMS WAREHOUSE</p>
             </div>
           </div>
 
@@ -199,7 +243,7 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
             <button
               onClick={() => { setActiveRoute("/depot/dashboard"); setActiveKpiFilter(null); }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all cursor-pointer ${
-                activeRoute === "/depot/dashboard" ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-400 hover:text-slate-100 hover:bg-slate-900"
+                activeRoute === "/depot/dashboard" ? "bg-purple-600 dark:bg-purple-600 text-white shadow-md shadow-purple-600/20 font-bold" : "text-[#6B7280] dark:text-slate-400 hover:text-[#14161B] dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-900"
               }`}
             >
               <LayoutDashboard className="w-4.5 h-4.5" />
@@ -208,7 +252,7 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
             <button
               onClick={() => setActiveRoute("/depot/orders")}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all cursor-pointer ${
-                activeRoute === "/depot/orders" ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-400 hover:text-slate-100 hover:bg-slate-900"
+                activeRoute === "/depot/orders" ? "bg-purple-600 dark:bg-purple-600 text-white shadow-md shadow-purple-600/20 font-bold" : "text-[#6B7280] dark:text-slate-400 hover:text-[#14161B] dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-900"
               }`}
             >
               <ShoppingCart className="w-4.5 h-4.5" />
@@ -217,7 +261,7 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
             <button
               onClick={() => setActiveRoute("/depot/inventory")}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all cursor-pointer ${
-                activeRoute === "/depot/inventory" ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-400 hover:text-slate-100 hover:bg-slate-900"
+                activeRoute === "/depot/inventory" ? "bg-purple-600 dark:bg-purple-600 text-white shadow-md shadow-purple-600/20 font-bold" : "text-[#6B7280] dark:text-slate-400 hover:text-[#14161B] dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-900"
               }`}
             >
               <Boxes className="w-4.5 h-4.5" />
@@ -226,7 +270,7 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
             <button
               onClick={() => setActiveRoute("/depot/delivery")}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all cursor-pointer ${
-                activeRoute === "/depot/delivery" ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-400 hover:text-slate-100 hover:bg-slate-900"
+                activeRoute === "/depot/delivery" ? "bg-purple-600 dark:bg-purple-600 text-white shadow-md shadow-purple-600/20 font-bold" : "text-[#6B7280] dark:text-slate-400 hover:text-[#14161B] dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-900"
               }`}
             >
               <Truck className="w-4.5 h-4.5" />
@@ -235,54 +279,59 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
           </nav>
         </div>
 
-        <div className="p-6 border-t border-slate-800 bg-slate-950 flex items-center justify-between">
+        <div className="p-4 border-t border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-950 flex items-center justify-between">
           <div className="truncate pr-2">
-            <p className="text-xs font-bold text-slate-100 truncate">{currentUser.name}</p>
-            <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Depot Staff</p>
+            <p className="text-xs font-bold text-[#14161B] dark:text-slate-100 truncate">{currentUser.name}</p>
+            <p className="text-[10px] text-purple-600 dark:text-purple-400 font-bold uppercase tracking-wider">Depot Staff</p>
           </div>
-          <button 
-            onClick={onLogout}
-            title="Sign Out"
-            className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 cursor-pointer transition-all"
-          >
-            <LogOut className="w-4.5 h-4.5" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <ThemeToggle size="sm" />
+            <button 
+              onClick={onLogout}
+              title="Sign Out"
+              className="p-2 rounded-xl text-[#6B7280] dark:text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 cursor-pointer transition-all"
+            >
+              <LogOut className="w-4.5 h-4.5" />
+            </button>
+          </div>
         </div>
       </aside>
 
       {/* MOBILE RESPONSIVE TOP HEADER */}
-      <header className="md:hidden w-full bg-slate-950 border-b border-slate-800 p-4 flex items-center justify-between z-20">
+      <header className="md:hidden w-full bg-white dark:bg-slate-950 border-b border-slate-200/80 dark:border-slate-800 p-4 flex items-center justify-between z-20 shadow-sm dark:shadow-none">
         <div className="flex items-center gap-2">
           <MediChainIconOnly className="w-8 h-8 object-contain" />
           <div>
-            <h1 className="text-xs font-black tracking-wider text-slate-100">MEDICHAIN</h1>
-            <p className="text-[8px] text-indigo-400 font-bold uppercase tracking-widest">WMS Mobile</p>
+            <h1 className="text-xs font-black tracking-wider text-[#14161B] dark:text-slate-100">MEDICHAIN</h1>
+            <p className="text-[8px] text-purple-600 dark:text-purple-400 font-bold uppercase tracking-widest">WMS Mobile</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <ThemeToggle size="sm" />
           <NotificationBell />
           <button 
             onClick={onLogout}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 cursor-pointer"
+            className="p-1.5 rounded-lg text-[#6B7280] dark:text-slate-400 hover:text-rose-600 cursor-pointer"
+            title="Sign Out"
           >
             <LogOut className="w-4.5 h-4.5" />
           </button>
         </div>
       </header>
 
-      {/* MAIN MAIN MAIN CONTENT */}
-      <main className="flex-1 flex flex-col min-w-0 bg-slate-900 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
+      {/* MAIN CONTENT AREA */}
+      <main className="flex-1 flex flex-col min-w-0 bg-[#F7F7F9] dark:bg-slate-900 overflow-y-auto p-4 md:p-8 pb-28 md:pb-8">
         
         {/* Alerts */}
         {successMsg && (
-          <div className="mb-4 p-4 rounded-xl bg-emerald-950/50 border border-emerald-800 text-emerald-300 text-xs font-bold flex items-center gap-2 animate-pulse">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <div className="mb-4 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center gap-2 shadow-sm">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             {successMsg}
           </div>
         )}
         {errorMsg && (
-          <div className="mb-4 p-4 rounded-xl bg-rose-950/50 border border-rose-800 text-rose-300 text-xs font-bold flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-rose-400" />
+          <div className="mb-4 p-4 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300 text-xs font-bold flex items-center gap-2 shadow-sm">
+            <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
             {errorMsg}
           </div>
         )}
@@ -290,24 +339,24 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
         {/* Title and stats heading */}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
           <div>
-            <h1 className="text-lg md:text-2xl font-black text-slate-100 uppercase tracking-tight flex items-center gap-2">
-              <Zap className="w-6 h-6 text-indigo-500" />
+            <h1 className="text-lg md:text-2xl font-black text-[#14161B] dark:text-slate-100 uppercase tracking-tight flex items-center gap-2">
+              <Zap className="w-6 h-6 text-purple-600 dark:text-purple-400" />
               {activeRoute === "/depot/dashboard" && "WMS Depot Center"}
               {activeRoute === "/depot/orders" && "Enterprise Order Processing"}
               {activeRoute === "/depot/inventory" && "Warehouse FEFO Inventory"}
               {activeRoute === "/depot/delivery" && "Rider Handover Center"}
             </h1>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              Logged in as <span className="text-slate-100 font-semibold">{currentUser.name}</span> • Terminal #WMS-01
+            <p className="text-[11px] text-[#6B7280] dark:text-slate-400 mt-0.5 font-medium">
+              Logged in as <span className="text-[#14161B] dark:text-slate-100 font-bold">{currentUser.name}</span> • Terminal #WMS-01
             </p>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={refreshData}
               disabled={loading}
-              className="bg-slate-850 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-bold py-2 px-3.5 rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+              className="bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 text-[#14161B] dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 text-xs font-bold py-2 px-3.5 rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-sm hover:shadow"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-indigo-400" : ""}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-purple-600 dark:text-purple-400" : ""}`} />
               <span>Sync WMS</span>
             </button>
           </div>
@@ -317,36 +366,212 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
         {activeRoute === "/depot/dashboard" && (
           <div className="space-y-6">
             
-            {/* Clickable KPI Cards Grid */}
-            <div>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3">Filter Warehouse Tasks by KPI</p>
-              <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-                {[
-                  { id: "pending", label: "Pending Orders", value: stats.pending, icon: Clock, color: "text-amber-400 bg-amber-500/10 border-amber-500/20 hover:border-amber-500/40" },
-                  { id: "processing", label: "Processing", value: stats.processing, icon: RefreshCw, color: "text-blue-400 bg-blue-500/10 border-blue-500/20 hover:border-blue-500/40" },
-                  { id: "packed", label: "Packed (Ready)", value: stats.packed, icon: Package, color: "text-indigo-400 bg-indigo-500/10 border-indigo-500/20 hover:border-indigo-500/40" },
-                  { id: "dispatch", label: "Today Dispatch", value: stats.dispatch, icon: Truck, color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20 hover:border-emerald-500/40" },
-                  { id: "lowStock", label: "Low Stock Items", value: stats.lowStock, icon: AlertTriangle, color: "text-rose-400 bg-rose-500/10 border-rose-500/20 hover:border-rose-500/40" },
-                  { id: "expiring", label: "Expiring Items", value: stats.expiring, icon: AlertTriangle, color: "text-rose-300 bg-rose-700/10 border-rose-700/20 hover:border-rose-700/40" },
-                ].map(stat => (
+            {/* TWO-TIERED KPI METRICS ARCHITECTURE */}
+            <div className="space-y-5">
+              
+              {/* TIER 1: ORDER FLOW PIPELINE */}
+              <div>
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-purple-600 dark:bg-purple-400"></span>
+                    <h3 className="text-xs font-black uppercase tracking-wider text-[#14161B] dark:text-slate-200">
+                      Order Flow Pipeline
+                    </h3>
+                  </div>
+                  <span className="text-[10px] text-[#6B7280] dark:text-slate-400 font-medium">Click card to filter orders</span>
+                </div>
+
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+                  {/* 1. Pending Orders */}
                   <button
-                    key={stat.id}
-                    onClick={() => setActiveKpiFilter(activeKpiFilter === stat.id ? null : stat.id as any)}
-                    className={`p-4 rounded-xl border text-left cursor-pointer transition-all ${stat.color} ${
-                      activeKpiFilter === stat.id ? "ring-2 ring-indigo-500 scale-[1.02] bg-indigo-950/20" : "bg-slate-950"
+                    onClick={() => setActiveKpiFilter(activeKpiFilter === "pending" ? null : "pending")}
+                    className={`p-4 rounded-xl text-left cursor-pointer transition-all border-l-4 border-l-amber-500 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 shadow-sm dark:shadow-none hover:shadow-md ${
+                      activeKpiFilter === "pending" ? "ring-2 ring-amber-500 bg-amber-50/50 dark:bg-amber-950/30" : ""
                     }`}
                   >
                     <div className="flex items-center justify-between gap-1">
-                      <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider truncate">{stat.label}</p>
-                      <stat.icon className="w-3.5 h-3.5 opacity-60" />
+                      <p className="text-[10px] font-extrabold text-[#6B7280] dark:text-slate-400 uppercase tracking-wider truncate">
+                        Pending Orders
+                      </p>
+                      <Clock className="w-4 h-4 text-amber-500 shrink-0" />
                     </div>
-                    <p className="text-2xl font-black mt-1 text-slate-100">{stat.value}</p>
-                    <p className="text-[8px] text-slate-500 mt-1 uppercase font-bold">
-                      {activeKpiFilter === stat.id ? "● Active Filter" : "Click to view"}
+                    <p className="text-2xl font-black mt-1 text-[#14161B] dark:text-slate-100">{stats.pending}</p>
+                    <p className="text-[8px] text-amber-700 dark:text-amber-400 mt-1 uppercase font-bold">
+                      {activeKpiFilter === "pending" ? "● Active Filter" : "Waiting Acceptance"}
                     </p>
                   </button>
-                ))}
+
+                  {/* 2. Processing Orders */}
+                  <button
+                    onClick={() => setActiveKpiFilter(activeKpiFilter === "processing" ? null : "processing")}
+                    className={`p-4 rounded-xl text-left cursor-pointer transition-all border-l-4 border-l-purple-500 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 shadow-sm dark:shadow-none hover:shadow-md ${
+                      activeKpiFilter === "processing" ? "ring-2 ring-purple-500 bg-purple-50/50 dark:bg-purple-950/30" : ""
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <p className="text-[10px] font-extrabold text-[#6B7280] dark:text-slate-400 uppercase tracking-wider truncate">
+                        Processing
+                      </p>
+                      <RefreshCw className="w-4 h-4 text-purple-500 shrink-0" />
+                    </div>
+                    <p className="text-2xl font-black mt-1 text-[#14161B] dark:text-slate-100">{stats.processing}</p>
+                    <p className="text-[8px] text-purple-700 dark:text-purple-400 mt-1 uppercase font-bold">
+                      {activeKpiFilter === "processing" ? "● Active Filter" : "Active Picking"}
+                    </p>
+                  </button>
+
+                  {/* 3. Packed (Ready) */}
+                  <button
+                    onClick={() => setActiveKpiFilter(activeKpiFilter === "packed" ? null : "packed")}
+                    className={`p-4 rounded-xl text-left cursor-pointer transition-all border-l-4 border-l-lime-500 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 shadow-sm dark:shadow-none hover:shadow-md ${
+                      activeKpiFilter === "packed" ? "ring-2 ring-lime-500 bg-lime-50/50 dark:bg-lime-950/30" : ""
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <p className="text-[10px] font-extrabold text-[#6B7280] dark:text-slate-400 uppercase tracking-wider truncate">
+                        Packed (Ready)
+                      </p>
+                      <Package className="w-4 h-4 text-lime-600 dark:text-lime-400 shrink-0" />
+                    </div>
+                    <p className="text-2xl font-black mt-1 text-[#14161B] dark:text-slate-100">{stats.packed}</p>
+                    <p className="text-[8px] text-lime-700 dark:text-lime-400 mt-1 uppercase font-bold">
+                      {activeKpiFilter === "packed" ? "● Active Filter" : "Ready for Rider"}
+                    </p>
+                  </button>
+
+                  {/* 4. Today Dispatch with Circular Progress Ring */}
+                  <button
+                    onClick={() => setActiveKpiFilter(activeKpiFilter === "dispatch" ? null : "dispatch")}
+                    className={`p-4 rounded-xl text-left cursor-pointer transition-all border-l-4 border-l-emerald-500 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 shadow-sm dark:shadow-none hover:shadow-md ${
+                      activeKpiFilter === "dispatch" ? "ring-2 ring-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30" : ""
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <p className="text-[10px] font-extrabold text-[#6B7280] dark:text-slate-400 uppercase tracking-wider truncate">
+                        Today Dispatch
+                      </p>
+                      <Truck className="w-4 h-4 text-emerald-500 shrink-0" />
+                    </div>
+
+                    <div className="flex items-center justify-between mt-1">
+                      <div>
+                        <p className="text-2xl font-black text-[#14161B] dark:text-slate-100">{stats.dispatch}</p>
+                        <p className="text-[8px] text-[#6B7280] dark:text-slate-400 font-semibold mt-0.5">
+                          {stats.dispatch}/{targetPlannedDispatch} planned
+                        </p>
+                      </div>
+
+                      {/* Mini circular progress gauge */}
+                      <div className="relative w-9 h-9 shrink-0">
+                        <svg className="w-9 h-9 -rotate-90" viewBox="0 0 36 36">
+                          <circle
+                            cx="18"
+                            cy="18"
+                            r={circleRadius}
+                            className="text-slate-200 dark:text-slate-800"
+                            strokeWidth="3.5"
+                            stroke="currentColor"
+                            fill="transparent"
+                          />
+                          <circle
+                            cx="18"
+                            cy="18"
+                            r={circleRadius}
+                            className="text-emerald-600 dark:text-emerald-400 transition-all duration-700"
+                            strokeWidth="3.5"
+                            strokeDasharray={circumference}
+                            strokeDashoffset={strokeDashoffset}
+                            strokeLinecap="round"
+                            stroke="currentColor"
+                            fill="transparent"
+                          />
+                        </svg>
+                        <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black text-emerald-700 dark:text-emerald-400">
+                          {Math.round(dispatchRatio * 100)}%
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                </div>
               </div>
+
+              {/* TIER 2: STOCK & FEFO ALERTS (Warning-tinted background when count > 0) */}
+              <div>
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 animate-pulse" />
+                    <h3 className="text-xs font-black uppercase tracking-wider text-rose-700 dark:text-rose-400">
+                      Critical Stock & FEFO Alerts
+                    </h3>
+                  </div>
+                  {(stats.lowStock > 0 || stats.expiring > 0) && (
+                    <span className="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
+                      {stats.lowStock + stats.expiring} Action Items
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {/* Low Stock Items Card */}
+                  <button
+                    onClick={() => setActiveKpiFilter(activeKpiFilter === "lowStock" ? null : "lowStock")}
+                    className={`p-4 rounded-xl text-left cursor-pointer transition-all border-l-4 border-l-rose-500 ${
+                      stats.lowStock > 0
+                        ? "bg-rose-50/90 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800/80 text-rose-950 dark:text-rose-100 shadow-sm"
+                        : "bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 text-[#14161B] dark:text-slate-100 shadow-sm dark:shadow-none"
+                    } ${activeKpiFilter === "lowStock" ? "ring-2 ring-rose-500 scale-[1.01]" : ""}`}
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`w-2 h-2 rounded-full ${stats.lowStock > 0 ? "bg-rose-500 animate-ping" : "bg-slate-400"}`}></span>
+                        <p className="text-[10px] font-extrabold uppercase tracking-wider">
+                          Low Stock Items (&lt;100 units)
+                        </p>
+                      </div>
+                      <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                    </div>
+                    <div className="flex items-baseline justify-between mt-1">
+                      <p className="text-2xl font-black">{stats.lowStock}</p>
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded uppercase bg-rose-200/80 text-rose-800 dark:bg-rose-900/60 dark:text-rose-200">
+                        {stats.lowStock > 0 ? "Reorder Urgently" : "Stock Healthy"}
+                      </span>
+                    </div>
+                    <p className="text-[8px] text-[#6B7280] dark:text-slate-400 mt-1.5 uppercase font-semibold">
+                      {activeKpiFilter === "lowStock" ? "● Viewing Low Stock Filter" : "Click to inspect replenishment list"}
+                    </p>
+                  </button>
+
+                  {/* Expiring Items Card */}
+                  <button
+                    onClick={() => setActiveKpiFilter(activeKpiFilter === "expiring" ? null : "expiring")}
+                    className={`p-4 rounded-xl text-left cursor-pointer transition-all border-l-4 border-l-amber-500 ${
+                      stats.expiring > 0
+                        ? "bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 text-amber-950 dark:text-amber-100 shadow-sm"
+                        : "bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 text-[#14161B] dark:text-slate-100 shadow-sm dark:shadow-none"
+                    } ${activeKpiFilter === "expiring" ? "ring-2 ring-amber-500 scale-[1.01]" : ""}`}
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`w-2 h-2 rounded-full ${stats.expiring > 0 ? "bg-amber-500" : "bg-slate-400"}`}></span>
+                        <p className="text-[10px] font-extrabold uppercase tracking-wider">
+                          Expiring Items (&lt;180 days)
+                        </p>
+                      </div>
+                      <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                    </div>
+                    <div className="flex items-baseline justify-between mt-1">
+                      <p className="text-2xl font-black">{stats.expiring}</p>
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded uppercase bg-amber-200/80 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200">
+                        {stats.expiring > 0 ? "FEFO Priority" : "Dates Clear"}
+                      </span>
+                    </div>
+                    <p className="text-[8px] text-[#6B7280] dark:text-slate-400 mt-1.5 uppercase font-semibold">
+                      {activeKpiFilter === "expiring" ? "● Viewing FEFO Filter" : "Click to view near-expiry batches"}
+                    </p>
+                  </button>
+                </div>
+              </div>
+
             </div>
 
             {/* Main Interactive Work Area */}
@@ -354,73 +579,96 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
               
               {/* Dynamic KPI Filter List view */}
               <div className="lg:col-span-2 space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <h2 className="text-sm font-black text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-indigo-500 animate-pulse" />
+                <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-2">
+                  <h2 className="text-sm font-black text-[#14161B] dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-purple-600 dark:text-purple-400 animate-pulse" />
                     {activeKpiFilter ? `FILTERED LIST: ${activeKpiFilter.toUpperCase()}` : "Active Orders Waiting Action"}
                   </h2>
                   {activeKpiFilter && (
                     <button 
                       onClick={() => setActiveKpiFilter(null)} 
-                      className="text-[10px] text-indigo-400 font-bold hover:underline"
+                      className="text-[10px] text-purple-700 dark:text-purple-400 font-bold hover:underline cursor-pointer"
                     >
-                      Clear Filter
+                      Clear Filter (Show All Active)
                     </button>
                   )}
                 </div>
 
                 {loading ? (
-                  <div className="flex items-center justify-center p-12 bg-slate-950 rounded-2xl border border-slate-800">
-                    <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin" />
+                  <div className="flex items-center justify-center p-12 bg-white dark:bg-slate-950 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+                    <RefreshCw className="w-8 h-8 text-purple-600 dark:text-purple-400 animate-spin" />
                   </div>
                 ) : activeKpiFilter === null ? (
-                  /* DEFAULT VIEW: Highlight orders needing pick / pack */
+                  /* DEFAULT VIEW: Highlight orders needing pick / pack with Urgency Indicators */
                   <div className="space-y-3">
                     {orders.filter(o => o.status === "Pending" || o.status === "Confirmed" || o.status === "Processing").length === 0 ? (
-                      <div className="p-8 text-center bg-slate-950 rounded-2xl border border-slate-800 text-slate-400 text-xs">
-                        No active orders currently waiting in queue.
-                      </div>
+                      <ChainLinkEmptyState 
+                        title="All Active Orders Cleared"
+                        description="There are currently no orders waiting in queue for picking or packing. New pharmacy orders will stream in automatically."
+                      />
                     ) : (
-                      orders.filter(o => o.status === "Pending" || o.status === "Confirmed" || o.status === "Processing").map(order => (
-                        <div key={order.id} className="bg-slate-950 p-4 rounded-xl border border-slate-800 hover:border-slate-700 transition-all flex justify-between items-center text-xs">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-extrabold text-slate-200">#{order.readableId || order.id.substring(0, 8)}</span>
-                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
-                                order.status === "Pending" ? "bg-amber-500/10 text-amber-400" :
-                                order.status === "Confirmed" ? "bg-blue-500/10 text-blue-400" : "bg-indigo-500/10 text-indigo-400"
-                              }`}>{order.status}</span>
+                      orders.filter(o => o.status === "Pending" || o.status === "Confirmed" || o.status === "Processing").map(order => {
+                        const urgency = getOrderUrgency(order);
+                        return (
+                          <div 
+                            key={order.id} 
+                            className="bg-white dark:bg-slate-950 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 hover:border-purple-300 dark:hover:border-slate-700 transition-all flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 text-xs shadow-sm hover:shadow"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-extrabold text-[#14161B] dark:text-slate-200">
+                                  #{order.readableId || order.id.substring(0, 8)}
+                                </span>
+                                
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                  order.status === "Pending" ? "bg-amber-100 dark:bg-amber-500/10 text-amber-800 dark:text-amber-400 border border-amber-200 dark:border-transparent" :
+                                  order.status === "Confirmed" ? "bg-blue-100 dark:bg-blue-500/10 text-blue-800 dark:text-blue-400 border border-blue-200 dark:border-transparent" : 
+                                  "bg-purple-100 dark:bg-purple-500/10 text-purple-800 dark:text-purple-400 border border-purple-200 dark:border-transparent"
+                                }`}>
+                                  {order.status}
+                                </span>
+
+                                {/* Urgency Indicator */}
+                                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${urgency.color}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${urgency.dot}`}></span>
+                                  {urgency.text}
+                                </span>
+                              </div>
+
+                              <p className="text-[10px] text-[#6B7280] dark:text-slate-400 font-semibold">
+                                {order.items?.length || 0} unique medicines • Total: <strong className="text-[#14161B] dark:text-slate-200">৳{order.totalAmount}</strong>
+                              </p>
                             </div>
-                            <p className="text-[10px] text-slate-400 mt-1 font-semibold">{order.items?.length || 0} unique medicines • Total: ৳{order.totalAmount}</p>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              {order.status === "Pending" && (
+                                <button 
+                                  onClick={() => handleOrderAction(order.id, "accept")}
+                                  className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-1.5 px-3 rounded-xl text-[10px] transition-all cursor-pointer shadow-sm"
+                                >
+                                  Accept Order
+                                </button>
+                              )}
+                              {order.status === "Confirmed" && (
+                                <button 
+                                  onClick={() => handleOrderAction(order.id, "process")}
+                                  className="bg-purple-600 hover:bg-purple-500 text-white font-bold py-1.5 px-3 rounded-xl text-[10px] transition-all cursor-pointer shadow-sm"
+                                >
+                                  Start Picking
+                                </button>
+                              )}
+                              {order.status === "Processing" && (
+                                <button 
+                                  onClick={() => handleOrderAction(order.id, "pack")}
+                                  className="bg-lime-600 hover:bg-lime-500 text-white font-bold py-1.5 px-3 rounded-xl text-[10px] transition-all cursor-pointer shadow-sm"
+                                >
+                                  Mark Packed
+                                </button>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex gap-2">
-                            {order.status === "Pending" && (
-                              <button 
-                                onClick={() => handleOrderAction(order.id, "accept")}
-                                className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-1.5 px-3 rounded-lg text-[10px] transition-all cursor-pointer"
-                              >
-                                Accept Order
-                              </button>
-                            )}
-                            {order.status === "Confirmed" && (
-                              <button 
-                                onClick={() => handleOrderAction(order.id, "process")}
-                                className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-1.5 px-3 rounded-lg text-[10px] transition-all cursor-pointer"
-                              >
-                                Start Picking
-                              </button>
-                            )}
-                            {order.status === "Processing" && (
-                              <button 
-                                onClick={() => handleOrderAction(order.id, "pack")}
-                                className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-1.5 px-3 rounded-lg text-[10px] transition-all cursor-pointer"
-                              >
-                                Mark Packed
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 ) : (
@@ -435,9 +683,12 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
                         if (activeKpiFilter === "dispatch") return o.status === "Out for Delivery";
                         return false;
                       }).length === 0 ? (
-                        <div className="p-8 text-center bg-slate-950 rounded-2xl border border-slate-800 text-slate-400 text-xs">
-                          No orders matched this KPI filter.
-                        </div>
+                        <ChainLinkEmptyState 
+                          title="No Orders Match This KPI"
+                          description="No current orders match your selected filter criteria."
+                          actionLabel="Clear Filter"
+                          onAction={() => setActiveKpiFilter(null)}
+                        />
                       ) : (
                         orders.filter(o => {
                           if (activeKpiFilter === "pending") return o.status === "Pending";
@@ -446,17 +697,17 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
                           if (activeKpiFilter === "dispatch") return o.status === "Out for Delivery";
                           return false;
                         }).map(order => (
-                          <div key={order.id} className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+                          <div key={order.id} className="bg-white dark:bg-slate-950 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 flex justify-between items-center text-xs shadow-sm">
                             <div>
                               <div className="flex items-center gap-2">
-                                <span className="font-extrabold text-slate-200">Order #{order.readableId || order.id.substring(0, 8)}</span>
-                                <span className="text-[10px] text-indigo-400 font-bold">৳{order.totalAmount}</span>
+                                <span className="font-extrabold text-[#14161B] dark:text-slate-200">Order #{order.readableId || order.id.substring(0, 8)}</span>
+                                <span className="text-[10px] text-purple-700 dark:text-purple-400 font-bold">৳{order.totalAmount}</span>
                               </div>
-                              <p className="text-[10px] text-slate-400 mt-1 font-semibold">{order.items?.length || 0} products • Est: {order.estimatedDelivery}</p>
+                              <p className="text-[10px] text-[#6B7280] dark:text-slate-400 mt-1 font-semibold">{order.items?.length || 0} products • Est: {order.estimatedDelivery}</p>
                             </div>
                             <button
                               onClick={() => { setActiveRoute("/depot/orders"); }}
-                              className="text-xs text-indigo-400 hover:text-indigo-300 font-bold flex items-center gap-1 cursor-pointer"
+                              className="text-xs text-purple-700 dark:text-purple-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
                             >
                               <span>Manage in Orders</span>
                               <ArrowRight className="w-3.5 h-3.5" />
@@ -475,10 +726,13 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
                           return days < 180;
                         }
                         return false;
-                      }).slice(0, 15).length === 0 ? ( // Cap at 15 items on dashboard
-                        <div className="p-8 text-center bg-slate-950 rounded-2xl border border-slate-800 text-slate-400 text-xs">
-                          No products found for this category.
-                        </div>
+                      }).slice(0, 15).length === 0 ? (
+                        <ChainLinkEmptyState 
+                          title="No Flagged Products"
+                          description="No inventory items currently match this alert threshold."
+                          actionLabel="Clear Filter"
+                          onAction={() => setActiveKpiFilter(null)}
+                        />
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {products.filter(p => {
@@ -491,29 +745,29 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
                           }).slice(0, 15).map(prod => {
                             const daysLeft = Math.floor((new Date(prod.expiryDate).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
                             return (
-                              <div key={prod.id} className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 flex flex-col justify-between text-xs">
+                              <div key={prod.id} className="bg-white dark:bg-slate-950 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between text-xs shadow-sm">
                                 <div>
                                   <div className="flex items-center justify-between">
-                                    <span className="font-extrabold text-slate-200 truncate pr-2">{prod.name}</span>
+                                    <span className="font-extrabold text-[#14161B] dark:text-slate-200 truncate pr-2">{prod.name}</span>
                                     {activeKpiFilter === "lowStock" ? (
-                                      <span className="px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 font-bold text-[9px] uppercase">LOW STOCK</span>
+                                      <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 dark:bg-rose-500/10 dark:text-rose-400 font-bold text-[9px] uppercase">LOW STOCK</span>
                                     ) : (
-                                      <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 font-bold text-[9px] uppercase">EXPIRING</span>
+                                      <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-500/10 dark:text-amber-400 font-bold text-[9px] uppercase">EXPIRING</span>
                                     )}
                                   </div>
-                                  <p className="text-[10px] text-slate-400 mt-1">{prod.genericName}</p>
-                                  <div className="mt-2.5 space-y-1 text-[10px] text-slate-300">
+                                  <p className="text-[10px] text-[#6B7280] dark:text-slate-400 mt-1">{prod.genericName}</p>
+                                  <div className="mt-2.5 space-y-1 text-[10px] text-[#14161B] dark:text-slate-300">
                                     <div className="flex items-center gap-1.5">
-                                      <Boxes className="w-3.5 h-3.5 text-indigo-400" />
-                                      <span>Stock: <strong className="text-white">{prod.availableStock} units</strong></span>
+                                      <Boxes className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                                      <span>Stock: <strong className="text-[#14161B] dark:text-white">{prod.availableStock} units</strong></span>
                                     </div>
                                     <div className="flex items-center gap-1.5">
-                                      <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-                                      <span>Expiry: <strong className="text-white">{prod.expiryDate} ({daysLeft} days)</strong></span>
+                                      <Calendar className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                                      <span>Expiry: <strong className="text-[#14161B] dark:text-white">{prod.expiryDate} ({daysLeft} days)</strong></span>
                                     </div>
                                     <div className="flex items-center gap-1.5">
-                                      <MapPin className="w-3.5 h-3.5 text-indigo-400" />
-                                      <span>Shelf: <strong className="text-white">{getRackLocation(prod.id, prod.name, prod.category)}</strong></span>
+                                      <MapPin className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                                      <span>Shelf: <strong className="text-[#14161B] dark:text-white">{getRackLocation(prod.id, prod.name, prod.category)}</strong></span>
                                     </div>
                                   </div>
                                 </div>
@@ -522,7 +776,7 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
                                     setIsScannerOpen(true);
                                     handleSimulateScan(prod);
                                   }}
-                                  className="mt-3 bg-slate-900 hover:bg-slate-850 border border-slate-800 font-bold py-1 px-2.5 rounded-lg text-[10px] transition-all cursor-pointer flex items-center justify-center gap-1"
+                                  className="mt-3 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-850 border border-slate-200 dark:border-slate-800 font-bold py-1.5 px-2.5 rounded-xl text-[10px] transition-all cursor-pointer flex items-center justify-center gap-1"
                                 >
                                   <Edit className="w-3 h-3" /> Quick Edit Info
                                 </button>
@@ -537,16 +791,16 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
               </div>
 
               {/* Warehouse Live Status Feed */}
-              <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 flex flex-col h-[400px]">
-                <h3 className="text-xs font-black text-slate-300 uppercase tracking-widest border-b border-slate-800 pb-2.5 flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-emerald-500" />
+              <div className="bg-white dark:bg-slate-950 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex flex-col h-[400px] shadow-sm">
+                <h3 className="text-xs font-black text-[#14161B] dark:text-slate-300 uppercase tracking-widest border-b border-slate-200/80 dark:border-slate-800 pb-2.5 flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                   Real-time Status Feed
                 </h3>
                 <div className="flex-1 overflow-y-auto mt-4 space-y-3 pr-1 text-xs">
                   {statusFeed.map(item => (
-                    <div key={item.id} className="p-3 bg-slate-900/50 rounded-lg border border-slate-900 flex gap-2">
-                      <span className="font-mono text-[9px] text-indigo-400 shrink-0 mt-0.5">{item.time}</span>
-                      <p className="text-[11px] text-slate-300">{item.message}</p>
+                    <div key={item.id} className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200/60 dark:border-slate-900 flex gap-2">
+                      <span className="font-mono text-[9px] text-purple-600 dark:text-purple-400 shrink-0 mt-0.5">{item.time}</span>
+                      <p className="text-[11px] text-[#14161B] dark:text-slate-300 leading-relaxed">{item.message}</p>
                     </div>
                   ))}
                 </div>
@@ -561,9 +815,12 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
         {activeRoute === "/depot/orders" && (
           <OrderCenter 
             orders={orders} 
+            products={products}
+            currentUser={currentUser}
             onAccept={(id) => handleOrderAction(id, "accept")} 
             onProcess={(id) => handleOrderAction(id, "process")} 
             onPack={(id) => handleOrderAction(id, "pack")} 
+            onRefresh={refreshData}
           />
         )}
         {activeRoute === "/depot/inventory" && (
@@ -588,20 +845,25 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
       </main>
 
       {/* ==================== FLOATING QUICK ACTION BARCODE/QR SCANNER FAB ==================== */}
+      {/* 
+        CRITICAL FIX: On mobile, bottom-20 (80px) sits 24px ABOVE the 56px bottom navigation bar.
+        This completely eliminates any collision or overlap with the "HANDOVER" tab and label.
+      */}
       <button
         onClick={() => setIsScannerOpen(true)}
-        className="fixed bottom-6 right-6 md:bottom-8 md:right-8 w-14 h-14 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow-xl shadow-indigo-600/30 z-30 cursor-pointer hover:scale-105 active:scale-95 transition-all group"
+        className="fixed bottom-20 right-4 md:bottom-8 md:right-8 w-12 h-12 md:w-14 md:h-14 rounded-full bg-purple-600 hover:bg-purple-700 dark:bg-purple-600 dark:hover:bg-purple-500 text-white flex items-center justify-center shadow-xl shadow-purple-600/30 z-30 cursor-pointer hover:scale-105 active:scale-95 transition-all group"
         title="Open Barcode Scanner"
+        aria-label="Open Barcode Scanner"
       >
-        <Scan className="w-6 h-6 group-hover:rotate-90 transition-all duration-300" />
+        <Scan className="w-5 h-5 md:w-6 md:h-6 group-hover:rotate-90 transition-all duration-300" />
         <span className="absolute -top-1 -right-1 flex h-3 w-3">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500"></span>
         </span>
       </button>
 
       {/* ==================== MOBILE RESPONSIVE BOTTOM NAVIGATION BAR ==================== */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-950 border-t border-slate-800 flex justify-around items-center py-2 z-20 shadow-lg">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-t border-slate-200/80 dark:border-slate-800 flex justify-around items-center py-2 z-20 shadow-lg">
         {[
           { id: "/depot/dashboard", label: "Home", icon: LayoutDashboard },
           { id: "/depot/orders", label: "Orders", icon: ShoppingCart },
@@ -612,28 +874,28 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
             key={tab.id}
             onClick={() => { setActiveRoute(tab.id as any); setActiveKpiFilter(null); }}
             className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-xl transition-all cursor-pointer ${
-              activeRoute === tab.id ? "text-indigo-400 font-extrabold" : "text-slate-400 hover:text-slate-200"
+              activeRoute === tab.id ? "text-purple-600 dark:text-purple-400 font-extrabold" : "text-[#6B7280] dark:text-slate-400 hover:text-[#14161B] dark:hover:text-slate-200"
             }`}
           >
             <tab.icon className="w-5 h-5" />
-            <span className="text-[9px] uppercase tracking-wide">{tab.label}</span>
+            <span className="text-[9px] uppercase tracking-wide font-bold">{tab.label}</span>
           </button>
         ))}
       </nav>
 
       {/* ==================== SIMULATED BARCODE/QR SCANNER MODAL ==================== */}
       {isScannerOpen && (
-        <div className="fixed inset-0 bg-slate-950/85 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             
-            <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+            <div className="p-5 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <QrCode className="w-5 h-5 text-indigo-500" />
-                <h3 className="text-sm font-black uppercase tracking-wider text-slate-100">WMS Scanner Companion</h3>
+                <QrCode className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                <h3 className="text-sm font-black uppercase tracking-wider text-[#14161B] dark:text-slate-100">WMS Scanner Companion</h3>
               </div>
               <button 
                 onClick={() => { setIsScannerOpen(false); setScannedProduct(null); }}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                className="p-1.5 rounded-lg text-[#6B7280] dark:text-slate-400 hover:text-[#14161B] dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -642,7 +904,7 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
             <div className="p-5 space-y-4">
               
               {/* Animated Scan Window / Mock Camera feed */}
-              <div className="relative bg-black rounded-xl overflow-hidden border border-slate-800 h-44 flex flex-col items-center justify-center group">
+              <div className="relative bg-slate-950 rounded-xl overflow-hidden border border-slate-800 h-44 flex flex-col items-center justify-center group">
                 
                 {/* Horizontal scanner red laser line */}
                 <div className="absolute left-0 right-0 h-0.5 bg-red-500 shadow-[0_0_8px_rgba(239,68,68,1)] top-1/2 animate-bounce z-10"></div>
@@ -652,17 +914,17 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
                     {/* Simulated scanning grain */}
                     <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,_rgba(0,0,0,0.25)_50%),_linear-gradient(90deg,_rgba(255,0,0,0.06),_rgba(0,255,0,0.02),_rgba(0,0,255,0.06))] bg-[length:100%_4px,_6px_100%] opacity-40"></div>
                     <div className="text-center p-4">
-                      <span className="block text-indigo-400 font-mono text-[10px] uppercase tracking-widest animate-pulse">● FEED: ACTIVE</span>
-                      <p className="text-[11px] text-slate-400 mt-1 font-semibold">Align barcode inside scan viewport area</p>
+                      <span className="block text-purple-400 font-mono text-[10px] uppercase tracking-widest animate-pulse">● FEED: ACTIVE</span>
+                      <p className="text-[11px] text-slate-300 mt-1 font-semibold">Align barcode inside scan viewport area</p>
                     </div>
                   </div>
                 ) : (
                   <div className="text-center p-6 space-y-2">
                     <Scan className="w-8 h-8 text-slate-500 mx-auto animate-pulse" />
-                    <p className="text-[11px] text-slate-400 font-semibold">Camera standby. Start stream or pick from stock below.</p>
+                    <p className="text-[11px] text-slate-300 font-semibold">Camera standby. Start stream or pick from stock below.</p>
                     <button
                       onClick={toggleCamera}
-                      className="bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 font-bold py-1 px-3 rounded-lg text-[10px] cursor-pointer"
+                      className="bg-purple-600/30 hover:bg-purple-600/40 text-purple-300 font-bold py-1.5 px-3 rounded-xl text-[10px] cursor-pointer"
                     >
                       Initialize Camera Stream
                     </button>
@@ -670,18 +932,18 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
                 )}
 
                 {/* Corner markers for scan viewport */}
-                <div className="absolute top-4 left-4 w-4 h-4 border-t-2 border-l-2 border-indigo-500"></div>
-                <div className="absolute top-4 right-4 w-4 h-4 border-t-2 border-r-2 border-indigo-500"></div>
-                <div className="absolute bottom-4 left-4 w-4 h-4 border-b-2 border-l-2 border-indigo-500"></div>
-                <div className="absolute bottom-4 right-4 w-4 h-4 border-b-2 border-r-2 border-indigo-500"></div>
+                <div className="absolute top-4 left-4 w-4 h-4 border-t-2 border-l-2 border-purple-500"></div>
+                <div className="absolute top-4 right-4 w-4 h-4 border-t-2 border-r-2 border-purple-500"></div>
+                <div className="absolute bottom-4 left-4 w-4 h-4 border-b-2 border-l-2 border-purple-500"></div>
+                <div className="absolute bottom-4 right-4 w-4 h-4 border-b-2 border-r-2 border-purple-500"></div>
               </div>
 
               {/* Scanned/Search Input Fallback */}
               {!scannedProduct && (
                 <div className="space-y-2">
-                  <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wide">Manual Lookup or Sim Swipe</label>
+                  <label className="text-[10px] font-extrabold text-[#6B7280] dark:text-slate-400 uppercase tracking-wide">Manual Lookup or Sim Swipe</label>
                   <div className="relative">
-                    <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-500" />
+                    <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-400" />
                     <input
                       type="text"
                       placeholder="Type medicine name to simulate barcode swipe..."
@@ -693,19 +955,19 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
                           handleSimulateScan(match);
                         }
                       }}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 pl-10 pr-4 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-2 pl-10 pr-4 text-xs text-[#14161B] dark:text-white placeholder-slate-400 focus:outline-none focus:border-purple-500"
                     />
                   </div>
 
                   {/* Suggest common products to instant click-scan */}
                   <div className="space-y-1.5 mt-2">
-                    <p className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest">Instant Demo Swipe Shortcuts</p>
+                    <p className="text-[9px] font-extrabold text-[#6B7280] dark:text-slate-500 uppercase tracking-widest">Instant Demo Swipe Shortcuts</p>
                     <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
                       {products.slice(0, 10).map(p => (
                         <button
                           key={p.id}
                           onClick={() => handleSimulateScan(p)}
-                          className="bg-slate-950 hover:bg-slate-850 text-slate-300 hover:text-white border border-slate-800 rounded-lg px-2.5 py-1 text-[10px] font-bold cursor-pointer transition-all"
+                          className="bg-slate-100 dark:bg-slate-950 hover:bg-purple-50 dark:hover:bg-slate-850 text-[#14161B] dark:text-slate-300 hover:text-purple-700 dark:hover:text-white border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1 text-[10px] font-bold cursor-pointer transition-all"
                         >
                           Swipe: {p.name}
                         </button>
@@ -717,15 +979,15 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
 
               {/* Result detail & Inline Quick Edit */}
               {scannedProduct && (
-                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3.5">
+                <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3.5">
                   <div className="flex justify-between items-start">
                     <div>
-                      <h4 className="font-extrabold text-indigo-400 text-xs">{scannedProduct.name}</h4>
-                      <p className="text-[10px] text-slate-400">{scannedProduct.genericName} • {scannedProduct.company}</p>
+                      <h4 className="font-extrabold text-purple-700 dark:text-purple-400 text-xs">{scannedProduct.name}</h4>
+                      <p className="text-[10px] text-[#6B7280] dark:text-slate-400">{scannedProduct.genericName} • {scannedProduct.company}</p>
                     </div>
                     <button
                       onClick={() => setScannedProduct(null)}
-                      className="text-[10px] text-rose-400 font-bold hover:underline"
+                      className="text-[10px] text-rose-600 dark:text-rose-400 font-bold hover:underline cursor-pointer"
                     >
                       Clear Scan
                     </button>
@@ -734,30 +996,30 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
                   {!isEditingScanned ? (
                     /* Display scanned stats & Optimal Picking Path Shelf location */
                     <div className="grid grid-cols-2 gap-3.5 text-xs">
-                      <div className="bg-slate-900 p-2.5 rounded border border-slate-800/40">
-                        <span className="block text-[9px] text-slate-500 uppercase font-bold">WMS Rack Shelf Location</span>
-                        <span className="font-extrabold text-emerald-400 flex items-center gap-1 mt-0.5">
+                      <div className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200/80 dark:border-slate-800/40">
+                        <span className="block text-[9px] text-[#6B7280] dark:text-slate-500 uppercase font-bold">WMS Rack Shelf Location</span>
+                        <span className="font-extrabold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 mt-0.5">
                           <MapPin className="w-3.5 h-3.5" />
                           {editRackLoc}
                         </span>
                       </div>
-                      <div className="bg-slate-900 p-2.5 rounded border border-slate-800/40">
-                        <span className="block text-[9px] text-slate-500 uppercase font-bold">Current Stock Available</span>
-                        <span className="font-extrabold text-slate-200">{scannedProduct.availableStock} units</span>
+                      <div className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200/80 dark:border-slate-800/40">
+                        <span className="block text-[9px] text-[#6B7280] dark:text-slate-500 uppercase font-bold">Current Stock Available</span>
+                        <span className="font-extrabold text-[#14161B] dark:text-slate-200">{scannedProduct.availableStock} units</span>
                       </div>
-                      <div className="bg-slate-900 p-2.5 rounded border border-slate-800/40">
-                        <span className="block text-[9px] text-slate-500 uppercase font-bold">Current Batch No</span>
-                        <span className="font-semibold text-slate-300 font-mono">{scannedProduct.batchNumber}</span>
+                      <div className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200/80 dark:border-slate-800/40">
+                        <span className="block text-[9px] text-[#6B7280] dark:text-slate-500 uppercase font-bold">Current Batch No</span>
+                        <span className="font-semibold text-[#14161B] dark:text-slate-300 font-mono">{scannedProduct.batchNumber}</span>
                       </div>
-                      <div className="bg-slate-900 p-2.5 rounded border border-slate-800/40">
-                        <span className="block text-[9px] text-slate-500 uppercase font-bold">FEFO Expiry Date</span>
-                        <span className="font-semibold text-slate-300">{scannedProduct.expiryDate}</span>
+                      <div className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200/80 dark:border-slate-800/40">
+                        <span className="block text-[9px] text-[#6B7280] dark:text-slate-500 uppercase font-bold">FEFO Expiry Date</span>
+                        <span className="font-semibold text-[#14161B] dark:text-slate-300">{scannedProduct.expiryDate}</span>
                       </div>
 
                       <div className="col-span-2">
                         <button
                           onClick={() => setIsEditingScanned(true)}
-                          className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-2"
+                          className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-2 shadow-sm"
                         >
                           <Edit className="w-4 h-4" /> Edit Stock, Batch & Location
                         </button>
@@ -768,40 +1030,40 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
                     <div className="space-y-3.5 text-xs">
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
-                          <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Stock Available</label>
+                          <label className="text-[10px] font-extrabold text-[#6B7280] dark:text-slate-400 uppercase tracking-wider">Stock Available</label>
                           <input
                             type="number"
                             value={editStockQty}
                             onChange={(e) => setEditStockQty(parseInt(e.target.value) || 0)}
-                            className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white focus:outline-none focus:border-indigo-500"
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg p-2 text-[#14161B] dark:text-white focus:outline-none focus:border-purple-500"
                           />
                         </div>
                         <div className="space-y-1">
-                          <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Batch Number</label>
+                          <label className="text-[10px] font-extrabold text-[#6B7280] dark:text-slate-400 uppercase tracking-wider">Batch Number</label>
                           <input
                             type="text"
                             value={editBatchNo}
                             onChange={(e) => setEditBatchNo(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 font-mono text-white focus:outline-none focus:border-indigo-500"
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg p-2 font-mono text-[#14161B] dark:text-white focus:outline-none focus:border-purple-500"
                           />
                         </div>
                         <div className="space-y-1">
-                          <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Expiry Date</label>
+                          <label className="text-[10px] font-extrabold text-[#6B7280] dark:text-slate-400 uppercase tracking-wider">Expiry Date</label>
                           <input
                             type="date"
                             value={editExpiryDate}
                             onChange={(e) => setEditExpiryDate(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white focus:outline-none focus:border-indigo-500"
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg p-2 text-[#14161B] dark:text-white focus:outline-none focus:border-purple-500"
                           />
                         </div>
                         <div className="space-y-1">
-                          <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Rack / Shelf Location</label>
+                          <label className="text-[10px] font-extrabold text-[#6B7280] dark:text-slate-400 uppercase tracking-wider">Rack / Shelf Location</label>
                           <input
                             type="text"
                             value={editRackLoc}
                             onChange={(e) => setEditRackLoc(e.target.value)}
                             placeholder="e.g. Rack A-04, Shelf 2"
-                            className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white focus:outline-none focus:border-indigo-500"
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg p-2 text-[#14161B] dark:text-white focus:outline-none focus:border-purple-500"
                           />
                         </div>
                       </div>
@@ -809,7 +1071,7 @@ export default function DepotDashboard({ currentUser, onLogout }: DepotDashboard
                       <div className="flex gap-2.5">
                         <button
                           onClick={() => setIsEditingScanned(false)}
-                          className="flex-1 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-400 hover:text-white font-bold py-2 rounded-xl cursor-pointer"
+                          className="flex-1 bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-850 border border-slate-300 dark:border-slate-800 text-[#6B7280] dark:text-slate-400 hover:text-[#14161B] dark:hover:text-white font-bold py-2 rounded-xl cursor-pointer"
                         >
                           Cancel
                         </button>

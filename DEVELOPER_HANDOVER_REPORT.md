@@ -1124,7 +1124,103 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
-**To AI Agents:**
+## 41. WMS Mobile Depot Multi-Feature Architecture & Staff Performance Attribution
+
+- **User Direct Request**: Implement four WMS depot features following strict build order:
+  1. Staff Performance tracking fields (schema & attribution)
+  2. Batch Picking (combine multiple Confirmed orders into single pick run)
+  3. Barcode/QR Scan Pick Verification (scan to confirm, mismatch guard, manual fallback with unverified tag)
+  4. Staff Performance Metrics Admin UI (leaderboard, pick/pack durations, orders completed)
+  5. Low Stock → Direct Restock Request flow (`restock_requests`, admin review, stock bumping)
+- **Step 1: Schema & Attribution Architecture**:
+  - `orders` table tracking fields:
+    - `picked_by` (TEXT / UUID of picker staff)
+    - `picker_name` (TEXT)
+    - `pick_started_at` (TIMESTAMPTZ)
+    - `pick_completed_at` (TIMESTAMPTZ)
+    - `packed_by` (TEXT / UUID of packer staff)
+    - `packer_name` (TEXT)
+    - `packed_at` (TIMESTAMPTZ)
+    - `is_batch_picked` (BOOLEAN DEFAULT FALSE)
+    - `batch_id` (TEXT)
+    - `unverified_picks_count` (INTEGER DEFAULT 0)
+  - `products` table tracking fields:
+    - `barcode` (TEXT) - Barcode / EAN-13 / QR code representation for pick verification
+  - Resilience: Dual-layer persistence in `src/lib/dbService.ts`. Direct column updates attempted first; if Supabase schema cache hasn't run migration 06, attribution metadata is serialized into `notes` JSON (`WMS_ATTR:{...}`) and reconstructed on retrieval, ensuring 100% backward-compatibility without throwing PostgREST schema cache errors.
+  - Migration file created: `supabase-migrations/06_wms_staff_performance_and_barcodes.sql`.
+
+- **Batch Picking Architecture (`src/components/depot/OrderCenter.tsx`, `BatchPickModal.tsx`, `BatchPickSummaryModal.tsx`)**:
+  - **Multi-Order Selection**: Confirmed orders feature an interactive checkbox allowing depot staff to select multiple orders for combined picking runs.
+  - **Floating Trigger**: Once 2 or more Confirmed orders are selected, a floating bottom action banner displays total unique SKUs and total units across the selection with a 1-click "Combine & Pick" action.
+  - **Merged Pick List Generation**: Dynamically combines identical medicines across orders into single pick rows, displaying the aggregated quantity required and a visible per-order allocation breakdown.
+  - **Linear Walk Optimization**: Items are sorted by warehouse sector and rack/shelf location (`getRackLocation`) to minimize picker transit steps.
+  - **Real-Time Order Allocation**: Marking a merged line item as picked simultaneously allocates the picked quantities to the respective individual orders.
+  - **Batch Completion & Individual Packing Handover**:
+    * Posts to `/api/depot/orders/batch-process` to mark all batched orders as `Processing` with picker attribution, batch ID (`#BATCH-...`), and start/end timestamps.
+    * Displays a detailed Batch Pick Summary Modal showing total duration, orders included, SKUs, and total units picked.
+    * Preserves individual order packing: after batch picking, orders move to "Processing" where staff can inspect, pack, and generate thermal slips per-order.
+
+----------------------------------------
+
+## 42. Barcode/QR Scan Pick Verification Architecture (Step 3)
+
+- **Barcode Storage & Generation**:
+  - `products.barcode`: Stores official EAN-13, UPC, or GTIN-14 barcode string.
+  - Deterministic Fallback (`getBarcodeForProduct` in `depotUtils.ts`): Automatically calculates a standard EAN-13 formatted barcode with BD prefix (`880...`) if a product has not yet been registered with an official barcode.
+  - One-Click Barcode Backfill (`/api/depot/products/backfill-barcodes`): Scans catalog for products missing barcodes and automatically assigns and persists standard EAN-13 codes to database records.
+  - Manual Barcode Override: Staff can update/assign official barcodes on any product from the Depot Inventory management view (`PATCH /api/depot/products/:id/barcode`).
+- **Camera Scanning & Verification Engine (`src/components/depot/BarcodePickScanner.tsx`)**:
+  - Uses `html5-qrcode` to access device cameras on mobile devices and desktop webcams.
+  - Matches scanned code against product's registered barcode or deterministic EAN-13 code.
+  - Web Audio API Sound Feedback:
+    * `playScanSuccessSound()`: High-frequency rising melodic chime (880Hz -> 1320Hz) on match.
+    * `playScanErrorSound()`: Low-frequency buzz (220Hz -> 160Hz) on mismatch.
+  - Visual Feedback:
+    * Green glowing match banner with product confirmation.
+    * Red high-contrast alert banner on mismatch showing expected vs. scanned code to prevent wrong medication dispatch.
+  - Fallbacks & Safety:
+    * Manual Input: Staff can type numeric code if barcode label is scratched or camera is unavailable.
+    * Supervisor Override: Manager PIN authentication (default `8821`) unlocks pick with override tracking.
+    * Unverified Pick: Allows proceeding if emergency picking is required, tagging item as "Unverified" and incrementing `unverified_picks_count` on the order for safety auditing.
+- **Workflow Integration**:
+  - **Batch Picking (`BatchPickModal.tsx`)**: Each merged item line displays rack location and barcode pill with prominent "Scan & Pick" action. Tracks exact counts of verified picks, supervisor overrides, and unverified picks in the run summary.
+  - **Single Order Picking (`OrderCenter.tsx`)**: Step-by-step picking modal incorporates barcode verification and live status pills (`[Scan Verified]`, `[Override PIN]`, `[Unverified]`).
+  - **Inventory Catalog (`Inventory.tsx`)**: Added Barcode (EAN-13) column, quick barcode editor in edit modal, and "Backfill Missing Barcodes" automated sync tool.
+
+### 43. WMS Mobile Depot Redesign, Typography Standardization & Theme Architecture
+- **Mobile Floating Action Button (FAB) Positioning Fix**:
+  - Repositioned the floating quick-scanner button from bottom-right overlapping `bottom-6 right-6` to elevated `bottom-20 right-4 md:bottom-8 md:right-8` with dynamic responsive sizing (`w-12 h-12 md:w-14 md:h-14`).
+  - Leaves 24px of clear vertical space above the 56px fixed mobile bottom navigation bar (`z-20`). The "HANDOVER" bottom navigation tab label is 100% visible, fully clear, and comfortably tappable across all viewport widths.
+- **Typography Normalization to Inter (Sans-Serif)**:
+  - Replaced legacy serif font inheritance caused by custom font declarations.
+  - Integrated Google Fonts `Inter` (weights 300 to 900) across `index.html` and configured `--font-sans: 'Inter', system-ui, ...` in `src/index.css`.
+  - All WMS screens (WMS Depot Center, Warehouse FEFO Inventory, Enterprise Order Processing, Rider Handover Center) now use crisp, standardized Inter sans-serif typography.
+- **Universal Dual-Theme Architecture (`ThemeContext.tsx` & `ThemeToggle.tsx`)**:
+  - Context Provider at application root with persistent state saved in `localStorage` under `medichain_theme`.
+  - Automatically syncs `.dark` / `.light` CSS classes and `data-theme` attribute on `document.documentElement`.
+  - Light mode palette strictly conforms to specifications:
+    * Background: Off-white `#F7F7F9` (not pure white)
+    * Cards: Pure white `#FFFFFF` with soft drop shadows (`shadow-sm`, `shadow-md`) replacing dark border outlines.
+    * Text: Charcoal `#14161B` for high-contrast primary text, Slate/Gray `#6B7280` for secondary labels.
+    * Brand Accents: Deep saturated purple (`#9333EA`) and olive/lime (`#65A30D`) for WCAG AA compliance on light backgrounds.
+  - Toggle button accessible in both desktop navigation sidebars and mobile headers.
+- **Dashboard Visual Hierarchy & Layout Overhaul**:
+  - **Two-Tiered Stat Card Architecture**:
+    * **Tier 1: Order Flow**: Grouped Pending Orders, Processing, Packed (Ready), and Today Dispatch into a prominent operational flow row.
+    * **Tier 2: Alerts**: Low Stock Items and Expiring Items isolated into a distinct warning cluster with warning-tinted backgrounds (amber/red backgrounds when count > 0) so critical problems are immediately noticeable.
+    * **Semantic Left-Border Accents**: Color-coded left borders matching operational meaning (amber for pending, purple for processing, lime for packed, emerald for dispatch, rose for alerts).
+    * **Circular Progress Indicator**: Interactive SVG progress ring for "Today Dispatch" displaying planned vs. completed dispatch progress.
+  - **Urgency Indicators for Active Orders**:
+    * Dynamic wait-time computation displaying real-time urgency chips (e.g. `Waiting 2h+`, `Attention Needed`, `Recent`) with color-coded pulsing status dots.
+  - **Chain-Link Empty State Component (`ChainLinkEmptyState.tsx`)**:
+    * Brand-consistent interlocking vector chain illustration with soft gradient aura and contextual messaging across Rider Handover and Order processing lists.
+    * Added flexible `icon` prop support with light/dark themed container.
+- **WMS Sub-Module Theming & Design System Propagation**:
+  - **Rider Handover Center (`Delivery.tsx`)**: Re-themed active assignments, rider cards, OTP verification modals, handover badges, and thermal delivery receipt dialog with dual-theme `#F7F7F9` light background and `#FFFFFF` cards.
+  - **Batch Picking (`BatchPickModal.tsx`)**: Upgraded batch picking modal, rack route visualization, and barcode verification UI with unified purple/lime brand accents and full light/dark elevation tokens.
+  - **Batch Pick Summary (`BatchPickSummaryModal.tsx`)**: Re-skinned post-run fulfillment report, performance duration breakdown, and safety audit charts in clean high-contrast light and dark modes.
+
+----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).
 **Important files:** `server.ts` (all API routes), `src/App.tsx` (frontend router), `supabase-schema.sql` (database schema).

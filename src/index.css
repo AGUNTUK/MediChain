@@ -1,5 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
 
 /* Bengali Custom Typography: Li Alinur Banglaborno */
 @font-face {
@@ -87,7 +89,7 @@
   --color-emerald-900: var(--color-lime-900);
   --color-emerald-950: var(--color-lime-950);
 
-  --font-sans: "Li Alinur Banglaborno", "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: "Inter", "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   --font-bangla: "Li Alinur Banglaborno", sans-serif;
   
@@ -97,6 +99,14 @@
   --color-brand-lime-dark: #74be12;
   --color-brand-bg: #F8F9F5;
   --color-brand-charcoal: #111827;
+
+  /* Theme tokens specified in design requirements */
+  --color-theme-light-bg: #F7F7F9;
+  --color-theme-light-card: #FFFFFF;
+  --color-theme-light-text: #14161B;
+  --color-theme-light-muted: #6B7280;
+  --color-theme-light-purple: #9333ea;
+  --color-theme-light-lime: #65a30d;
 }
 
 /* Base styling */

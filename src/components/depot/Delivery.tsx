@@ -2,11 +2,12 @@ import React, { useState, useEffect } from "react";
 import { Order } from "../../types";
 import { 
   Truck, CheckCircle2, User, Phone, ShieldAlert, Key, AlertTriangle, 
-  MapPin, Clock, ArrowRight, Check, X, Smartphone, ListCollapse 
+  MapPin, Clock, ArrowRight, Check, X, Smartphone, ListCollapse, PackageCheck
 } from "lucide-react";
 import { Rider } from "./depotUtils";
 import { orderService } from "../../services";
 import { supabase } from "../../lib/supabaseClient";
+import ChainLinkEmptyState from "./ChainLinkEmptyState";
 
 interface DeliveryProps {
   orders: Order[];
@@ -146,37 +147,41 @@ export default function Delivery({ orders, onProgress }: DeliveryProps) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-sans">
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* ==================== LEFT: PENDING HANDOVER ==================== */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-            <h3 className="text-sm font-black text-slate-200 uppercase tracking-wider flex items-center gap-2">
+          <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-2">
+            <h3 className="text-sm font-black text-[#14161B] dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
               <Clock className="w-4 h-4 text-amber-500 animate-pulse" />
               Pending Rider Handover ({packedOrders.length})
             </h3>
-            <span className="text-[10px] text-slate-500 font-semibold uppercase">Status: Packed</span>
+            <span className="text-[10px] text-[#6B7280] dark:text-slate-500 font-semibold uppercase">Status: Packed</span>
           </div>
 
           {packedOrders.length === 0 ? (
-            <div className="p-8 text-center bg-slate-950 rounded-2xl border border-slate-800 text-slate-500 text-xs font-semibold">
-              No orders currently waiting in the dispatch bay.
+            <div className="p-8 text-center bg-white dark:bg-slate-950 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+              <ChainLinkEmptyState 
+                icon={PackageCheck}
+                title="Dispatch Bay Clear"
+                description="No packed orders currently waiting in the dispatch staging bay."
+              />
             </div>
           ) : (
             <div className="space-y-3.5">
               {packedOrders.map(order => (
                 <div 
                   key={order.id} 
-                  className="bg-slate-950 rounded-2xl border border-slate-800 p-5 space-y-4 hover:border-slate-700 transition-all"
+                  className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 space-y-4 shadow-sm hover:border-purple-300 dark:hover:border-slate-700 transition-all"
                 >
                   <div className="flex justify-between items-start">
                     <div>
-                      <span className="font-mono text-xs font-extrabold text-indigo-400">#{order.readableId || order.id.substring(0, 8)}</span>
-                      <p className="text-[10px] text-slate-400 mt-1 font-semibold">{order.items?.length || 0} items packed • Total: ৳{order.totalAmount}</p>
+                      <span className="font-mono text-xs font-extrabold text-purple-600 dark:text-purple-400">#{order.readableId || order.id.substring(0, 8)}</span>
+                      <p className="text-[10px] text-[#6B7280] dark:text-slate-400 mt-1 font-semibold">{order.items?.length || 0} items packed • Total: ৳{order.totalAmount}</p>
                     </div>
-                    <span className="px-2 py-0.5 rounded text-[8px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 uppercase tracking-widest">
+                    <span className="px-2 py-0.5 rounded text-[8px] font-bold bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20 uppercase tracking-widest">
                       READY TO DISPATCH
                     </span>
                   </div>
@@ -184,10 +189,10 @@ export default function Delivery({ orders, onProgress }: DeliveryProps) {
                   {/* Rider selection dropdown */}
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Assign Courier Rider</label>
+                      <label className="text-[10px] font-extrabold text-[#6B7280] dark:text-slate-500 uppercase tracking-wider">Assign Courier Rider</label>
                       {loadingStaff && (
-                        <span className="flex items-center gap-1 text-[9px] text-indigo-400 font-bold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping"></span>
+                        <span className="flex items-center gap-1 text-[9px] text-purple-600 dark:text-purple-400 font-bold">
+                          <span className="w-1.5 h-1.5 rounded-full bg-purple-600 animate-ping"></span>
                           Loading Riders...
                         </span>
                       )}
@@ -196,7 +201,7 @@ export default function Delivery({ orders, onProgress }: DeliveryProps) {
                       value={selectedRider}
                       onChange={(e) => setSelectedRider(e.target.value)}
                       disabled={loadingStaff}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-bold disabled:opacity-50"
+                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs text-[#14161B] dark:text-white focus:outline-none focus:border-purple-600 font-bold disabled:opacity-50"
                     >
                       {loadingStaff ? (
                         <option value="">Loading riders...</option>
@@ -217,15 +222,15 @@ export default function Delivery({ orders, onProgress }: DeliveryProps) {
                     </select>
                   </div>
 
-                  <div className="pt-3 border-t border-slate-900 flex justify-between items-center">
-                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
-                      <MapPin className="w-3.5 h-3.5 text-slate-500" />
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-900 flex justify-between items-center">
+                    <div className="flex items-center gap-1.5 text-[10px] text-[#6B7280] dark:text-slate-400">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                       <span className="truncate max-w-[150px]">{order.deliveryAddress || "Standard Hub"}</span>
                     </div>
 
                     <button
                       onClick={() => handleInitiateHandover(order)}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-1.5 px-4 rounded-xl text-xs transition-all cursor-pointer flex items-center gap-1"
+                      className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-1.5 px-4 rounded-xl text-xs transition-all cursor-pointer flex items-center gap-1 shadow-sm"
                     >
                       <span>Handover & Dispatch</span>
                       <ArrowRight className="w-3.5 h-3.5" />
@@ -239,44 +244,48 @@ export default function Delivery({ orders, onProgress }: DeliveryProps) {
 
         {/* ==================== RIGHT: EN ROUTE / OUT FOR DELIVERY ==================== */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-            <h3 className="text-sm font-black text-slate-200 uppercase tracking-wider flex items-center gap-2">
+          <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-2">
+            <h3 className="text-sm font-black text-[#14161B] dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
               <Truck className="w-4 h-4 text-emerald-500 animate-pulse" />
               En Route / Out for Delivery ({enRouteOrders.length})
             </h3>
-            <span className="text-[10px] text-slate-500 font-semibold uppercase">Active Transit</span>
+            <span className="text-[10px] text-[#6B7280] dark:text-slate-500 font-semibold uppercase">Active Transit</span>
           </div>
 
           {enRouteOrders.length === 0 ? (
-            <div className="p-8 text-center bg-slate-950 rounded-2xl border border-slate-800 text-slate-500 text-xs font-semibold">
-              No orders currently en-route to pharmacies.
+            <div className="p-8 text-center bg-white dark:bg-slate-950 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+              <ChainLinkEmptyState 
+                icon={Truck}
+                title="No Active Deliveries"
+                description="No orders currently en-route. Completed dispatches will appear here."
+              />
             </div>
           ) : (
             <div className="space-y-3.5">
               {enRouteOrders.map(order => (
                 <div 
                   key={order.id} 
-                  className="bg-slate-950 rounded-2xl border border-slate-800 p-5 space-y-3 hover:border-slate-700 transition-all"
+                  className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 space-y-3 shadow-sm hover:border-emerald-300 dark:hover:border-slate-700 transition-all"
                 >
                   <div className="flex justify-between items-center">
-                    <span className="font-mono text-xs font-extrabold text-slate-300">#{order.readableId || order.id.substring(0, 8)}</span>
-                    <span className="px-2 py-0.5 rounded text-[8px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-widest animate-pulse">
+                    <span className="font-mono text-xs font-extrabold text-[#14161B] dark:text-slate-300">#{order.readableId || order.id.substring(0, 8)}</span>
+                    <span className="px-2 py-0.5 rounded text-[8px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 uppercase tracking-widest animate-pulse">
                       ● OUT FOR DELIVERY
                     </span>
                   </div>
 
-                  <div className="space-y-1.5 text-xs text-slate-300 font-medium">
+                  <div className="space-y-1.5 text-xs text-[#14161B] dark:text-slate-300 font-medium">
                     <div className="flex items-center gap-2">
-                      <Smartphone className="w-3.5 h-3.5 text-indigo-400" />
+                      <Smartphone className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                       <span>Rider Assigned • Secure Handover Completed</span>
                     </div>
-                    <div className="flex items-center gap-2 text-slate-400 text-[10px]">
-                      <MapPin className="w-3.5 h-3.5 text-slate-500" />
+                    <div className="flex items-center gap-2 text-[#6B7280] dark:text-slate-400 text-[10px]">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                       <span className="truncate">Destination: {order.deliveryAddress || "Procurement Hub"}</span>
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-slate-900 flex justify-between items-center text-[10px] text-slate-500">
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-900 flex justify-between items-center text-[10px] text-[#6B7280] dark:text-slate-500">
                     <span>Value: ৳{order.totalAmount}</span>
                     <span>Est: {order.estimatedDelivery || "Today"}</span>
                   </div>
@@ -290,28 +299,28 @@ export default function Delivery({ orders, onProgress }: DeliveryProps) {
 
       {/* ==================== SECURE OTP HANDOVER VERIFICATION MODAL ==================== */}
       {isOtpModalOpen && targetOrder && targetRider && (
-        <div className="fixed inset-0 bg-slate-950/85 flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-slate-950/70 dark:bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200">
             
             <div className="text-center space-y-2">
-              <Smartphone className="w-10 h-10 text-indigo-500 mx-auto animate-bounce" />
-              <h4 className="text-sm font-black uppercase tracking-wider text-slate-100">Rider Handover Verification</h4>
-              <p className="text-[11px] text-slate-400 font-medium">
-                Verify physical handover to <strong className="text-slate-200">{targetRider.name}</strong> ({targetRider.phone})
+              <Smartphone className="w-10 h-10 text-purple-600 dark:text-purple-400 mx-auto animate-bounce" />
+              <h4 className="text-sm font-black uppercase tracking-wider text-[#14161B] dark:text-slate-100">Rider Handover Verification</h4>
+              <p className="text-[11px] text-[#6B7280] dark:text-slate-400 font-medium">
+                Verify physical handover to <strong className="text-[#14161B] dark:text-slate-200">{targetRider.name}</strong> ({targetRider.phone})
               </p>
             </div>
 
             {/* Simulated SMS Alert banner (making testing in iframe flawless!) */}
-            <div className="bg-amber-950/30 border border-amber-800 p-3.5 rounded-xl text-center space-y-1">
-              <span className="block text-[8px] font-black text-amber-500 tracking-wider uppercase">● SIMULATED SMS BROADCAST</span>
-              <p className="text-[11px] font-mono font-black text-amber-300">
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3.5 rounded-xl text-center space-y-1">
+              <span className="block text-[8px] font-black text-amber-600 dark:text-amber-500 tracking-wider uppercase">● SIMULATED SMS BROADCAST</span>
+              <p className="text-[11px] font-mono font-black text-amber-800 dark:text-amber-300">
                 "MediChain SMS: Your OTP code for dispatch #PK-{targetOrder.id.substring(0,6).toUpperCase()} is {generatedOtp}"
               </p>
             </div>
 
             <div className="space-y-3.5">
               <div className="space-y-1 text-center">
-                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Input 4-Digit Rider OTP</label>
+                <label className="text-[10px] font-extrabold text-[#6B7280] dark:text-slate-400 uppercase tracking-widest block">Input 4-Digit Rider OTP</label>
                 <input
                   type="text"
                   maxLength={4}
@@ -321,12 +330,12 @@ export default function Delivery({ orders, onProgress }: DeliveryProps) {
                     setOtpError(null);
                   }}
                   placeholder="----"
-                  className="bg-slate-950 border-2 border-slate-800 focus:border-indigo-500 text-center text-xl font-bold font-mono py-2 rounded-xl text-white w-28 mx-auto focus:outline-none tracking-widest block"
+                  className="bg-slate-50 dark:bg-slate-950 border-2 border-slate-200 dark:border-slate-800 focus:border-purple-600 text-center text-xl font-bold font-mono py-2 rounded-xl text-[#14161B] dark:text-white w-28 mx-auto focus:outline-none tracking-widest block"
                 />
               </div>
 
               {otpError && (
-                <p className="text-[10px] text-rose-400 font-extrabold text-center flex items-center gap-1.5 justify-center">
+                <p className="text-[10px] text-rose-600 dark:text-rose-400 font-extrabold text-center flex items-center gap-1.5 justify-center">
                   <AlertTriangle className="w-3.5 h-3.5" />
                   {otpError}
                 </p>
@@ -339,14 +348,14 @@ export default function Delivery({ orders, onProgress }: DeliveryProps) {
                     setTargetOrder(null);
                     setTargetRider(null);
                   }}
-                  className="flex-1 bg-slate-950 hover:bg-slate-850 border border-slate-800 text-slate-400 font-bold py-2 rounded-xl"
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-950 dark:hover:bg-slate-850 border border-slate-200 dark:border-slate-800 text-[#14161B] dark:text-slate-400 font-bold py-2 rounded-xl cursor-pointer"
                   disabled={loading}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleVerifyAndDispatch}
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-xl flex items-center justify-center gap-1"
+                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded-xl flex items-center justify-center gap-1 cursor-pointer shadow-sm"
                   disabled={loading}
                 >
                   <span>Verify OTP</span>

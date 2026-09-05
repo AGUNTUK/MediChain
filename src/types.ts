@@ -21,6 +21,7 @@ export interface Product {
   expiryDate: string; // YYYY-MM-DD
   imageUrl?: string;
   image_url?: string;
+  barcode?: string;
 }
 
 export type VerificationStatus = "Pending" | "Under Review" | "Approved" | "Verified" | "Rejected" | "Suspended" | "pending" | "verified" | "suspended";
@@ -131,6 +132,29 @@ export interface Order {
   returnStatus?: "None" | "Pending" | "Approved" | "Rejected";
   assignedRiderId?: string;
   handoverOtp?: string;
+  pickedBy?: string;
+  pickerName?: string;
+  pickStartedAt?: string;
+  pickCompletedAt?: string;
+  packedBy?: string;
+  packerName?: string;
+  packedAt?: string;
+  isBatchPicked?: boolean;
+  batchId?: string;
+  unverifiedPicksCount?: number;
+}
+
+export interface StaffPerformanceMetric {
+  staffId: string;
+  staffName: string;
+  role?: string;
+  ordersPickedToday: number;
+  ordersPickedThisWeek: number;
+  ordersPackedToday: number;
+  totalOrdersHandled: number;
+  totalItemsPicked: number;
+  avgPickDurationSeconds: number;
+  unverifiedPicksCount: number;
 }
 
 export interface AuditLog {
