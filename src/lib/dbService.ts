@@ -1064,8 +1064,8 @@ export async function createOrderTransaction(userId: string, pharmacyId: string,
     // 1. Fetch pharmacy profile and verification status
     const pharmacy = await getPharmacyById(pharmacyId);
     if (!pharmacy) throw new Error("Pharmacy not found");
-    if (pharmacy.verificationStatus !== "Approved") {
-      throw new Error("Your pharmacy profile is pending DGDA drug license verification");
+    if (pharmacy.verificationStatus === "Suspended" || pharmacy.verificationStatus === "Rejected") {
+      throw new Error("Your pharmacy profile has been suspended or rejected. Please contact support.");
     }
 
     // 2. Fetch products using supabaseAdmin (service role) to ensure RLS does not block product verification

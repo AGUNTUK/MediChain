@@ -536,8 +536,8 @@ export default function App() {
             </Suspense>
           );
         }
-        const isVerified = pharmacy.verificationStatus === "Approved" || pharmacy.verificationStatus === "Verified" || (pharmacy.verificationStatus as string) === "verified" || (pharmacy.verificationStatus as string) === "approved";
-        if (!isVerified) {
+        const isSuspended = pharmacy.verificationStatus === "Suspended" || pharmacy.verificationStatus === "Rejected";
+        if (isSuspended) {
           return (
             <Suspense fallback={<LoadingScreen />}>
               <PharmacyPendingScreen

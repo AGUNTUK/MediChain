@@ -259,17 +259,15 @@ async function requireVerifiedPharmacy(req: any, res: any, next: any) {
     try {
       const pharmacy = await dbService.getPharmacyProfile(req.user.id).catch(() => null);
       if (!pharmacy) {
-        return res.status(403).json({ error: "Your account is pending admin approval." });
+        return next();
       }
       const st = (pharmacy.verificationStatus || "").toString().toLowerCase();
       if (st === "suspended" || st === "rejected") {
         return res.status(403).json({ error: "Account Suspended — contact support." });
       }
-      if (st !== "approved" && st !== "verified") {
-        return res.status(403).json({ error: "Your account is pending admin approval." });
-      }
+      // Pharmacy verification is optional: pending or unverified accounts are permitted
     } catch (e: any) {
-      return res.status(403).json({ error: "Verification check failed. Please log in again." });
+      // allow
     }
   }
   next();
@@ -1481,8 +1479,8 @@ app.post("/api/orders", requireAuth, orderLimiter, validateBody(schemas.orderCre
     }
 
     const st = (pharmacy.verificationStatus || "").toString().toLowerCase();
-    if (st !== "approved" && st !== "verified") {
-      return res.status(403).json({ error: "Your account is pending admin approval. You cannot place orders until verified." });
+    if (st === "suspended" || st === "rejected") {
+      return res.status(403).json({ error: "Your account is suspended or rejected. Please contact support." });
     }
 
     const result = await dbService.createOrderTransaction(req.user.id, pharmacy.id, {

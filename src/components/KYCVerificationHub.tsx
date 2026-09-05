@@ -96,47 +96,23 @@ export default function KYCVerificationHub({ pharmacy, onClose, onSaveSuccess }:
   };
 
   const validateNid = () => {
-    if (!nidNumber || (nidNumber.length !== 10 && nidNumber.length !== 17)) {
-      setError("National ID must be exactly 10 or 17 digits.");
-      return false;
-    }
-    if (!/^\d+$/.test(nidNumber)) {
-      setError("National ID must contain numbers only.");
-      return false;
-    }
-    if (!nidOwnerName.trim()) {
-      setError("NID Owner Name printed on the card is required.");
-      return false;
-    }
-    if (!dob) {
-      setError("Date of Birth is required.");
-      return false;
-    }
-    if (!nidFrontUrl) {
-      setError("Please upload NID Front Side Photo.");
-      return false;
-    }
-    if (!nidBackUrl) {
-      setError("Please upload NID Back Side Photo.");
-      return false;
+    // Verification is optional: validate format only if NID number is provided
+    if (nidNumber && nidNumber.trim()) {
+      if (nidNumber.length !== 10 && nidNumber.length !== 17) {
+        setError("National ID must be 10 or 17 digits (or leave blank).");
+        return false;
+      }
+      if (!/^\d+$/.test(nidNumber)) {
+        setError("National ID must contain numbers only.");
+        return false;
+      }
     }
     setError("");
     return true;
   };
 
   const validateLicense = () => {
-    if (!licenseNo.trim()) {
-      setError("Drug License Number is required.");
-      return false;
-    }
-    if (!drugLicenseExpiry) {
-      setError("Drug License Expiry Date is required.");
-      return false;
-    }
-    if (!drugLicenseUrl) {
-      setError("Please upload drug license document/photo.");
-      return false;
-    }
+    // Verification is optional: allow proceeding even without all fields
     setError("");
     return true;
   };
@@ -148,29 +124,35 @@ export default function KYCVerificationHub({ pharmacy, onClose, onSaveSuccess }:
 
     try {
       const payload: Partial<Pharmacy> = {
-        nidNumber,
-        nidOwnerName,
-        dob,
-        nidFrontUrl,
-        nidBackUrl,
-        licenseNo,
-        drugLicenseExpiry,
-        drugLicenseUrl,
-        tradeLicenseNo
+        pharmacyName: pharmacy?.pharmacyName || undefined,
+        ownerName: pharmacy?.ownerName || undefined,
+        phone: pharmacy?.phone || undefined,
+        address: pharmacy?.address || undefined,
+        nidNumber: nidNumber.trim() || undefined,
+        nidOwnerName: nidOwnerName.trim() || undefined,
+        dob: dob || undefined,
+        nidFrontUrl: nidFrontUrl || undefined,
+        nidBackUrl: nidBackUrl || undefined,
+        licenseNo: licenseNo.trim() || pharmacy?.licenseNo || undefined,
+        drugLicenseExpiry: drugLicenseExpiry || undefined,
+        drugLicenseUrl: drugLicenseUrl || undefined,
+        tradeLicenseNo: tradeLicenseNo.trim() || undefined
       };
 
       await profileService.updatePharmacyProfile(payload);
-      setSuccess("KYC Verification submitted successfully!");
+      setSuccess("KYC Verification details saved successfully (Optional)!");
       setStep(3); // Go to final review step
       onSaveSuccess();
     } catch (err: any) {
-      setError(err.message || "Failed to submit KYC verification documents.");
+      if (err.fields) {
+        setError(Object.values(err.fields).join(" "));
+      } else {
+        setError(err.message || "Failed to submit KYC verification documents.");
+      }
     } finally {
       setLoading(false);
     }
   };
-
-
 
   const getStatusDisplay = () => {
     const status = pharmacy?.verificationStatus || "Pending";
@@ -180,24 +162,24 @@ export default function KYCVerificationHub({ pharmacy, onClose, onSaveSuccess }:
         color: "bg-emerald-500",
         bg: "bg-emerald-50 border-emerald-200 text-emerald-800",
         icon: <CheckCircle2 className="w-8 h-8 text-emerald-500" />,
-        desc: "Congratulations! Your pharmacy accounts are fully verified. You have full access to DGDA license procurement options."
+        desc: "Congratulations! Your pharmacy account is fully verified with DGDA credentials."
       };
     }
     if (status === "Pending" || status === "Under Review") {
       return {
-        label: "Pending Verification",
-        color: "bg-amber-500",
-        bg: "bg-amber-50 border-amber-200 text-amber-800",
-        icon: <Clock className="w-8 h-8 text-amber-500 animate-pulse" />,
-        desc: "Our team is actively verifying your drug license and NID details. This secure compliance check takes up to 24 hours to approve."
+        label: "Verification Optional (Under Review)",
+        color: "bg-indigo-500",
+        bg: "bg-indigo-50 border-indigo-200 text-indigo-800",
+        icon: <Clock className="w-8 h-8 text-indigo-500" />,
+        desc: "Verification is completely optional. You can browse wholesale medicines, add to cart, and place orders without waiting."
       };
     }
     return {
-      label: "Verification Required",
-      color: "bg-rose-500",
-      bg: "bg-rose-50 border-rose-200 text-rose-800",
-      icon: <AlertTriangle className="w-8 h-8 text-rose-500" />,
-      desc: "To access DGDA compliance and corporate wholesale pricing, please complete national ID and drug license verification."
+      label: "Verification Optional",
+      color: "bg-purple-500",
+      bg: "bg-purple-50 border-purple-200 text-purple-800",
+      icon: <Award className="w-8 h-8 text-brand-purple" />,
+      desc: "National ID and drug license verification is optional. You can submit documents anytime to earn the verified badge, or continue ordering without verification."
     };
   };
 
@@ -311,11 +293,16 @@ export default function KYCVerificationHub({ pharmacy, onClose, onSaveSuccess }:
               {step === 1 && (
                 <div className="space-y-4">
                   <div className="border-b border-slate-100 pb-2">
-                    <h4 className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
-                      <CreditCard className="w-4.5 h-4.5 text-brand-purple" />
-                      Section A: National ID Card (NID) verification
-                    </h4>
-                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Please provide authentic Bangladeshi national ID card details</p>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
+                        <CreditCard className="w-4.5 h-4.5 text-brand-purple" />
+                        Section A: National ID Card (NID) verification
+                      </h4>
+                      <span className="text-[9px] font-black uppercase tracking-wider bg-purple-50 text-brand-purple px-2 py-0.5 rounded-full border border-purple-200">
+                        Optional
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Please provide Bangladeshi national ID card details, or skip if you prefer to verify later.</p>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -441,7 +428,17 @@ export default function KYCVerificationHub({ pharmacy, onClose, onSaveSuccess }:
                     </div>
                   </div>
 
-                  <div className="pt-4 flex justify-end">
+                  <div className="pt-4 flex justify-between items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError("");
+                        setStep(2);
+                      }}
+                      className="text-xs font-bold text-slate-400 hover:text-slate-600 px-3 py-2 rounded-xl transition-colors cursor-pointer"
+                    >
+                      Skip NID (Optional)
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
@@ -462,11 +459,16 @@ export default function KYCVerificationHub({ pharmacy, onClose, onSaveSuccess }:
               {step === 2 && (
                 <div className="space-y-4">
                   <div className="border-b border-slate-100 pb-2">
-                    <h4 className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
-                      <Award className="w-4.5 h-4.5 text-brand-purple" />
-                      Section B: Pharmacy Drug License & Trade Details
-                    </h4>
-                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">DGDA Licensed Pharmacies and B2B Compliance parameters only</p>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
+                        <Award className="w-4.5 h-4.5 text-brand-purple" />
+                        Section B: Pharmacy Drug License & Trade Details
+                      </h4>
+                      <span className="text-[9px] font-black uppercase tracking-wider bg-purple-50 text-brand-purple px-2 py-0.5 rounded-full border border-purple-200">
+                        Optional
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">DGDA Licensed Pharmacies and B2B Compliance parameters (optional to submit)</p>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -545,26 +547,35 @@ export default function KYCVerificationHub({ pharmacy, onClose, onSaveSuccess }:
                     </button>
                   </div>
 
-                  <div className="pt-4 flex justify-between gap-3">
+                  <div className="pt-4 flex justify-between items-center gap-3">
                     <button
                       type="button"
                       onClick={() => setStep(1)}
-                      className="border border-slate-200 hover:bg-slate-50 text-slate-600 py-2.5 px-6 rounded-2xl text-xs font-extrabold"
+                      className="border border-slate-200 hover:bg-slate-50 text-slate-600 py-2.5 px-5 rounded-2xl text-xs font-extrabold cursor-pointer"
                     >
                       Back
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (validateLicense()) {
-                          handleSubmitKyc();
-                        }
-                      }}
-                      disabled={loading}
-                      className="bg-brand-purple hover:bg-brand-purple/95 text-white py-2.5 px-6 rounded-2xl text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-md"
-                    >
-                      {loading ? "Submitting..." : "Submit for B2B Verification"}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={onClose}
+                        className="text-xs font-bold text-slate-400 hover:text-slate-600 px-3 py-2 rounded-xl transition-colors cursor-pointer"
+                      >
+                        Skip for Now
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (validateLicense()) {
+                            handleSubmitKyc();
+                          }
+                        }}
+                        disabled={loading}
+                        className="bg-brand-purple hover:bg-brand-purple/95 text-white py-2.5 px-6 rounded-2xl text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-md"
+                      >
+                        {loading ? "Saving..." : "Save Details (Optional)"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -572,30 +583,30 @@ export default function KYCVerificationHub({ pharmacy, onClose, onSaveSuccess }:
               {/* Step 3: Review / Submitted State */}
               {step === 3 && (
                 <div className="text-center py-6 space-y-4">
-                  <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/25 text-amber-500 rounded-full flex items-center justify-center mx-auto animate-pulse">
-                    <Clock className="w-8 h-8 text-amber-500" />
+                  <div className="w-16 h-16 bg-purple-500/10 border border-purple-500/25 text-brand-purple rounded-full flex items-center justify-center mx-auto">
+                    <CheckCircle2 className="w-8 h-8 text-brand-purple" />
                   </div>
                   
                   <div className="max-w-md mx-auto space-y-2">
-                    <h4 className="text-base font-black text-slate-800">Verification Pending Review</h4>
-                    <p className="text-xs text-slate-400 font-semibold font-mono">Status code: compliance-audit-pending</p>
+                    <h4 className="text-base font-black text-slate-800">Verification Details Saved</h4>
+                    <p className="text-xs text-brand-purple font-semibold font-mono">Status: Optional KYC on file</p>
                     <p className="text-xs text-slate-500 leading-relaxed font-semibold pt-2">
-                      Our regulatory audit team is active. We are verifying your uploaded Bangladeshi NID cards and DGDA Drug Licenses against national records. Verification takes up to 24 hours.
+                      Your details have been saved. Verification is optional, so you already have full access to browse wholesale medicines, compare rates, and place orders.
                     </p>
                   </div>
 
                   <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl text-left max-w-sm mx-auto text-[10px] font-semibold space-y-1.5 text-slate-600">
                     <div className="flex justify-between">
                       <span className="text-slate-400">Owner Registered:</span>
-                      <span className="font-bold text-slate-850">{nidOwnerName}</span>
+                      <span className="font-bold text-slate-850">{nidOwnerName || "Not provided"}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-400">NID Code:</span>
-                      <span className="font-bold font-mono text-slate-850">{nidNumber}</span>
+                      <span className="font-bold font-mono text-slate-850">{nidNumber || "Not provided"}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-400">DGDA license No:</span>
-                      <span className="font-bold font-mono text-slate-850">{licenseNo}</span>
+                      <span className="font-bold font-mono text-slate-850">{licenseNo || "Not provided"}</span>
                     </div>
                   </div>
 
@@ -604,7 +615,7 @@ export default function KYCVerificationHub({ pharmacy, onClose, onSaveSuccess }:
                       onClick={onClose}
                       className="bg-brand-purple text-white hover:bg-brand-purple/95 text-xs font-black py-2.5 px-6 rounded-xl cursor-pointer transition-colors"
                     >
-                      Acknowledge & Close
+                      Continue to Dashboard
                     </button>
                   </div>
                 </div>

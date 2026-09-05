@@ -1095,6 +1095,35 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 40. Optional Pharmacy Verification Architecture (NID, Drug License & KYC)
+
+- **User Direct Request**: "Make this verification optional" (referencing KYC Compliance & Verification Hub).
+- **Architecture & Policy Decisions**:
+  - Verification (National ID, DGDA Drug License documents, Trade License) is now strictly **optional** across the platform.
+  - Pharmacies are permitted to browse, add to cart, and place orders without waiting for mandatory admin verification approval.
+  - Only accounts explicitly flagged with `verificationStatus === "Suspended"` or `"Rejected"` are restricted from transactions.
+- **Frontend Adjustments**:
+  - `src/components/KYCVerificationHub.tsx`:
+    - Updated compliance state badge from "Verification Required" (rose warning) to "Verification Optional" / "ঐচ্ছিক যাচাইকরণ" (neutral/violet badge).
+    - Status description updated: "National ID and drug license verification is optional. You can submit documents at your convenience to receive the verified pharmacy badge, or continue placing orders without verification."
+    - Removed blocking input validation in Step 1 (NID) and Step 2 (Drug License) - added skip and optional progression.
+    - Updated `handleSubmitKyc` payload to merge existing pharmacy profile fields, preventing schema validation failures.
+  - `src/App.tsx`:
+    - Prevented blocking pharmacies on `PharmacyPendingScreen` when `verificationStatus` is `Pending` or unverified; grants immediate dashboard access (`appStep = "main"`).
+    - Only routes to `PharmacyPendingScreen` if the pharmacy is explicitly `Suspended` or `Rejected`.
+  - `src/components/PharmacyPendingScreen.tsx`:
+    - Added an explicit "Continue to Dashboard (Verification Optional)" bypass button.
+- **Backend & Middleware Adjustments**:
+  - `src/lib/security.ts`:
+    - Updated `schemas.pharmacyProfile` so all fields (`pharmacyName`, `ownerName`, `phone`, `address`, `licenseNo`, etc.) are optional with `.passthrough()`, allowing partial updates from KYC modal, onboarding, or profile edits without 400 "Validation failed" errors.
+  - `server.ts`:
+    - In `requireVerifiedPharmacy` middleware: only blocks requests if `verificationStatus` is `Suspended` or `Rejected`. Pending and unverified accounts can add to cart and order.
+    - In `POST /api/orders`: allows order placement for unverified/pending pharmacies; only rejects suspended or rejected accounts.
+  - `src/lib/dbService.ts`:
+    - In `createOrderTransaction`: removed the strict requirement for `pharmacy.verificationStatus === "Approved"`; only blocks if suspended/rejected.
+
+----------------------------------------
+
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

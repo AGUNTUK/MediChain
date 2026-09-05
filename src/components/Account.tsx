@@ -183,11 +183,11 @@ export default function Account({
 
       {/* Compliance Check / KYC Status prominent Card */}
       {(() => {
-        let cardBg = "bg-rose-50 border-rose-100 text-rose-800";
-        let icon = <AlertTriangle className="w-5 h-5 text-rose-500" />;
-        let statusText = "যাচাইকরণ প্রয়োজন";
-        let statusBadgeClass = "bg-rose-500/10 text-rose-600 border-rose-500/20";
-        let subText = "পাইকারি কেনাকাটার জন্য জাতীয় পরিচয়পত্র ও ড্রাগ লাইসেন্সের ছবি আপলোড করুন।";
+        let cardBg = "bg-purple-50 border-purple-100 text-purple-900";
+        let icon = <Award className="w-5 h-5 text-brand-purple" />;
+        let statusText = "ঐচ্ছিক যাচাইকরণ";
+        let statusBadgeClass = "bg-purple-500/10 text-brand-purple border-purple-500/20";
+        let subText = "যাচাইকরণ ঐচ্ছিক। আপনি যেকোনো সময় জাতীয় পরিচয়পত্র বা ড্রাগ লাইসেন্স যুক্ত করতে পারেন অথবা যাচাই ছাড়াই অর্ডার করতে পারেন।";
 
         if (kycStatus === "Approved") {
           cardBg = "bg-emerald-50 border-emerald-100 text-emerald-800";
@@ -196,11 +196,11 @@ export default function Account({
           statusBadgeClass = "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
           subText = "ঔষধ প্রশাসন (DGDA) রেগুলেটরি যাচাই সফল। অগ্রাধিকার এক্সপ্রেস ডেলিভারি সক্রিয়।";
         } else if (kycStatus === "Pending" || kycStatus === "Under Review") {
-          cardBg = "bg-amber-50 border-amber-100 text-amber-850";
-          icon = <Clock className="w-5 h-5 text-amber-500 animate-pulse" />;
-          statusText = "যাচাই প্রক্রিয়াধীন রয়েছে";
-          statusBadgeClass = "bg-amber-500/10 text-amber-600 border-amber-500/20";
-          subText = "আমাদের ডিপো টিম আপনার প্রদত্ত ড্রাগ লাইসেন্স যাচাই করছে (সর্বোচ্চ ২৪ ঘণ্টা)।";
+          cardBg = "bg-indigo-50 border-indigo-100 text-indigo-900";
+          icon = <Clock className="w-5 h-5 text-indigo-500" />;
+          statusText = "ঐচ্ছিক যাচাই অপেক্ষমান";
+          statusBadgeClass = "bg-indigo-500/10 text-indigo-600 border-indigo-500/20";
+          subText = "আপনার যাচাই তথ্য সংরক্ষিত হয়েছে (ঐচ্ছিক)। আপনি স্বাভাবিকভাবে কেনাকাটা ও অর্ডার চালিয়ে যেতে পারেন।";
         }
 
         return (
@@ -215,7 +215,7 @@ export default function Account({
                   <div className="flex items-center gap-2 mt-0.5">
                     <h4 className="font-black text-sm">{statusText}</h4>
                     <span className={`text-[10px] font-black px-2 py-0.5 rounded-md border ${statusBadgeClass}`}>
-                      {kycStatus === "Approved" ? "অনুমোদিত" : kycStatus === "Pending" ? "অপেক্ষমান" : kycStatus}
+                      {kycStatus === "Approved" ? "অনুমোদিত" : kycStatus === "Pending" ? "ঐচ্ছিক" : "ঐচ্ছিক"}
                     </span>
                   </div>
                 </div>
@@ -224,7 +224,7 @@ export default function Account({
                 onClick={() => setShowKycHub(true)}
                 className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 text-xs font-black px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-xs shrink-0"
               >
-                {kycStatus === "Approved" ? "কেওয়াইসি বিবরণ" : "এখনই যাচাই করুন"}
+                {kycStatus === "Approved" ? "কেওয়াইসি বিবরণ" : "যাচাই করুন (ঐচ্ছিক)"}
               </button>
             </div>
             <p className="text-xs text-slate-600 font-semibold leading-relaxed pl-1">
