@@ -52,13 +52,25 @@ export const schemas = {
   pharmacyProfile: z.object({
     pharmacyName: z.string().min(2, "Pharmacy Name is required."),
     ownerName: z.string().min(2, "Owner Name is required."),
-    phone: z.string().regex(/^(?:\+88|88)?01[3-9]\d{8}$/, "Invalid phone number. Must be a valid 11-digit BD number."),
-    address: z.string().min(5, "Address must be at least 5 characters long."),
-    licenseNo: z.string().min(4, "Drug License Number is required."),
-    nidNumber: z.string().min(10, "National ID number must be at least 10 characters long."),
+    phone: z.string().min(6, "Valid phone number is required."),
+    address: z.string().min(3, "Address must be at least 3 characters long."),
+    licenseNo: z.string().min(1, "Drug License Number is required."),
+    nidNumber: z.string().optional(),
+    tradeLicenseNo: z.string().optional(),
+    tinNumber: z.string().optional(),
     tradeLicenseUrl: z.string().optional(),
     nidUrl: z.string().optional(),
-  }),
+    email: z.string().optional(),
+    city: z.string().optional(),
+    division: z.string().optional(),
+    district: z.string().optional(),
+    thana: z.string().optional(),
+    landmark: z.string().optional(),
+    status: z.string().optional(),
+    submittedAt: z.string().optional(),
+    legalConsent: z.any().optional(),
+    legal_consent: z.any().optional(),
+  }).passthrough(),
   orderCreate: z.object({
     paymentMethod: z.string().min(1, "Payment method is required."),
     notes: z.string().optional(),
@@ -92,10 +104,11 @@ export const validateBody = (schema: z.ZodType<any>) => (req: Request, res: Resp
     req.body = parsed;
     next();
   } catch (error: any) {
-    if (error instanceof z.ZodError) {
+    const issues = error?.issues || error?.errors || (error instanceof z.ZodError ? (error as any).issues : null) || [];
+    if (Array.isArray(issues) && issues.length > 0) {
       const fieldErrors: Record<string, string> = {};
-      (error as any).errors.forEach((err: any) => {
-        if (err.path.length > 0) {
+      issues.forEach((err: any) => {
+        if (err.path && err.path.length > 0) {
           fieldErrors[err.path[0]] = err.message;
         } else {
           fieldErrors["_general"] = err.message;
@@ -103,7 +116,7 @@ export const validateBody = (schema: z.ZodType<any>) => (req: Request, res: Resp
       });
       return res.status(400).json({ error: "Validation failed", fields: fieldErrors });
     }
-    return res.status(400).json({ error: "Invalid request payload" });
+    return res.status(400).json({ error: error?.message || "Invalid request payload" });
   }
 };
 

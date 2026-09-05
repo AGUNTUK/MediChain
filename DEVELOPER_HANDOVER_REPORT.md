@@ -1084,6 +1084,17 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 
 ----------------------------------------
 
+## 39. Pharmacy Onboarding Validation & Error Handling Hardening
+
+- **Zod Validation Middleware (`/src/lib/security.ts` - `validateBody`)**:
+  - Hardened error issue traversal against runtime TypeError when `error.errors` is undefined in bundled CJS environments (`(error?.issues || error?.errors || [])`).
+  - Ensures schema validation errors reliably return HTTP 400 with `{ error: "Validation failed", fields: fieldErrors }` instead of bubbling as unhandled 500 exceptions.
+- **Pharmacy Profile Schema (`/src/lib/security.ts` - `schemas.pharmacyProfile`)**:
+  - Relaxed mandatory `nidNumber` requirement to `.optional()` to match `PharmacyRegistrationWizard`, where NID is submitted via KYC verification document scans rather than mandatory wizard text fields.
+  - Added `.passthrough()` and explicit optional fields (`email`, `city`, `division`, `district`, `thana`, `tradeLicenseNo`, `tinNumber`, `legalConsent`) to prevent payload stripping and schema rejection during wizard submissions.
+
+----------------------------------------
+
 **To AI Agents:**
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).
