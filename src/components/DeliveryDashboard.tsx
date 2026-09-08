@@ -1,0 +1,448 @@
+import React, { useState, useEffect } from "react";
+import { MediChainIconOnly } from './MediChainLogo';
+import { getSocketClient } from "../lib/socketClient";
+import { apiFetch } from "../lib/apiFetch";
+import { User, Order, RiderProfile as RiderProfileType } from "../types";
+import { Truck, CheckCircle2, AlertTriangle, LogOut, Package, Phone, X, ShieldCheck, RefreshCw, MapPin, Store, User as UserIcon } from "lucide-react";
+import NotificationBell from "./NotificationBell";
+import RiderProfile from "./RiderProfile";
+
+interface DeliveryDashboardProps {
+  currentUser: User;
+  onLogout: () => void;
+}
+
+export default function DeliveryDashboard({ currentUser, onLogout }: DeliveryDashboardProps) {
+  const [activeTab, setActiveTab] = useState<"orders" | "history" | "profile">("orders");
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [history, setHistory] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [riderName, setRiderName] = useState(currentUser.name);
+
+  // Modal states
+  const [otpModalOrder, setOtpModalOrder] = useState<Order | null>(null);
+  const [otp, setOtp] = useState("");
+  const [failureModalOrder, setFailureModalOrder] = useState<Order | null>(null);
+  const [failureReason, setFailureReason] = useState("");
+
+  const refreshData = async (isManual = false) => {
+    if (isManual) setRefreshing(true);
+    else setLoading(true);
+    try {
+      const [resOrders, resHistory] = await Promise.all([
+        apiFetch("/api/delivery/orders").then(r => r.json()),
+        apiFetch("/api/delivery/history").then(r => r.json())
+      ]);
+      if (resOrders?.success && Array.isArray(resOrders.orders)) {
+        setOrders(resOrders.orders);
+      }
+      if (resHistory?.success && Array.isArray(resHistory.orders)) {
+        setHistory(resHistory.orders);
+      }
+    } catch (err) {
+      console.warn("Delivery refresh network warning:", err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshData();
+    const socket = getSocketClient();
+    socket.on("connect", () => {
+      socket.emit("join_role_room", "Delivery Staff");
+    });
+    socket.on("admin_order_updated", () => {
+      refreshData();
+    });
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
+
+  const handleStatusChange = async (orderId: string, status: string, notes?: string, providedOtp?: string) => {
+    try {
+      const res = await apiFetch(`/api/delivery/status/${orderId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, otp: providedOtp, notes })
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        alert(`Error: ${errData.error || "Failed to update status"}`);
+        return;
+      }
+      setOtpModalOrder(null);
+      setFailureModalOrder(null);
+      setOtp("");
+      setFailureReason("");
+      refreshData();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update status");
+    }
+  };
+
+  const stats = {
+    assigned: orders.filter(o => o.status === "Packed").length,
+    inTransit: orders.filter(o => o.status === "Out for Delivery").length,
+    completed: history.filter(o => o.status === "Delivered" || o.status === "Completed").length,
+    failed: orders.filter(o => o.status === "Failed").length + history.filter(o => o.status === "Failed").length
+  };
+
+  return (
+    <div className="flex flex-col min-h-screen bg-slate-50 text-slate-900 font-sans">
+      {/* Mobile App Bar */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-2.5">
+            <MediChainIconOnly className="w-8 h-8 object-contain" />
+            <div>
+              <div className="flex items-center gap-1.5">
+                <h1 className="text-sm font-black tracking-wider text-slate-900">MEDICHAIN</h1>
+                <span className="text-[9px] bg-purple-100 text-purple-800 font-black px-1.5 py-0.2 rounded uppercase">Rider</span>
+              </div>
+              <p className="text-[10px] text-slate-500 font-bold truncate max-w-[140px] sm:max-w-xs">{riderName || "Delivery Staff"}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => refreshData(true)}
+              disabled={refreshing}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-brand-purple hover:bg-purple-50 transition-colors cursor-pointer"
+              title="Refresh deliveries"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin text-purple-600" : ""}`} />
+            </button>
+            <button
+              onClick={() => setActiveTab("profile")}
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                activeTab === "profile" 
+                  ? "bg-purple-100 text-purple-700 font-bold" 
+                  : "text-slate-400 hover:text-brand-purple hover:bg-purple-50"
+              }`}
+              title="Rider Profile"
+            >
+              <UserIcon className="w-4 h-4" />
+            </button>
+            <NotificationBell />
+            <button
+              onClick={onLogout}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer"
+              title="Logout"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+        
+        {/* Dynamic Mobile Metrics - 2x2 Grid (Visible on Orders and History tabs) */}
+        {activeTab !== "profile" && (
+          <div className="px-4 pb-3">
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <div className="bg-amber-50 rounded-xl p-3 border border-amber-100 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">Assigned</p>
+                  <p className="text-xl font-black text-amber-700">{stats.assigned}</p>
+                </div>
+                <Package className="w-6 h-6 text-amber-500 opacity-50" />
+              </div>
+              <div className="bg-indigo-50 rounded-xl p-3 border border-indigo-100 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">In Transit</p>
+                  <p className="text-xl font-black text-indigo-700">{stats.inTransit}</p>
+                </div>
+                <Truck className="w-6 h-6 text-indigo-500 opacity-50" />
+              </div>
+              <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Completed</p>
+                  <p className="text-xl font-black text-emerald-700">{stats.completed}</p>
+                </div>
+                <CheckCircle2 className="w-6 h-6 text-emerald-500 opacity-50" />
+              </div>
+              <div className="bg-rose-50 rounded-xl p-3 border border-rose-100 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold text-rose-600 uppercase tracking-widest">Failed</p>
+                  <p className="text-xl font-black text-rose-700">{stats.failed}</p>
+                </div>
+                <AlertTriangle className="w-6 h-6 text-rose-500 opacity-50" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Top Tabs */}
+        <div className="flex border-t border-slate-100">
+          <button
+            onClick={() => setActiveTab("orders")}
+            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+              activeTab === "orders" ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50/40" : "text-slate-400 hover:text-slate-600"
+            }`}
+          >
+            Active Orders ({orders.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("history")}
+            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+              activeTab === "history" ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50/40" : "text-slate-400 hover:text-slate-600"
+            }`}
+          >
+            History ({history.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("profile")}
+            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTab === "profile" ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50/40" : "text-slate-400 hover:text-slate-600"
+            }`}
+          >
+            <UserIcon className="w-3.5 h-3.5" />
+            My Profile
+          </button>
+        </div>
+      </header>
+
+      {/* Main Content Area */}
+      <main className="flex-1 p-4 pb-24 overflow-y-auto">
+        {loading && activeTab !== "profile" ? (
+          <div className="flex justify-center p-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+          </div>
+        ) : activeTab === "profile" ? (
+          <RiderProfile 
+            currentUser={currentUser} 
+            onLogout={onLogout} 
+            onProfileUpdated={(updated: RiderProfileType) => {
+              if (updated.name) setRiderName(updated.name);
+            }} 
+          />
+        ) : activeTab === "orders" ? (
+          <div className="space-y-4">
+            {orders.length === 0 ? (
+              <div className="text-center p-8 bg-white rounded-2xl border border-slate-200">
+                <p className="text-sm font-bold text-slate-500">No active deliveries assigned.</p>
+              </div>
+            ) : (
+              orders.map(order => (
+                <div key={order.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="p-4 border-b border-slate-100">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-xs font-black text-slate-900 bg-slate-100 px-2 py-1 rounded">
+                        #{order.readableId || order.id.substring(0,8)}
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider ${
+                        order.paymentMethod === "Cash on Delivery" 
+                          ? "bg-amber-100 text-amber-700" 
+                          : "bg-emerald-100 text-emerald-700"
+                      }`}>
+                        {order.paymentMethod === "Cash on Delivery" ? `Collect ৳${order.totalAmount}` : "Paid Online"}
+                      </span>
+                    </div>
+                    
+                    <h3 className="font-black text-lg text-slate-900 mt-2">{order.pharmacyName || "Pharmacy"}</h3>
+                    <p className="text-sm text-slate-600 mt-1 leading-relaxed">
+                      {order.deliveryAddress || "Address not provided"}
+                    </p>
+                    
+                    {order.notes && (
+                      <div className="mt-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        <p className="text-xs font-bold text-slate-500 mb-1">Depot Instructions:</p>
+                        <p className="text-xs text-slate-700">{order.notes}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-3 bg-slate-50 flex flex-col gap-2">
+                    {order.status === "Packed" && (
+                      <button 
+                        onClick={() => handleStatusChange(order.id, "Out for Delivery")}
+                        className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <Package className="w-4 h-4" />
+                        Accept & Pick Up
+                      </button>
+                    )}
+
+                    {order.status === "Out for Delivery" && (
+                      <>
+                        <div className="flex gap-2">
+                          <a 
+                            href={`tel:${order.pharmacyPhone || "+8801900000000"}`} 
+                            className="flex-1 h-12 bg-white border border-slate-300 text-slate-700 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-sm"
+                          >
+                            <Phone className="w-4 h-4 text-emerald-600" />
+                            Call Owner
+                          </a>
+                          <button 
+                            onClick={() => setFailureModalOrder(order)}
+                            className="flex-1 h-12 bg-white border border-rose-200 text-rose-600 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-sm hover:bg-rose-50 cursor-pointer"
+                          >
+                            <AlertTriangle className="w-4 h-4" />
+                            Unable to Deliver
+                          </button>
+                        </div>
+                        <button 
+                          onClick={() => setOtpModalOrder(order)}
+                          className="w-full h-12 mt-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <ShieldCheck className="w-5 h-5" />
+                          Verify & Complete
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {history.length === 0 ? (
+              <div className="text-center p-8 bg-white rounded-2xl border border-slate-200">
+                <p className="text-sm font-bold text-slate-500">No completed deliveries yet.</p>
+              </div>
+            ) : (
+              history.map(order => (
+                <div key={order.id} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-2.5">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
+                          #{order.readableId || order.id.substring(0,8)}
+                        </span>
+                        {order.status === "Failed" ? (
+                          <span className="flex items-center gap-1 bg-rose-50 text-rose-600 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
+                            <AlertTriangle className="w-3 h-3" />
+                            Failed
+                          </span>
+                        ) : order.status === "Cancelled" ? (
+                          <span className="flex items-center gap-1 bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
+                            <X className="w-3 h-3" />
+                            Cancelled
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
+                            <CheckCircle2 className="w-3 h-3" />
+                            Delivered
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="text-sm font-black text-slate-900 flex items-center gap-1.5 mt-1">
+                        <Store className="w-3.5 h-3.5 text-slate-400" />
+                        {order.pharmacyName || "Pharmacy"}
+                      </h4>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-sm font-black ${order.status === "Failed" || order.status === "Cancelled" ? "text-slate-400 line-through" : "text-purple-600"}`}>
+                        ৳{order.totalAmount}
+                      </p>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase">
+                        {order.status === "Failed" || order.status === "Cancelled" ? "Not Collected" : "Collected"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {order.deliveryAddress && (
+                    <div className="flex items-start gap-1.5 text-xs text-slate-600 bg-slate-50 p-2 rounded-xl">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                      <span className="truncate">{order.deliveryAddress}</span>
+                    </div>
+                  )}
+
+                  {order.notes && (
+                    <div className="text-[11px] text-slate-500 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                      <span className="font-bold text-slate-600">Notes:</span> {order.notes}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px] text-slate-400 font-medium">
+                    <span>Date: {new Date(order.createdAt).toLocaleDateString()}</span>
+                    <span>Time: {new Date(order.createdAt).toLocaleTimeString()}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </main>
+
+      {/* OTP Verification Modal */}
+      {otpModalOrder && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl animate-fade-in-up">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-black text-slate-900">Verify Handover</h3>
+                <button onClick={() => setOtpModalOrder(null)} className="p-2 -mr-2 bg-slate-100 rounded-full text-slate-500 cursor-pointer">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <p className="text-sm text-slate-600 mb-6">
+                Ask the pharmacy owner for their 6-digit handover OTP to confirm receipt of the delivery.
+              </p>
+              
+              <input
+                type="text"
+                maxLength={6}
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                placeholder="000000"
+                className="w-full text-center text-3xl tracking-[0.5em] font-mono font-black py-4 border-2 border-slate-200 rounded-xl focus:border-purple-600 focus:ring-4 focus:ring-purple-600/20 outline-none transition-all mb-6"
+              />
+
+              <button
+                onClick={() => handleStatusChange(otpModalOrder.id, "Delivered", undefined, otp)}
+                disabled={otp.length !== 6}
+                className="w-full h-12 bg-purple-600 text-white rounded-xl font-bold text-sm shadow-lg disabled:opacity-50 disabled:shadow-none transition-all cursor-pointer"
+              >
+                Confirm Delivery
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Failure Reporting Bottom Sheet */}
+      {failureModalOrder && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl animate-fade-in-up">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-black text-slate-900 text-rose-600">Report Failure</h3>
+                <button onClick={() => setFailureModalOrder(null)} className="p-2 -mr-2 bg-slate-100 rounded-full text-slate-500 cursor-pointer">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              
+              <div className="space-y-2 mb-6">
+                {["Pharmacy Closed", "Customer Refused", "Unreachable", "Cash Not Ready", "Other"].map(reason => (
+                  <label key={reason} className="flex items-center gap-3 p-4 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50">
+                    <input 
+                      type="radio" 
+                      name="failureReason" 
+                      value={reason} 
+                      checked={failureReason === reason}
+                      onChange={(e) => setFailureReason(e.target.value)}
+                      className="w-4 h-4 text-rose-600 focus:ring-rose-500"
+                    />
+                    <span className="text-sm font-bold text-slate-700">{reason}</span>
+                  </label>
+                ))}
+              </div>
+
+              <button
+                onClick={() => handleStatusChange(failureModalOrder.id, "Failed", failureReason)}
+                disabled={!failureReason}
+                className="w-full h-12 bg-rose-600 text-white rounded-xl font-bold text-sm shadow-lg disabled:opacity-50 disabled:shadow-none transition-all cursor-pointer"
+              >
+                Submit Failure Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

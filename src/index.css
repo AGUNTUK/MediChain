@@ -1,0 +1,324 @@
+﻿@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+/* ==========================================================================
+   Bengali Custom Typography: Li Alinur Banglaborno
+   Universal Bengali Font across all screens, components & PDF/print
+   ========================================================================== */
+@font-face {
+  font-family: 'Li Alinur Banglaborno';
+  src: url('/fonts/Li Alinur Banglaborno Unicode.ttf') format('truetype'),
+       url('/fonts/Li Alinur Banglaborno ANSI V1.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Li Alinur Banglaborno';
+  src: url('/fonts/Li Alinur Banglaborno Unicode.ttf') format('truetype'),
+       url('/fonts/Li Alinur Banglaborno ANSI V1.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Li Alinur Banglaborno';
+  src: url('/fonts/Li Alinur Banglaborno Unicode.ttf') format('truetype'),
+       url('/fonts/Li Alinur Banglaborno ANSI V1.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Li Alinur Banglaborno';
+  src: url('/fonts/Li Alinur Banglaborno Unicode.ttf') format('truetype'),
+       url('/fonts/Li Alinur Banglaborno ANSI V1.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Li Alinur Banglaborno';
+  src: url('/fonts/Li Alinur Banglaborno Unicode.ttf') format('truetype'),
+       url('/fonts/Li Alinur Banglaborno ANSI V1.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Li Alinur Banglaborno';
+  src: url('/fonts/Li Alinur Banglaborno Unicode.ttf') format('truetype'),
+       url('/fonts/Li Alinur Banglaborno ANSI V1.ttf') format('truetype');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Li Alinur Banglaborno';
+  src: url('/fonts/Li Alinur Banglaborno Unicode.ttf') format('truetype'),
+       url('/fonts/Li Alinur Banglaborno ANSI V1.ttf') format('truetype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Li Alinur Banglaborno';
+  src: url('/fonts/Li Alinur Banglaborno Unicode Italic.ttf') format('truetype'),
+       url('/fonts/Li Alinur Banglaborno ANSI V1 Italic.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Li Alinur Banglaborno';
+  src: url('/fonts/Li Alinur Banglaborno Unicode Italic.ttf') format('truetype'),
+       url('/fonts/Li Alinur Banglaborno ANSI V1 Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Li Alinur Banglaborno';
+  src: url('/fonts/Li Alinur Banglaborno Unicode Italic.ttf') format('truetype'),
+       url('/fonts/Li Alinur Banglaborno ANSI V1 Italic.ttf') format('truetype');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@theme {
+  --color-blue-50: var(--color-purple-50);
+  --color-blue-100: var(--color-purple-100);
+  --color-blue-200: var(--color-purple-200);
+  --color-blue-300: var(--color-purple-300);
+  --color-blue-400: var(--color-purple-400);
+  --color-blue-500: var(--color-purple-500);
+  --color-blue-600: var(--color-purple-600);
+  --color-blue-700: var(--color-purple-700);
+  --color-blue-800: var(--color-purple-800);
+  --color-blue-900: var(--color-purple-900);
+  --color-blue-950: var(--color-purple-950);
+
+  --color-indigo-50: var(--color-purple-50);
+  --color-indigo-100: var(--color-purple-100);
+  --color-indigo-200: var(--color-purple-200);
+  --color-indigo-300: var(--color-purple-300);
+  --color-indigo-400: var(--color-purple-400);
+  --color-indigo-500: var(--color-purple-500);
+  --color-indigo-600: var(--color-purple-600);
+  --color-indigo-700: var(--color-purple-700);
+  --color-indigo-800: var(--color-purple-800);
+  --color-indigo-900: var(--color-purple-900);
+  --color-indigo-950: var(--color-purple-950);
+
+  --color-emerald-50: var(--color-lime-50);
+  --color-emerald-100: var(--color-lime-100);
+  --color-emerald-200: var(--color-lime-200);
+  --color-emerald-300: var(--color-lime-300);
+  --color-emerald-400: var(--color-lime-400);
+  --color-emerald-500: var(--color-lime-50);
+  --color-emerald-600: var(--color-lime-600);
+  --color-emerald-700: var(--color-lime-700);
+  --color-emerald-800: var(--color-lime-800);
+  --color-emerald-900: var(--color-lime-900);
+  --color-emerald-950: var(--color-lime-950);
+
+  --font-sans: "Li Alinur Banglaborno", "Inter", "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-bangla: "Li Alinur Banglaborno", "Inter", sans-serif;
+  
+  --color-brand-purple: #a855f7;
+  --color-brand-purple-dark: #9333ea;
+  --color-brand-lime: #84cc16;
+  --color-brand-lime-dark: #74be12;
+  --color-brand-bg: #F8F9F5;
+  --color-brand-charcoal: #111827;
+
+  /* Theme tokens specified in design requirements */
+  --color-theme-light-bg: #F7F7F9;
+  --color-theme-light-card: #FFFFFF;
+  --color-theme-light-text: #14161B;
+  --color-theme-light-muted: #6B7280;
+  --color-theme-light-purple: #9333ea;
+  --color-theme-light-lime: #65a30d;
+}
+
+/* Base styling */
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+html,
+body,
+button,
+input,
+textarea,
+select,
+optgroup {
+  font-family: "Li Alinur Banglaborno", "Inter", "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.45;
+  letter-spacing: 0.015em;
+}
+
+body {
+  background-color: #F8F9F5;
+  color: #111827;
+  overflow-x: hidden;
+  font-size: 0.975rem;
+}
+
+/* Animation utilities */
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-glow {
+  animation: pulseGlow 3s infinite ease-in-out;
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s infinite linear;
+  background: linear-gradient(
+    90deg,
+    rgba(241, 245, 249, 1) 0%,
+    rgba(248, 250, 252, 1) 20%,
+    rgba(226, 232, 240, 1) 50%,
+    rgba(248, 250, 252, 1) 80%,
+    rgba(241, 245, 249, 1) 100%
+  );
+  background-size: 200% 100%;
+}
+
+@layer components {
+  .app-logo {
+    @apply object-contain w-full h-full max-w-full;
+  }
+  .nav-logo {
+    @apply h-[40px] md:h-[48px] w-auto flex-shrink-0 flex items-center justify-center;
+  }
+  .splash-logo {
+    @apply w-full max-w-[180px] md:max-w-[220px] h-auto flex-shrink-0 flex items-center justify-center;
+  }
+  .icon-logo {
+    @apply w-[24px] h-[24px] flex-shrink-0 flex items-center justify-center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.page-enter {
+  animation: pageFadeIn 0.25s ease-out;
+}
+
+@keyframes pageFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================================================
+   OFFICIAL A4 INVOICE PRINT STYLES
+   Optimized for crystal clear vector laser print & Save as PDF
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 6mm 8mm;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #1e1b26 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide app shell and modal backgrounds */
+  body * {
+    visibility: hidden;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  /* Make invoice container visible and full bleed on A4 */
+  #medichain-printable-invoice,
+  #medichain-printable-invoice *,
+  #medichain-printable-invoice-wrapper,
+  #medichain-printable-invoice-wrapper * {
+    visibility: visible !important;
+  }
+
+  #medichain-printable-invoice-wrapper {
+    width: 100% !important;
+    height: auto !important;
+    position: static !important;
+    transform: none !important;
+    overflow: visible !important;
+  }
+
+  #medichain-printable-invoice {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    transform: none !important;
+    margin: 0 !important;
+    padding: 4mm 6mm !important;
+    background: #ffffff !important;
+    color: #1e1b26 !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Prevent awkward page breaks inside tables and cards */
+  .avoid-page-break {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}

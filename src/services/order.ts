@@ -1,0 +1,277 @@
+import { Order, OrderStatus } from "../types";
+import { apiFetch } from "../lib/apiFetch";
+
+/**
+ * MediChain Orders & B2B Cart Procurement Service
+ * 
+ * Manages active order workflows, real-time item reservations, re-ordering, and returns.
+ */
+export const orderService = {
+  /**
+   * Retrieves full procurement order history for the authenticated pharmacy.
+   */
+  async getOrders(): Promise<Order[]> {
+    try {
+      const res = await apiFetch("/api/orders");
+      if (!res.ok) {
+        return [];
+      }
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        return [];
+      }
+      return await res.json();
+    } catch (err) {
+      console.warn("Unable to connect to orders API endpoint:", err);
+      return [];
+    }
+  },
+
+  /**
+   * Fetches detailed information about a single order by its ID.
+   */
+  async getOrderById(orderId: string): Promise<Order> {
+    const res = await apiFetch(`/api/orders/${orderId}`);
+    if (!res.ok) {
+      throw new Error("Failed to load details for this order.");
+    }
+    return res.json();
+  },
+
+  /**
+   * Places a new procurement order based on the pharmacy's active shopping cart items.
+   */
+  async createOrder(orderData: { paymentMethod: string; notes?: string }): Promise<any> {
+    const response = await apiFetch("/api/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(orderData),
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      if (errData.fields) { throw { message: errData.error || "Validation failed", fields: errData.fields }; } throw new Error(errData.error || "Failed to finalize checkout and place order.");
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Retrieves the current items, subtotal, and savings in the user's active shopping cart.
+   */
+  async getCart(): Promise<{ items: any[]; totalAmount: number; totalSavings: number; totalMrp: number }> {
+    try {
+      const res = await apiFetch("/api/cart");
+      if (!res.ok) {
+        return { items: [], totalAmount: 0, totalSavings: 0, totalMrp: 0 };
+      }
+      return await res.json();
+    } catch (err) {
+      console.warn("Failed to load your procurement cart (network error):", err);
+      return { items: [], totalAmount: 0, totalSavings: 0, totalMrp: 0 };
+    }
+  },
+
+  /**
+   * Adds a product and quantity to the active cart.
+   */
+  async addToCart(productId: string, quantity: number): Promise<{ success: boolean }> {
+    const res = await apiFetch("/api/cart/add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productId, quantity }),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || "Failed to add item to cart.");
+    }
+
+    return res.json();
+  },
+
+  /**
+   * Updates the exact quantity of a product currently in the cart.
+   */
+  async updateCartItem(productId: string, quantity: number): Promise<{ success: boolean }> {
+    const res = await apiFetch("/api/cart/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productId, quantity }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to update item quantity in cart.");
+    }
+
+    return res.json();
+  },
+
+  /**
+   * Deletes a product from the active cart.
+   */
+  async removeFromCart(productId: string): Promise<{ success: boolean }> {
+    const res = await apiFetch("/api/cart/remove", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productId }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to remove item from cart.");
+    }
+
+    return res.json();
+  },
+
+  /**
+   * Clones a previous order and updates the cart with all its items for instant re-ordering.
+   */
+  async reorder(orderId: string): Promise<{ success: boolean }> {
+    const res = await apiFetch(`/api/orders/${orderId}/reorder`, {
+      method: "POST",
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to duplicate this order into your cart.");
+    }
+
+    return res.json();
+  },
+
+  /**
+   * Initiates a return request for products in a delivered order.
+   */
+  async requestReturn(orderId: string, returnReason: string): Promise<{ success: boolean }> {
+    const res = await apiFetch(`/api/orders/${orderId}/return`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: returnReason }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to file return request.");
+    }
+
+    return res.json();
+  },
+
+  /**
+   * Downloads the invoice for a given order.
+   */
+  async downloadInvoice(orderId: string): Promise<{ success: boolean; invoiceUrl: string; orderDetails: any }> {
+    const res = await apiFetch(`/api/orders/${orderId}/invoice`);
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to download invoice.");
+    }
+
+    return res.json();
+  },
+
+  /**
+   * Cancels a pending or confirmed order before it is processed.
+   */
+  async cancelOrder(orderId: string): Promise<{ success: boolean }> {
+    const res = await apiFetch(`/api/orders/${orderId}/cancel`, {
+      method: "POST",
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to cancel order.");
+    }
+
+    return res.json();
+  },
+
+  /**
+   * [ADMIN/STAFF ACTION] Updates the delivery/processing status of an active order.
+   */
+  async updateOrderStatus(orderId: string, status: OrderStatus): Promise<{ success: boolean }> {
+    const res = await apiFetch(`/api/orders/${orderId}/status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to update order status.");
+    }
+
+    return res.json();
+  },
+
+  /**
+   * [DEPOT STAFF ACTION] Assigns a delivery rider to a packed order and dispatches it.
+   */
+  async assignDelivery(orderId: string, assignedRiderId: string): Promise<{ success: boolean }> {
+    const res = await apiFetch(`/api/depot/orders/${orderId}/assign-delivery`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assignedRiderId }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to assign delivery rider.");
+    }
+
+    return res.json();
+  },
+
+  /**
+   * [ADMIN/STAFF ACTION] Approves a pending product return and clears credit/accounts.
+   */
+  async approveReturn(orderId: string): Promise<{ success: boolean }> {
+    const res = await apiFetch(`/api/orders/${orderId}/approve-return`, {
+      method: "POST",
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to approve return request.");
+    }
+
+    return res.json();
+  },
+
+  /**
+   * [DEPOT/ADMIN ACTION] Marks a specific order item unavailable before packing and automatically recalculates invoice.
+   */
+  async amendOrderLineItem(orderId: string, productId: string, reason?: string): Promise<{ success: boolean; order: Order; amendment: any }> {
+    const res = await apiFetch(`/api/orders/${orderId}/amend`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productId, reason }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to amend order line item.");
+    }
+
+    return res.json();
+  },
+
+  /**
+   * Retrieves all procurement amendment audit logs for an order.
+   */
+  async getOrderAmendments(orderId: string): Promise<any[]> {
+    try {
+      const res = await apiFetch(`/api/orders/${orderId}/amendments`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.amendments || [];
+    } catch (e) {
+      console.warn("Failed to fetch order amendments:", e);
+      return [];
+    }
+  },
+};

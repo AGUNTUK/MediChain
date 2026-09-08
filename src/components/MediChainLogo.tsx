@@ -1,0 +1,130 @@
+import React, { useState } from "react";
+
+export function MediChainOfficialLogo({ 
+  className = "", 
+  style, 
+  size 
+}: { 
+  className?: string; 
+  style?: React.CSSProperties; 
+  size?: number | string 
+}) {
+  const [imgError, setImgError] = useState(false);
+  const widthHeight = typeof size === 'number' ? { width: size, height: size } : {};
+  const presetClass = typeof size === 'string' ? size : "";
+
+  if (imgError) {
+    return <InlineSVGLogo className={className} style={{ ...style, ...widthHeight }} />;
+  }
+
+  return (
+    <div className={`${className} ${presetClass}`} style={{ ...style, ...widthHeight }}>
+      <img 
+        src={"/logo.png"} 
+        alt="MediChain Logo" 
+        className="app-logo"
+        onError={() => setImgError(true)}
+      />
+    </div>
+  );
+}
+
+export function MediChainFullLogo({ className = "", size = 120 }: { className?: string; size?: number | string }) {
+  return <MediChainOfficialLogo className={`object-contain ${className}`} size={size} />;
+}
+
+export function MediChainIconOnly({ className = "", size }: { className?: string; size?: number | string }) {
+  const [imgError, setImgError] = useState(false);
+  const presetClass = typeof size === 'string' ? size : "";
+  const widthHeight = typeof size === 'number' ? { width: size, height: size } : {};
+  return (
+    <div className={`relative inline-flex items-center justify-center shrink-0 ${className} ${presetClass}`} style={widthHeight}>
+      {imgError ? (
+        <InlineSVGLogo 
+          className="app-logo" 
+          
+        />
+      ) : (
+        <img 
+          src={"/logo.png"} 
+          alt="MediChain Logo" 
+          className="app-logo" 
+          
+          onError={() => setImgError(true)}
+        />
+      )}
+    </div>
+  );
+}
+
+function InlineSVGLogo({ className = "", style = {} }: { className?: string, style?: React.CSSProperties }) {
+  return (
+    <svg 
+      className={className} 
+      style={style}
+      viewBox="0 0 100 100" 
+      fill="none" 
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect x="20" y="20" width="60" height="60" rx="16" fill="#8B5CF6" />
+      <rect x="42" y="30" width="16" height="40" rx="4" fill="#8CC63F" />
+      <rect x="30" y="42" width="40" height="16" rx="4" fill="#8CC63F" />
+    </svg>
+  );
+}
+
+interface LogoProps {
+  className?: string;
+  size?: "sm" | "md" | "lg" | "xl";
+  withText?: boolean;
+  textColor?: "light" | "dark";
+  orientation?: "horizontal" | "vertical";
+}
+
+export default function MediChainLogo({
+  className = "",
+  size = "md",
+  withText = true,
+  textColor = "dark",
+  orientation = "horizontal",
+}: LogoProps) {
+  const sizeMap = {
+    sm: { px: "nav-logo", text: "text-lg", subtitle: "text-[9px]" },
+    md: { px: 72, text: "text-2xl", subtitle: "text-[11px]" },
+    lg: { px: 130, text: "text-4xl", subtitle: "text-sm" },
+    xl: { px: "splash-logo", text: "text-5xl", subtitle: "text-base" },
+  };
+
+  const currentSize = sizeMap[size];
+
+  return (
+    <div
+      className={`flex ${
+        orientation === "vertical" ? "flex-col items-center text-center animate-fade-in" : "items-center gap-3"
+      } ${className}`}
+    >
+      {withText ? (
+        <MediChainFullLogo size={currentSize.px} />
+      ) : (
+        <MediChainIconOnly size={currentSize.px} />
+      )}
+
+      {/* Brand Typography perfectly aligned */}
+      {withText && (
+        <div className={orientation === "vertical" ? "mt-3" : "flex flex-col"}>
+          <div className={`${currentSize.text} font-black tracking-tight select-none`}>
+            <span style={{ color: "#8B5CF6" }}>Medi</span>
+            <span style={{ color: "#8CC63F" }}>Chain</span>
+          </div>
+          <div
+            className={`${currentSize.subtitle} font-bold tracking-wide ${
+              textColor === "light" ? "text-slate-300" : "text-gray-600"
+            } select-none ${orientation === "vertical" ? "mt-1" : "-mt-0.5"}`}
+          >
+            ফার্মেসির স্মার্ট পার্টনার
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
