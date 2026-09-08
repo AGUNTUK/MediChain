@@ -38,7 +38,7 @@ import StateFeedback from "./StateFeedback";
 import { formatProductPriceLabel, toBengaliNumber } from "../lib/utils";
 import { apiCache } from "../lib/apiCache";
 import { useCartFeedback } from "../context/FlyToCartContext";
-import PrescriptionScanner from "./PrescriptionScanner";
+import SmartOrderModal from "./SmartOrderModal";
 import HeroCarousel from "./HeroCarousel";
 import CategoryIcon, { getCategoryConfig } from "./CategoryIcon";
 import { ALL_CATEGORY_VALUES } from "../constants/categories";
@@ -462,7 +462,7 @@ export default function Home({
             </div>
 
             {isScannerOpen && (
-              <PrescriptionScanner 
+              <SmartOrderModal 
                 onClose={() => setIsScannerOpen(false)} 
                 onOpenCart={() => {
                   setIsScannerOpen(false);
