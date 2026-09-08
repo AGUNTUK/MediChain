@@ -1306,16 +1306,17 @@ app.post(
 
       const { data: pharmacy, error: pharmError } = await supabaseAdmin
         .from("pharmacies")
-        .select("pharmacyName, phone, address")
+        .select("pharmacy_name, phone, address")
         .eq("user_id", user.id)
         .single();
 
       if (pharmError || !pharmacy) {
+        console.error("Pharmacy lookup error:", pharmError, "User ID:", user.id);
         return res.status(404).json({ error: "Pharmacy not found" });
       }
 
       const result = await sendPhysiciansProductRequest({
-        pharmacyName: pharmacy.pharmacyName || "Unknown",
+        pharmacyName: pharmacy.pharmacy_name || "Unknown",
         phone: pharmacy.phone || user.email || "Unknown",
         address: pharmacy.address || "Unknown",
         files: files
