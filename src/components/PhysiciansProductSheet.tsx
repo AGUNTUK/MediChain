@@ -37,13 +37,18 @@ export default function PhysiciansProductSheet({ onClose }: Props) {
       const res = await apiFetch("/api/physicians-product-request", {
         method: "POST",
         body: formData,
-        // Don't set Content-Type header, let browser set it with boundary
-        headers: {
-          // Remove default application/json
-        }
+        headers: {}
       });
       
-      const data = await res.json();
+      let data;
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        console.error("Non-JSON response:", text);
+        data = { error: res.status === 413 ? "File too large (Max 10MB)." : "An unexpected server error occurred. Please try again." };
+      }
       
       if (!res.ok) {
         throw new Error(data.error || "Failed to send request");

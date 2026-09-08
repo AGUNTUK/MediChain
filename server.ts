@@ -1306,8 +1306,8 @@ app.post(
 
       const { data: pharmacy, error: pharmError } = await supabaseAdmin
         .from("pharmacies")
-        .select("name, phone, address")
-        .eq("owner_id", user.id)
+        .select("pharmacyName, phone, address")
+        .eq("user_id", user.id)
         .single();
 
       if (pharmError || !pharmacy) {
@@ -1315,7 +1315,7 @@ app.post(
       }
 
       const result = await sendPhysiciansProductRequest({
-        pharmacyName: pharmacy.name,
+        pharmacyName: pharmacy.pharmacyName || "Unknown",
         phone: pharmacy.phone || user.email || "Unknown",
         address: pharmacy.address || "Unknown",
         files: files
