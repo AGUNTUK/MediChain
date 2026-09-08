@@ -21,3 +21,13 @@ bun.lock
 
 # Added by ggshield
 .cache_ggshield
+
+# Debug outputs & temporary dumps
+*.dump
+dump.json
+output.txt
+*.tsbuildinfo
+.eslintcache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

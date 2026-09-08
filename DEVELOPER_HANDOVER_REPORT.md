@@ -1769,6 +1769,19 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
     5. Verified exactly 0 products remain under old company name `Opso Saline Ltd.`.
     6. Verified unrelated companies (Novartis, Square, etc.) remain strictly untouched.
 
+### Task 76: Repository Cleanup Pass & Gitignore Hardening
+- **Status:** Completed
+- **Scope & Actions:**
+  - Audited repository for stray, obsolete, and one-off debug files with 0 codebase references.
+  - Removed obsolete root patch scripts: `patch5.js` and `patch6.js` (one-off string replacement scripts for `server.ts`).
+  - Removed obsolete root scratch test scripts: `test-pharmacy-db.js` and `test-physicians-upload.js`.
+  - Resolved git case-collision by removing redundant lower-case `skills.md` while safely preserving authoritative `SKILLS.md`.
+  - Purged 22 local temporary analysis/dump scripts in `scratch/`.
+  - Hardened `.gitignore` against recurring dumps and debug logs: `*.dump`, `dump.json`, `output.txt`, `*.tsbuildinfo`, `.eslintcache`, `npm-debug.log*`, `yarn-debug.log*`, `yarn-error.log*`.
+- **VERIFICATION:**
+  - `npm run lint` (`tsc --noEmit`): 0 errors, 100% clean type check.
+  - `npm run build`: Production bundle and backend compilation succeeded with 0 errors.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).
