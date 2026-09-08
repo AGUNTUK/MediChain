@@ -77,7 +77,7 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 app.set("trust proxy", 1); // Trust first proxy (necessary for secure cookie-sessions on reverse proxies like Vercel/Cloud Run)
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = 3000;
 const DEBUG = process.env.DEBUG === "true" || process.env.NODE_ENV !== "production";
 
 const log = {
@@ -1932,7 +1932,7 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
   }
   doc.font("Helvetica-Bold").fontSize(18).fillColor("#F4F4F5").text("MediChain", 92, 22);
   doc.font("Helvetica-Bold").fontSize(7).fillColor("#A3E635").text("SMART PARTNER FOR PHARMACIES", 92, 44, { characterSpacing: 1.5 });
-  doc.font("Helvetica").fontSize(7.5).fillColor("#9CA3AF").text("Somobay Bank Market, Pressclub, Rangpur • Mob: 01940-681989", 92, 57);
+  doc.font("Helvetica").fontSize(7.5).fillColor("#9CA3AF").text("Shorear Tol, Rangpur Sadar, Rangpur, Bangladesh • Mob: 01940-681989", 92, 57);
   doc.text("Email: support@medichainbd.com", 92, 69);
 
   // Header Content - Right: INVOICE, Number, Date, Order Ref
@@ -2056,17 +2056,17 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
     doc.font("Helvetica").fontSize(7).fillColor("#6B7280").text((idx + 1).toString(), 32, position + 5, { width: 22, align: "center" });
     doc.font("Helvetica-Bold").fontSize(6.5).fillColor("#7C3AED").text(type.toUpperCase(), 58, position + 5, { width: 46 });
     doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#14161B").text(displayName, 108, position + 5, { width: 170, lineBreak: false });
-    doc.font("Helvetica").fontSize(7.5).fillColor("#6B7280").text(mrp.toFixed(2), 284, position + 5, { width: 44, align: "right" });
-    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#14161B").text(rate.toFixed(2), 332, position + 5, { width: 44, align: "right" });
+    doc.font("Helvetica").fontSize(7.5).fillColor("#6B7280").text(`Tk ${mrp.toFixed(2)}`, 284, position + 5, { width: 44, align: "right" });
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#14161B").text(`Tk ${rate.toFixed(2)}`, 332, position + 5, { width: 44, align: "right" });
     doc.font("Helvetica").fontSize(7.5).fillColor("#14161B").text(qty.toString(), 380, position + 5, { width: 24, align: "right" });
-    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#65A30D").text(netDiscount.toFixed(2), 408, position + 5, { width: 54, align: "right" });
-    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#14161B").text(itemTotal.toFixed(2), 466, position + 5, { width: 68, align: "right" });
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#65A30D").text(`Tk ${netDiscount.toFixed(2)}`, 408, position + 5, { width: 54, align: "right" });
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#14161B").text(`Tk ${itemTotal.toFixed(2)}`, 466, position + 5, { width: 68, align: "right" });
 
     position += 18;
   });
 
-  // Check if summary box fits on current page
-  if (position > doc.page.height - 180) {
+  // Check if summary box and signatures fit on current page
+  if (position > doc.page.height - 230) {
     doc.addPage();
     renderWatermark();
     position = 40;
@@ -2076,7 +2076,7 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
   const summaryX = 335;
   const summaryWidth = doc.page.width - 335 - 30;
   const wholesaleSavings = Math.max(0, totalMrpSum - subtotalMedicines);
-  const deliveryCharge = DEFAULT_DELIVERY_CHARGE; // Fixed platform-wide constant (৳40)
+  const deliveryCharge = DEFAULT_DELIVERY_CHARGE; // Fixed platform-wide constant (Tk 40)
   const netPayable = subtotalMedicines + deliveryCharge;
   const amountDue = isPaid ? 0.00 : netPayable;
 
@@ -2084,28 +2084,28 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
 
   // Row 1: Subtotal (Medicines)
   doc.font("Helvetica").fontSize(8).fillColor("#6B7280").text("Subtotal (Medicines)", summaryX, sY);
-  doc.font("Helvetica-Bold").fontSize(8).fillColor("#14161B").text(`৳${subtotalMedicines.toFixed(2)}`, summaryX, sY, { width: summaryWidth, align: "right" });
+  doc.font("Helvetica-Bold").fontSize(8).fillColor("#14161B").text(`Tk ${subtotalMedicines.toFixed(2)}`, summaryX, sY, { width: summaryWidth, align: "right" });
 
   // Row 2: Wholesale Savings
   doc.font("Helvetica").fontSize(8).fillColor("#6B7280").text("Wholesale Savings", summaryX, sY + 14);
-  doc.font("Helvetica-Bold").fontSize(8).fillColor("#65A30D").text(`-৳${wholesaleSavings.toFixed(2)}`, summaryX, sY + 14, { width: summaryWidth, align: "right" });
+  doc.font("Helvetica-Bold").fontSize(8).fillColor("#65A30D").text(`-Tk ${wholesaleSavings.toFixed(2)}`, summaryX, sY + 14, { width: summaryWidth, align: "right" });
 
-  // Row 3: Delivery Charge (Fixed ৳40)
+  // Row 3: Delivery Charge (Fixed Tk 40)
   doc.font("Helvetica").fontSize(8).fillColor("#6B7280").text("Delivery Charge", summaryX, sY + 28);
-  doc.font("Helvetica").fontSize(8).fillColor("#14161B").text(`৳${deliveryCharge.toFixed(2)}`, summaryX, sY + 28, { width: summaryWidth, align: "right" });
+  doc.font("Helvetica").fontSize(8).fillColor("#14161B").text(`Tk ${deliveryCharge.toFixed(2)}`, summaryX, sY + 28, { width: summaryWidth, align: "right" });
 
   // Row 4: Net Payable (Filled card with purple gradient #A855F7 to #7C3AED)
   const netGrad = doc.linearGradient(summaryX, sY + 44, summaryX + summaryWidth, sY + 44);
   netGrad.stop(0, "#A855F7").stop(1, "#7C3AED");
   doc.roundedRect(summaryX, sY + 44, summaryWidth, 24, 6).fill(netGrad);
   doc.font("Helvetica-Bold").fontSize(8.5).fillColor("#FFFFFF").text("NET PAYABLE", summaryX + 8, sY + 51);
-  doc.font("Helvetica-Bold").fontSize(11).fillColor("#FFFFFF").text(`৳${netPayable.toFixed(2)}`, summaryX, sY + 49.5, { width: summaryWidth - 8, align: "right" });
+  doc.font("Helvetica-Bold").fontSize(11).fillColor("#FFFFFF").text(`Tk ${netPayable.toFixed(2)}`, summaryX, sY + 49.5, { width: summaryWidth - 8, align: "right" });
 
   // Row 5: Amount Due (Light grey background card with border)
   doc.roundedRect(summaryX, sY + 74, summaryWidth, 20, 6).fill("#FAFAFB");
   doc.roundedRect(summaryX, sY + 74, summaryWidth, 20, 6).strokeColor("#E2E8F0").lineWidth(0.5).stroke();
   doc.font("Helvetica").fontSize(7.5).fillColor("#334155").text(isPaid ? "Amount Due (Paid)" : "Amount Due (Cash on Delivery)", summaryX + 8, sY + 79.5);
-  doc.font("Helvetica-Bold").fontSize(9).fillColor(isPaid ? "#166534" : "#14161B").text(`৳${amountDue.toFixed(2)}`, summaryX, sY + 78.5, { width: summaryWidth - 8, align: "right" });
+  doc.font("Helvetica-Bold").fontSize(9).fillColor(isPaid ? "#166534" : "#14161B").text(`Tk ${amountDue.toFixed(2)}`, summaryX, sY + 78.5, { width: summaryWidth - 8, align: "right" });
 
   // 5. Footer Section
   const footerY = Math.max(sY + 104, position + 15);
@@ -2116,6 +2116,23 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
   doc.text("2. COD Payment: Cash on Delivery (COD) collection is mandatory upon receipt. At least 80% invoice value goods must be received or full order returned.", 30, footerY + 28, { width: doc.page.width - 60 });
   doc.text("3. Return Policy: Sold pharmaceuticals are non-refundable once accepted and physically inspected by the licensed pharmacist.", 30, footerY + 38, { width: doc.page.width - 60 });
   doc.text("4. Computer-Generated: This is an authentic digital tax sales invoice generated by MediChain systems and does not require a physical seal.", 30, footerY + 48, { width: doc.page.width - 60 });
+
+  // 6. Signatures
+  const sigY = footerY + 86;
+  
+  // Left: Depot/Warehouse Staff
+  doc.moveTo(30, sigY).lineTo(150, sigY).strokeColor("#9CA3AF").lineWidth(0.5).stroke();
+  doc.font("Helvetica").fontSize(7).fillColor("#6B7280").text("Depot/Warehouse Staff", 30, sigY + 5, { width: 120, align: "center" });
+
+  // Center: Delivery Rider
+  const centerX = (doc.page.width - 120) / 2;
+  doc.moveTo(centerX, sigY).lineTo(centerX + 120, sigY).strokeColor("#9CA3AF").lineWidth(0.5).stroke();
+  doc.text("Delivery Rider", centerX, sigY + 5, { width: 120, align: "center" });
+
+  // Right: Received By
+  const rightX = doc.page.width - 150;
+  doc.moveTo(rightX, sigY).lineTo(rightX + 120, sigY).strokeColor("#9CA3AF").lineWidth(0.5).stroke();
+  doc.text("Received By", rightX, sigY + 5, { width: 120, align: "center" });
 
   const bottomRowY = doc.page.height - 22;
   doc.moveTo(30, bottomRowY - 6).lineTo(doc.page.width - 30, bottomRowY - 6).strokeColor("#F1F5F9").lineWidth(0.5).stroke();
