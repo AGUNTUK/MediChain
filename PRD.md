@@ -49,6 +49,7 @@ MediChain is a high-performance, real-time B2B pharmaceutical procurement operat
 - **Strict 100% COD Exclusivity:** Transparent Cash on Delivery with no credit card or online payment gateway friction.
 - **6-Digit Handover OTP Security:** Cryptographically generated one-time code sent to pharmacy upon dispatch for delivery verification.
 - **Smart Order (AI OCR):** Instant prescription upload digitized via Gemini Vision API into auto-matched cart items.
+- **Physicians Product Direct Request:** Dedicated bottom-sheet workflow (accessible via central FAB) enabling multi-file uploads directly to the Telegram operations channel for special/bulk manual orders.
 
 ### 3.4 Depot Warehouse Operations (WMS)
 - **Order Center:** Filterable pipeline (Pending, Processing, Packed, Out for Delivery, Delivered, Cancelled).

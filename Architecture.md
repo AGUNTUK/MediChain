@@ -88,6 +88,7 @@ MediChain utilizes a modern full-stack monolith architecture designed for high a
 │   │   ├── ModernInvoiceModal.tsx # Printable official VAT invoice modal
 │   │   ├── OrderHistory.tsx  # Past customer orders & invoice downloads
 │   │   ├── OrderTracking.tsx # Real-time delivery timeline with OTP
+│   │   ├── PhysiciansProductSheet.tsx # Direct Telegram request bottom sheet
 │   │   ├── ProductCard.tsx   # Horizontal and vertical product cards
 │   │   ├── SearchSystem.tsx  # Multi-token search modal & filter drawer
 │   │   ├── SmartOrderModal.tsx # Prescription AI OCR scanner & cart builder

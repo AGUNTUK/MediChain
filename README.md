@@ -31,6 +31,7 @@ $$\text{Pharma Manufacturers (Beximco, Square, Incepta)} \longrightarrow \text{M
 - **📦 Smart Quantity Controls**: Interactive bulk quantity selection presets (10, 50, 100, 200 boxes) with live subtotal calculation, available stock boundary validation, and real-time inventory updates.
 - **🔄 Past Invoice 1-Tap Reorders**: Instant history retrieval allowing busy pharmacy owners to duplicate past order lines into their active cart in a single tap, bypassing standard browsing steps.
 - **🧾 Intelligent Optical Prescription Scanning**: Powered by **Google Gemini AI** (server-side via official `@google/genai` SDK), allowing pharmacies to upload patient prescription sheets and automatically map hand-written formulas to real, purchasable wholesale inventory SKUs with confidence matching.
+- **📱 Physicians Product Quick-Request**: A seamless Telegram-integrated upload flow accessible via a specialized floating action button (FAB), enabling pharmacists to instantly submit bulk product inquiries and physician prescription sheets directly to the administrative Telegram channel.
 - **💳 B2B Credit Line Accounts**: Integrated credit facilities validating available credit balance against checkout amounts to support flexible cash-on-delivery and deferred invoice settlement.
 - **🚚 Dual-State Role Dashboards**: Pre-wired pathways supporting separate views for Pharmacy Owners (procurement, returns, ledger), Depot Staff (packing, batch numbering, FEFO inventory, expiry audits), and Delivery Express Couriers (assigned dropoffs, OTP-validated deliveries).
 
