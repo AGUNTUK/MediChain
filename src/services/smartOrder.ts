@@ -6,7 +6,7 @@
  */
 
 import { MatchedSmartOrderItem } from "../lib/productMatcher";
-import { Product } from "../types";
+import { Product } from "../types";import { apiFetch } from "../lib/apiFetch";
 
 export interface SmartOrderScanResponse {
   success: boolean;
@@ -38,7 +38,7 @@ export const smartOrderService = {
    * Submits a prescription / handwritten slip image for Gemini 3.x Flash OCR & Database Matching.
    */
   async scanSmartOrder(imageBase64: string, mimeType = "image/jpeg"): Promise<SmartOrderScanResponse> {
-    const res = await fetch("/api/smart-order/scan", {
+    const res = await apiFetch("/api/smart-order/scan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ imageBase64, mimeType }),
@@ -56,7 +56,7 @@ export const smartOrderService = {
    * Adds all verified and confirmed SmartOrder items to the active procurement cart in one atomic request.
    */
   async batchAddToCart(items: BatchCartItemPayload[]): Promise<BatchCartResponse> {
-    const res = await fetch("/api/smart-order/cart-all", {
+    const res = await apiFetch("/api/smart-order/cart-all", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items }),
@@ -76,7 +76,7 @@ export const smartOrderService = {
   async searchReplacementProducts(query: string): Promise<Product[]> {
     if (!query || query.trim().length < 2) return [];
     try {
-      const res = await fetch(`/api/products?search=${encodeURIComponent(query.trim())}&limit=8`);
+      const res = await apiFetch(`/api/products?search=${encodeURIComponent(query.trim())}&limit=8`);
       if (!res.ok) return [];
       const data = await res.json();
       return Array.isArray(data) ? data : (data.products || []);
