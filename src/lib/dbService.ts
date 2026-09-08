@@ -3,7 +3,8 @@ import { supabaseAdmin } from "./supabaseAdmin.js";
 export { supabaseAdmin };
 import { Product, Pharmacy, Order, OrderItem, OrderAmendment, StaffPerformanceMetric } from "../types";
 
-export const DEFAULT_DELIVERY_CHARGE = 40;
+import { DEFAULT_DELIVERY_CHARGE } from "../constants/delivery.js";
+export { DEFAULT_DELIVERY_CHARGE };
 
 // ==========================================
 // UTILITIES & SERIALIZERS

@@ -1695,6 +1695,40 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `tsc --noEmit` verified with 0 errors.
   - Full production build compiled successfully.
 
+### Task 73: Invoice Template Redesign (Frontend & PDF Generator)
+- **Status:** Completed
+- **Scope:** Rebuilt both the PDF/HTML generator (`server.ts`: `generateInvoicePdf`) and the customer-facing invoice display (`src/components/ModernInvoiceModal.tsx`) to match the exact design specification using real brand assets (`public/logo.png`).
+- **Design & Architecture Alignment:**
+  1. **Header Band:**
+     - Charcoal `#14161B` → Deep Purple `#1E1024` → `#2B1338` diagonal gradient band.
+     - 3px accent line along bottom edge with gradient from Orchid Purple (`#A855F7`) to Lime Green (`#A3E635`).
+     - Real MediChain logo (`public/logo.png`, 52px), bold brand name `MediChain` in `#F4F4F5`, uppercase lime green tagline `SMART PARTNER FOR PHARMACIES`, and company contact details.
+     - Right-aligned uppercase light purple `INVOICE` label (`#C084FC`), prominent invoice number (`INV-XXXXX`), date, and order reference.
+  2. **Subtle Watermark:**
+     - Real MediChain logo centered on page behind content, rotated at -8°, set to 4.5% opacity for clear brand identity without obstructing text legibility.
+  3. **Billed To / Payment Info Strip:**
+     - 2-column strip with vertical divider and bottom border.
+     - Left column: Orchid purple `BILLED TO` label, pharmacy name, proprietor name, drug license number + phone, and delivery address.
+     - Right column: Orchid purple `PAYMENT` label, Cash on Delivery method, due date, and pill status badge (`PENDING` in amber, `PAID` in green).
+  4. **Line Items Table:**
+     - Exact columns: `SL | Type | Item Name | MRP | Rate | Qty | Net Disc | Total`.
+     - Dark charcoal `#14161B` header row with off-white uppercase text.
+     - Zebra striping (`even:#FAFAFB`, `odd:#ffffff`) with light dividers.
+     - `Type` column in bold purple (`#7C3AED`), `Net Disc` in bold lime green (`#65A30D`), item name medium-bold with strength in muted grey, numeric values right-aligned.
+  5. **Summary Box (Bottom Right):**
+     - Subtotal (Medicines), Wholesale Savings (negative, lime green bold), Delivery Charge (fixed ৳40 platform-wide constant from `src/constants/delivery.ts`).
+     - Net Payable card highlighted with purple gradient (`#A855F7` to `#7C3AED`) and white bold text.
+     - Amount Due card in light grey border with COD status notation.
+  6. **Footer & Order Amendments:**
+     - Terms & Conditions (FEFO policy, COD payment, non-refundable accepted medicines, computer-generated digital tax sales invoice).
+     - Order reference/verification hash and `✓ Verified by MediChain` in lime green.
+     - Respects Order Amendments by automatically excluding items marked unavailable.
+- **VERIFICATION:**
+  - `src/constants/delivery.ts` created and re-exported in `src/lib/dbService.ts`.
+  - PDF generation verified on live order data (`7ca0ad70-f331-41e6-8e09-93e003b66558`).
+  - `tsc --noEmit` verified with 0 errors.
+  - Production build verified with `npm run build`.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

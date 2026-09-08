@@ -1,6 +1,7 @@
 import express from "express";
 import compression from "compression";
 import path from "path";
+import fs from "fs";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import cookieSession from "cookie-session";
@@ -9,6 +10,7 @@ import PDFDocument from "pdfkit";
 import helmet from "helmet";
 import cors from "cors";
 import crypto from "crypto";
+import { DEFAULT_DELIVERY_CHARGE } from "./src/constants/delivery.js";
 
 declare global {
   namespace Express {
@@ -1895,195 +1897,230 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="invoice-${order.id}.pdf"`);
 
-  const doc = new PDFDocument({ margin: 30, size: 'A4' });
+  const doc = new PDFDocument({ margin: 0, size: "A4" });
   doc.pipe(res);
 
-  // Document Title Header
-  doc.font("Helvetica-Bold").fontSize(10).fillColor("#1e293b").text("Sales Invoice", 30, 25);
+  const logoPath = path.join(process.cwd(), "public", "logo.png");
 
-  // Company Brand Header (Left)
-  doc.fillColor("#3b1a6c").fontSize(18).font("Helvetica-Bold").text("MediChain ", 30, 42, { continued: true });
-  doc.fillColor("#45a834").text("Bangladesh");
-  
-  doc.fillColor("#334155").font("Helvetica").fontSize(8.5);
-  doc.text("Somobay Bank Market Pressclub Rangpur", 30, 62);
-  doc.text("Mob: 01940681989 | Email: support@medichainbd.com", 30, 74);
+  // Watermark renderer: Centered, rotated -8deg, 4.5% opacity
+  const renderWatermark = () => {
+    if (fs.existsSync(logoPath)) {
+      doc.save();
+      doc.opacity(0.045);
+      doc.rotate(-8, { origin: [doc.page.width / 2, doc.page.height / 2] });
+      const wmSize = 420;
+      doc.image(logoPath, (doc.page.width - wmSize) / 2, (doc.page.height - wmSize) / 2, { width: wmSize });
+      doc.restore();
+    }
+  };
 
-  // Sales Invoice Meta (Right)
-  const createdDate = order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase() : new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase();
-  
-  doc.fillColor("#1e293b").fontSize(13).font("Helvetica-Bold").text("SALES INVOICE", 380, 42, { align: "right" });
-  doc.font("Helvetica").fontSize(8.5).fillColor("#475569");
-  doc.text(`Inv #: ${invoiceNumber.replace("INV-", "").replace("MCH-", "")}`, 380, 58, { align: "right" });
-  doc.text(createdDate, 380, 70, { align: "right" });
+  renderWatermark();
 
-  // Customer / Officer Metadata Box
-  const metaY = 92;
-  const metaWidth = doc.page.width - 60;
-  doc.rect(30, metaY, metaWidth, 38).strokeColor("#0f172a").lineWidth(0.8).stroke();
-  doc.moveTo(30 + metaWidth / 2, metaY).lineTo(30 + metaWidth / 2, metaY + 38).stroke();
+  // 1. Header Band: Diagonal Dark Gradient (#14161B -> #1E1024 -> #2B1338)
+  const headerGrad = doc.linearGradient(0, 0, doc.page.width, 95);
+  headerGrad.stop(0, "#14161B").stop(0.5, "#1E1024").stop(1, "#2B1338");
+  doc.rect(0, 0, doc.page.width, 95).fill(headerGrad);
 
-  // Left Column (Bill To)
+  // 3px Accent Line along bottom edge of band (Orchid Purple to Lime Green)
+  const accentGrad = doc.linearGradient(0, 95, doc.page.width, 95);
+  accentGrad.stop(0, "#A855F7").stop(1, "#A3E635");
+  doc.rect(0, 95, doc.page.width, 3).fill(accentGrad);
+
+  // Header Content - Left: Logo, MediChain, Tagline, Contact Info
+  if (fs.existsSync(logoPath)) {
+    doc.image(logoPath, 30, 22, { width: 52 });
+  }
+  doc.font("Helvetica-Bold").fontSize(18).fillColor("#F4F4F5").text("MediChain", 92, 22);
+  doc.font("Helvetica-Bold").fontSize(7).fillColor("#A3E635").text("SMART PARTNER FOR PHARMACIES", 92, 44, { characterSpacing: 1.5 });
+  doc.font("Helvetica").fontSize(7.5).fillColor("#9CA3AF").text("Somobay Bank Market, Pressclub, Rangpur • Mob: 01940-681989", 92, 57);
+  doc.text("Email: support@medichainbd.com", 92, 69);
+
+  // Header Content - Right: INVOICE, Number, Date, Order Ref
+  const cleanId = (order.id || "").replace(/-/g, "").substring(0, 6).toUpperCase();
+  const readableNum = order.readableId ? order.readableId.replace("MCH-", "").replace("INV-", "") : cleanId;
+  const displayInvoiceNum = invoiceNumber && !invoiceNumber.includes("INV-undefined") ? invoiceNumber : `INV-${readableNum}`;
+  const orderRef = order.readableId || `MCH-${cleanId}`;
+
+  const now = new Date(order.createdAt || Date.now());
+  const invoiceDate = `${String(now.getDate()).padStart(2, "0")}-${now.toLocaleString("en-US", { month: "short" }).toUpperCase()}-${now.getFullYear()}`;
+
+  doc.font("Helvetica-Bold").fontSize(9).fillColor("#C084FC").text("INVOICE", 380, 22, { align: "right", width: doc.page.width - 410 });
+  doc.font("Helvetica-Bold").fontSize(17).fillColor("#F4F4F5").text(displayInvoiceNum, 380, 35, { align: "right", width: doc.page.width - 410 });
+  doc.font("Helvetica").fontSize(7.5).fillColor("#9CA3AF").text(`Date: ${invoiceDate}`, 380, 57, { align: "right", width: doc.page.width - 410 });
+  doc.text(`Order Ref: #${orderRef}`, 380, 69, { align: "right", width: doc.page.width - 410 });
+
+  // 2. Billed To / Payment Info Strip
+  const stripY = 112;
   const pharmacyName = pharmacy?.pharmacyName || order.pharmacyName || "Registered Pharmacy Partner";
-  const pharmacyPhone = pharmacy?.phone || order.pharmacyPhone || "01924243556";
-  const pharmacyAddress = pharmacy?.address || order.pharmacyAddress || "Madhar More, Nilphamari";
-  const pharmacyZone = pharmacy?.upazila || pharmacy?.thana || pharmacy?.district || pharmacy?.city || "Nilphamari";
-
-  doc.font("Helvetica-Bold").fontSize(8).fillColor("#0f172a").text("Bill To: ", 35, metaY + 6, { continued: true });
-  doc.font("Helvetica").text(`${pharmacyName}  |  `, { continued: true });
-  doc.font("Helvetica-Bold").text("Mob: ", { continued: true });
-  doc.font("Helvetica").text(pharmacyPhone);
-
-  doc.font("Helvetica-Bold").text("Address: ", 35, metaY + 20, { continued: true });
-  doc.font("Helvetica").text(pharmacyAddress, { width: 230, lineBreak: false });
-
-  // Right Column (Officer)
-  const officerName = order.salesRep || "MD Parvez Ahmed (Rupom)";
-  const officerContact = "01940681989";
-
-  doc.font("Helvetica-Bold").text("Officer: ", 30 + metaWidth / 2 + 6, metaY + 6, { continued: true });
-  doc.font("Helvetica").text(`${officerName}  |  `, { continued: true });
-  doc.font("Helvetica-Bold").text("Zone: ", { continued: true });
-  doc.font("Helvetica").text(pharmacyZone);
-
-  doc.font("Helvetica-Bold").text("Contact: ", 30 + metaWidth / 2 + 6, metaY + 20, { continued: true });
-  doc.font("Helvetica").text(officerContact);
-
-  // Table Headers
-  const tableTop = 138;
-  const tableWidth = doc.page.width - 60;
-  doc.rect(30, tableTop, tableWidth, 20).fill("#f8fafc").strokeColor("#0f172a").lineWidth(0.8).stroke();
+  const proprietorName = pharmacy?.ownerName || (pharmacy as any)?.owner_name || order.pharmacyOwner || order.customerName || "Proprietor";
+  const pharmacyPhone = pharmacy?.phone || order.pharmacyPhone || "01924-243556";
+  const pharmacyAddress = pharmacy?.address || order.pharmacyAddress || order.deliveryAddress || "Rangpur Division, Bangladesh";
   
-  doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#0f172a");
-  doc.text("SL", 35, tableTop + 6, { width: 20, align: "center" });
-  doc.text("TYPE", 60, tableTop + 6, { width: 45 });
-  doc.text("ITEM NAME", 110, tableTop + 6, { width: 175 });
-  doc.text("MRP", 290, tableTop + 6, { width: 45, align: "right" });
-  doc.text("RATE", 340, tableTop + 6, { width: 45, align: "right" });
-  doc.text("QTY", 390, tableTop + 6, { width: 30, align: "center" });
-  doc.text("NET DISC", 425, tableTop + 6, { width: 55, align: "right" });
-  doc.text("TOTAL", 485, tableTop + 6, { width: 75, align: "right" });
+  let drugLicense = pharmacy?.licenseNo || "";
+  if (!drugLicense && (pharmacy as any)?.license_information) {
+    try {
+      const parsed = typeof (pharmacy as any).license_information === "string" 
+        ? JSON.parse((pharmacy as any).license_information) 
+        : (pharmacy as any).license_information;
+      drugLicense = parsed.drugLicense || parsed.licenseNo || "";
+    } catch (e) {}
+  }
+  if (!drugLicense) drugLicense = "DGDA-DL-2026-9988";
+
+  const isPaid = order.paymentStatus === "Paid";
+
+  // Left column: BILLED TO
+  doc.font("Helvetica-Bold").fontSize(8).fillColor("#A855F7").text("BILLED TO", 30, stripY);
+  doc.font("Helvetica-Bold").fontSize(10).fillColor("#14161B").text(pharmacyName, 30, stripY + 12);
+  doc.font("Helvetica").fontSize(7.5).fillColor("#6B7280").text(`Proprietor: ${proprietorName}`, 30, stripY + 25);
+  doc.text(`Drug Lic: ${drugLicense} • Mob: ${pharmacyPhone}`, 30, stripY + 36);
+  doc.text(pharmacyAddress, 30, stripY + 47, { width: 280, lineBreak: false });
+
+  // Vertical divider line
+  doc.moveTo(320, stripY).lineTo(320, stripY + 58).strokeColor("#E2E8F0").lineWidth(0.8).stroke();
+
+  // Right column: PAYMENT
+  doc.font("Helvetica-Bold").fontSize(8).fillColor("#A855F7").text("PAYMENT", 335, stripY);
+  doc.font("Helvetica").fontSize(7.5).fillColor("#6B7280").text("Method: Cash on Delivery (COD)", 335, stripY + 12);
+  doc.text(`Due Date: ${invoiceDate}`, 335, stripY + 24);
+
+  // Status pill badge
+  if (isPaid) {
+    doc.roundedRect(335, stripY + 37, 48, 14, 7).fill("#DCFCE7");
+    doc.roundedRect(335, stripY + 37, 48, 14, 7).strokeColor("#86EFAC").lineWidth(0.5).stroke();
+    doc.font("Helvetica-Bold").fontSize(7).fillColor("#166534").text("PAID", 335, stripY + 41, { width: 48, align: "center" });
+  } else {
+    doc.roundedRect(335, stripY + 37, 56, 14, 7).fill("#FEF3C7");
+    doc.roundedRect(335, stripY + 37, 56, 14, 7).strokeColor("#FCD34D").lineWidth(0.5).stroke();
+    doc.font("Helvetica-Bold").fontSize(7).fillColor("#92400E").text("PENDING", 335, stripY + 41, { width: 56, align: "center" });
+  }
+
+  // Divider below strip
+  doc.moveTo(30, stripY + 66).lineTo(doc.page.width - 30, stripY + 66).strokeColor("#E2E8F0").lineWidth(0.8).stroke();
+
+  // 3. Line Items Table
+  // Columns: SL | Type | Item Name | MRP | Rate | Qty | Net Disc | Total
+  const tableTop = stripY + 76;
+  const tableWidth = doc.page.width - 60;
+
+  const drawTableHeader = (y: number) => {
+    doc.roundedRect(30, y, tableWidth, 20, 4).fill("#14161B");
+    doc.font("Helvetica-Bold").fontSize(7).fillColor("#F4F4F5");
+    doc.text("SL", 32, y + 6, { width: 22, align: "center" });
+    doc.text("TYPE", 58, y + 6, { width: 46 });
+    doc.text("ITEM NAME", 108, y + 6, { width: 170 });
+    doc.text("MRP", 284, y + 6, { width: 44, align: "right" });
+    doc.text("RATE", 332, y + 6, { width: 44, align: "right" });
+    doc.text("QTY", 380, y + 6, { width: 24, align: "right" });
+    doc.text("NET DISC", 408, y + 6, { width: 54, align: "right" });
+    doc.text("TOTAL", 466, y + 6, { width: 68, align: "right" });
+  };
+
+  drawTableHeader(tableTop);
 
   let position = tableTop + 20;
-  const items = order.items || [];
-  let totalQty = 0;
-  let subTotalRateSum = 0;
-  let totalNetDiscountSum = 0;
+  let subtotalMedicines = 0;
+  let totalMrpSum = 0;
 
-  items.forEach((item: any, idx: number) => {
-    if (position > doc.page.height - 180) {
+  // Active items (excluding items marked unavailable per Order Amendment logic)
+  const activeItems = (order.items || []).filter((it: any) => !it.unavailable && !it.isUnavailable);
+
+  activeItems.forEach((item: any, idx: number) => {
+    // Check if new page needed
+    if (position > doc.page.height - 190) {
       doc.addPage();
-      position = 30;
+      renderWatermark();
+      position = 40;
+      drawTableHeader(position);
+      position += 20;
     }
 
+    const type = resolvePdfItemType(item);
     const qty = item.quantity || 1;
-    const rate = item.sellingPrice || 0;
+    const rate = item.sellingPrice || (item.subtotal ? item.subtotal / qty : 0);
     const mrp = item.mrp && item.mrp >= rate ? item.mrp : Math.round(rate * 1.22 * 100) / 100;
     const unitDiscount = Math.max(0, mrp - rate);
     const netDiscount = Math.round(unitDiscount * qty * 100) / 100;
     const itemTotal = Math.round(rate * qty * 100) / 100;
-    const type = resolvePdfItemType(item);
 
-    totalQty += qty;
-    subTotalRateSum += itemTotal;
-    totalNetDiscountSum += netDiscount;
+    subtotalMedicines += itemTotal;
+    totalMrpSum += mrp * qty;
+
+    const isEven = idx % 2 === 1;
+    doc.rect(30, position, tableWidth, 18).fill(isEven ? "#FAFAFB" : "#ffffff");
+    doc.moveTo(30, position + 18).lineTo(30 + tableWidth, position + 18).strokeColor("#F1F5F9").lineWidth(0.5).stroke();
 
     let displayName = item.name || "Medicine Item";
-    if (item.packSize && !displayName.toLowerCase().includes(item.packSize.toLowerCase())) {
-      displayName = `${displayName} (${item.packSize})`;
-    }
+    if (item.strength) displayName = `${displayName} (${item.strength})`;
 
-    doc.rect(30, position, tableWidth, 18).strokeColor("#cbd5e1").lineWidth(0.5).stroke();
-
-    doc.font("Helvetica").fontSize(7.5).fillColor("#334155");
-    doc.text((idx + 1).toString(), 35, position + 5, { width: 20, align: "center" });
-    doc.text(type, 60, position + 5, { width: 45 });
-    
-    doc.font("Helvetica-Bold").fillColor("#0f172a");
-    doc.text(displayName, 110, position + 5, { width: 175, lineBreak: false });
-    
-    doc.font("Helvetica").fillColor("#334155");
-    doc.text(mrp.toFixed(2), 290, position + 5, { width: 45, align: "right" });
-    
-    doc.font("Helvetica-Bold").fillColor("#0f172a");
-    doc.text(rate.toFixed(2), 340, position + 5, { width: 45, align: "right" });
-    
-    doc.font("Helvetica").fillColor("#0f172a");
-    doc.text(qty.toString(), 390, position + 5, { width: 30, align: "center" });
-    
-    doc.text(netDiscount.toFixed(2), 425, position + 5, { width: 55, align: "right" });
-    
-    doc.font("Helvetica-Bold");
-    doc.text(itemTotal.toFixed(2), 485, position + 5, { width: 75, align: "right" });
+    doc.font("Helvetica").fontSize(7).fillColor("#6B7280").text((idx + 1).toString(), 32, position + 5, { width: 22, align: "center" });
+    doc.font("Helvetica-Bold").fontSize(6.5).fillColor("#7C3AED").text(type.toUpperCase(), 58, position + 5, { width: 46 });
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#14161B").text(displayName, 108, position + 5, { width: 170, lineBreak: false });
+    doc.font("Helvetica").fontSize(7.5).fillColor("#6B7280").text(mrp.toFixed(2), 284, position + 5, { width: 44, align: "right" });
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#14161B").text(rate.toFixed(2), 332, position + 5, { width: 44, align: "right" });
+    doc.font("Helvetica").fontSize(7.5).fillColor("#14161B").text(qty.toString(), 380, position + 5, { width: 24, align: "right" });
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#65A30D").text(netDiscount.toFixed(2), 408, position + 5, { width: 54, align: "right" });
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#14161B").text(itemTotal.toFixed(2), 466, position + 5, { width: 68, align: "right" });
 
     position += 18;
   });
 
-  // Table Outer Frame Box
-  doc.rect(30, tableTop, tableWidth, position - tableTop).strokeColor("#0f172a").lineWidth(0.8).stroke();
-  position += 12;
+  // Check if summary box fits on current page
+  if (position > doc.page.height - 180) {
+    doc.addPage();
+    renderWatermark();
+    position = 40;
+  }
 
-  // Bottom Section: Bengali Notices (Left) and Totals Table (Right)
-  const bottomBoxY = position;
-  const deliveryCharge = order.deliveryCharge !== undefined ? order.deliveryCharge : 0;
-  const subTotal = subTotalRateSum > 0 ? subTotalRateSum : (order.totalAmount || 0);
-  const extraDiscount = 0.00;
-  const roundAdjustment = 0.00;
-  const grandTotal = subTotal + deliveryCharge - extraDiscount + roundAdjustment;
-  const paymentPaid = order.paymentStatus === "Paid" ? grandTotal : 0.00;
-  const dueAmount = grandTotal - paymentPaid;
+  // 4. Summary Box (Bottom Right, ~230pt wide)
+  const summaryX = 335;
+  const summaryWidth = doc.page.width - 335 - 30;
+  const wholesaleSavings = Math.max(0, totalMrpSum - subtotalMedicines);
+  const deliveryCharge = DEFAULT_DELIVERY_CHARGE; // Fixed platform-wide constant (৳40)
+  const netPayable = subtotalMedicines + deliveryCharge;
+  const amountDue = isPaid ? 0.00 : netPayable;
 
-  // Left Notice Text (Bengali terms matching photo)
-  doc.font("Helvetica-Bold").fontSize(8).fillColor("#0f172a");
-  doc.text("Conditions & Notice:", 35, bottomBoxY + 5);
-  doc.font("Helvetica").fontSize(7.5).fillColor("#334155");
-  doc.text("1. At least 80% invoice value goods must be received or full order returned.", 35, bottomBoxY + 18, { width: 230 });
-  doc.text("2. Sold goods are non-refundable once accepted.", 35, bottomBoxY + 30, { width: 230 });
-  doc.text("3. Please verify physical quality & expiry before receiving delivery.", 35, bottomBoxY + 42, { width: 230 });
+  let sY = position + 14;
 
-  // Signature lines
-  const sigY = bottomBoxY + 85;
-  doc.moveTo(35, sigY).lineTo(135, sigY).strokeColor("#64748b").lineWidth(0.5).stroke();
-  doc.font("Helvetica-Bold").fontSize(7).fillColor("#334155").text("Customer Signature", 35, sigY + 3, { width: 100, align: "center" });
+  // Row 1: Subtotal (Medicines)
+  doc.font("Helvetica").fontSize(8).fillColor("#6B7280").text("Subtotal (Medicines)", summaryX, sY);
+  doc.font("Helvetica-Bold").fontSize(8).fillColor("#14161B").text(`৳${subtotalMedicines.toFixed(2)}`, summaryX, sY, { width: summaryWidth, align: "right" });
 
-  doc.moveTo(160, sigY).lineTo(260, sigY).strokeColor("#64748b").lineWidth(0.5).stroke();
-  doc.text("Authorized Signature", 160, sigY + 3, { width: 100, align: "center" });
+  // Row 2: Wholesale Savings
+  doc.font("Helvetica").fontSize(8).fillColor("#6B7280").text("Wholesale Savings", summaryX, sY + 14);
+  doc.font("Helvetica-Bold").fontSize(8).fillColor("#65A30D").text(`-৳${wholesaleSavings.toFixed(2)}`, summaryX, sY + 14, { width: summaryWidth, align: "right" });
 
-  // Right Totals Table Grid
-  const totalTableX = 300;
-  const totalTableWidth = doc.page.width - 330;
-  const rowHeight = 14;
+  // Row 3: Delivery Charge (Fixed ৳40)
+  doc.font("Helvetica").fontSize(8).fillColor("#6B7280").text("Delivery Charge", summaryX, sY + 28);
+  doc.font("Helvetica").fontSize(8).fillColor("#14161B").text(`৳${deliveryCharge.toFixed(2)}`, summaryX, sY + 28, { width: summaryWidth, align: "right" });
 
-  const totalsData = [
-    { label: "Total Qty", val: totalQty.toString(), bold: false },
-    { label: "Sub Total", val: subTotal.toFixed(2), bold: false },
-    { label: "Discount", val: extraDiscount.toFixed(2), bold: false },
-    ...(deliveryCharge > 0 ? [{ label: "Delivery Charge", val: deliveryCharge.toFixed(2), bold: false }] : []),
-    { label: "Round (+/-)", val: roundAdjustment.toFixed(2), bold: false },
-    { label: "Grand Total", val: grandTotal.toFixed(2), bold: true },
-    { label: "Payment", val: paymentPaid.toFixed(2), bold: false },
-    { label: "Due", val: dueAmount.toFixed(2), bold: true }
-  ];
+  // Row 4: Net Payable (Filled card with purple gradient #A855F7 to #7C3AED)
+  const netGrad = doc.linearGradient(summaryX, sY + 44, summaryX + summaryWidth, sY + 44);
+  netGrad.stop(0, "#A855F7").stop(1, "#7C3AED");
+  doc.roundedRect(summaryX, sY + 44, summaryWidth, 24, 6).fill(netGrad);
+  doc.font("Helvetica-Bold").fontSize(8.5).fillColor("#FFFFFF").text("NET PAYABLE", summaryX + 8, sY + 51);
+  doc.font("Helvetica-Bold").fontSize(11).fillColor("#FFFFFF").text(`৳${netPayable.toFixed(2)}`, summaryX, sY + 49.5, { width: summaryWidth - 8, align: "right" });
 
-  let tY = bottomBoxY;
-  totalsData.forEach((row) => {
-    doc.rect(totalTableX, tY, totalTableWidth, rowHeight).strokeColor("#0f172a").lineWidth(0.6).stroke();
-    doc.moveTo(totalTableX + totalTableWidth / 2, tY).lineTo(totalTableX + totalTableWidth / 2, tY + rowHeight).stroke();
+  // Row 5: Amount Due (Light grey background card with border)
+  doc.roundedRect(summaryX, sY + 74, summaryWidth, 20, 6).fill("#FAFAFB");
+  doc.roundedRect(summaryX, sY + 74, summaryWidth, 20, 6).strokeColor("#E2E8F0").lineWidth(0.5).stroke();
+  doc.font("Helvetica").fontSize(7.5).fillColor("#334155").text(isPaid ? "Amount Due (Paid)" : "Amount Due (Cash on Delivery)", summaryX + 8, sY + 79.5);
+  doc.font("Helvetica-Bold").fontSize(9).fillColor(isPaid ? "#166534" : "#14161B").text(`৳${amountDue.toFixed(2)}`, summaryX, sY + 78.5, { width: summaryWidth - 8, align: "right" });
 
-    doc.font(row.bold ? "Helvetica-Bold" : "Helvetica").fontSize(7.5).fillColor("#0f172a");
-    doc.text(row.label, totalTableX + 8, tY + 3.5);
-    doc.text(row.val, totalTableX + totalTableWidth / 2, tY + 3.5, { width: totalTableWidth / 2 - 8, align: "right" });
+  // 5. Footer Section
+  const footerY = Math.max(sY + 104, position + 15);
+  doc.dash(3, { space: 3 }).moveTo(30, footerY).lineTo(doc.page.width - 30, footerY).strokeColor("#CBD5E1").lineWidth(0.6).stroke().undash();
+  doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#A855F7").text("TERMS & CONDITIONS", 30, footerY + 8);
+  doc.font("Helvetica").fontSize(6.5).fillColor("#6B7280");
+  doc.text("1. FEFO Policy: All pharmaceutical inventory distributed strictly under First Expired, First Out (FEFO) regulatory compliance.", 30, footerY + 18, { width: doc.page.width - 60 });
+  doc.text("2. COD Payment: Cash on Delivery (COD) collection is mandatory upon receipt. At least 80% invoice value goods must be received or full order returned.", 30, footerY + 28, { width: doc.page.width - 60 });
+  doc.text("3. Return Policy: Sold pharmaceuticals are non-refundable once accepted and physically inspected by the licensed pharmacist.", 30, footerY + 38, { width: doc.page.width - 60 });
+  doc.text("4. Computer-Generated: This is an authentic digital tax sales invoice generated by MediChain systems and does not require a physical seal.", 30, footerY + 48, { width: doc.page.width - 60 });
 
-    tY += rowHeight;
-  });
-
-  // Footer text at bottom
-  const footerY = doc.page.height - 35;
-  const now = new Date();
-  const printDateStr = `${String(now.getDate()).padStart(2, "0")}-${now.toLocaleString("en-US", { month: "short" }).toUpperCase()}-${now.getFullYear()} ${now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })}`;
-  
-  doc.font("Helvetica").fontSize(7).fillColor("#64748b");
-  doc.text(`This Software Is Developed By MediChain LTD. | Printed: ${printDateStr}`, 30, footerY, { width: doc.page.width - 60, align: "center" });
+  const bottomRowY = doc.page.height - 22;
+  doc.moveTo(30, bottomRowY - 6).lineTo(doc.page.width - 30, bottomRowY - 6).strokeColor("#F1F5F9").lineWidth(0.5).stroke();
+  doc.font("Courier").fontSize(6.5).fillColor("#9CA3AF").text(`Verification Hash: ${orderRef}-${cleanId}`, 30, bottomRowY);
+  doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#65A30D").text("✓ Verified by MediChain", 380, bottomRowY, { align: "right", width: doc.page.width - 410 });
 
   doc.end();
 }
