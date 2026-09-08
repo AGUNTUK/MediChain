@@ -1777,6 +1777,7 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - Removed obsolete root scratch test scripts: `test-pharmacy-db.js` and `test-physicians-upload.js`.
   - Resolved git case-collision by removing redundant lower-case `skills.md` while safely preserving authoritative `SKILLS.md`.
   - Purged 22 local temporary analysis/dump scripts in `scratch/`.
+  - Purged 22 transient migration screenshot files from `public/ACI Limited/`.
   - Hardened `.gitignore` against recurring dumps and debug logs: `*.dump`, `dump.json`, `output.txt`, `*.tsbuildinfo`, `.eslintcache`, `npm-debug.log*`, `yarn-debug.log*`, `yarn-error.log*`.
 - **VERIFICATION:**
   - `npm run lint` (`tsc --noEmit`): 0 errors, 100% clean type check.
