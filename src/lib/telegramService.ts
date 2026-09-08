@@ -14,6 +14,13 @@ export interface TelegramSendResult {
   error?: string;
 }
 
+export interface PhysiciansProductRequestDetails {
+  pharmacyName: string;
+  phone: string;
+  address: string;
+  files: Express.Multer.File[];
+}
+
 /**
  * Escapes characters with special meaning in Telegram's legacy Markdown mode
  */
@@ -166,3 +173,92 @@ export async function sendOrderAlert(orderDetails: OrderAlertDetails): Promise<T
 
   return { success: false, attempts, error: "Exceeded retry attempts" };
 }
+
+/**
+ * Sends a Physicians Product request to Telegram, with one or multiple files.
+ */
+export async function sendPhysiciansProductRequest(details: PhysiciansProductRequestDetails): Promise<TelegramSendResult> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
+  const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID?.trim();
+
+  if (!botToken || !chatId) {
+    return { success: false, attempts: 0, error: "Telegram credentials missing" };
+  }
+
+  const { pharmacyName, phone, address, files } = details;
+
+  const caption = [
+    `🩺 *New Physicians Product Request*`,
+    `🏥 ${escapeTelegramMarkdown(pharmacyName)}`,
+    `📍 ${escapeTelegramMarkdown(address)}`,
+    `📞 ${escapeTelegramMarkdown(phone)}`
+  ].join("\n");
+
+  let endpoint = "";
+  const formData = new FormData();
+  formData.append("chat_id", chatId);
+
+  if (files.length === 1) {
+    const file = files[0];
+    const isImage = file.mimetype.startsWith("image/");
+    endpoint = `https://api.telegram.org/bot${botToken}/${isImage ? "sendPhoto" : "sendDocument"}`;
+    
+    const fileBlob = new Blob([file.buffer], { type: file.mimetype });
+    formData.append(isImage ? "photo" : "document", fileBlob, file.originalname);
+    formData.append("caption", caption);
+    formData.append("parse_mode", "Markdown");
+  } else {
+    endpoint = `https://api.telegram.org/bot${botToken}/sendMediaGroup`;
+    
+    const mediaGroup: any[] = [];
+    files.forEach((file, index) => {
+      const fieldName = `file${index}`;
+      const fileBlob = new Blob([file.buffer], { type: file.mimetype });
+      formData.append(fieldName, fileBlob, file.originalname);
+      
+      const mediaItem: any = {
+        type: file.mimetype.startsWith("image/") ? "photo" : "document",
+        media: `attach://${fieldName}`,
+      };
+      
+      if (index === 0) {
+        mediaItem.caption = caption;
+        mediaItem.parse_mode = "Markdown";
+      }
+      
+      mediaGroup.push(mediaItem);
+    });
+    
+    formData.append("media", JSON.stringify(mediaGroup));
+  }
+
+  console.log(`[Telegram] Sending Physicians Product request for ${pharmacyName} (${files.length} files)...`);
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      body: formData
+    });
+
+    if (response.ok) {
+      console.log(`[Telegram] Physicians Product request sent successfully`);
+      return { success: true, attempts: 1 };
+    }
+
+    const status = response.status;
+    let errorDetail = "";
+    try {
+      const errorJson: any = await response.json();
+      errorDetail = errorJson.description || JSON.stringify(errorJson);
+    } catch {
+      errorDetail = await response.text().catch(() => `HTTP ${status}`);
+    }
+
+    console.error(`[Telegram] Send failed with HTTP ${status}: ${errorDetail}`);
+    return { success: false, attempts: 1, error: `Telegram error (${status}): ${errorDetail}` };
+  } catch (error: any) {
+    console.error(`[Telegram] Network error sending Physicians Product request: ${error?.message || error}`);
+    return { success: false, attempts: 1, error: error?.message || "Network error" };
+  }
+}
+

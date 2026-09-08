@@ -28,8 +28,9 @@ const PharmacyPendingScreen = lazy(() => import("./components/PharmacyPendingScr
 const DepotDashboard = lazy(() => import("./components/DepotDashboard"));
 const DeliveryDashboard = lazy(() => import("./components/DeliveryDashboard"));
 const BulkDealsLanding = lazy(() => import("./components/BulkDealsLanding"));
-const LegalPolicyModal = lazy(() => import("./components/LegalPolicyModal"));
+import LegalPolicyModal from "./components/LegalPolicyModal";
 import type { LegalPolicyTab } from "./components/LegalPolicyModal";
+import PhysiciansProductSheet from "./components/PhysiciansProductSheet";
 
 const LoadingScreen = () => (
   <div className="flex flex-col items-center justify-center min-h-[300px] h-full w-full bg-slate-50 p-6">
@@ -84,6 +85,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<"home" | "search" | "history" | "account">("home");
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
   const [activeBulkCampaignId, setActiveBulkCampaignId] = useState<string | undefined>();
+  const [showPhysiciansProductSheet, setShowPhysiciansProductSheet] = useState(false);
 
   // Core Data State
   const [pharmacy, setPharmacy] = useState<Pharmacy | null>(() => {
@@ -761,36 +763,62 @@ export default function App() {
 
           <PWAInstallPrompt />
 
+          {/* Physicians Product Sheet */}
+          {showPhysiciansProductSheet && (
+            <PhysiciansProductSheet onClose={() => setShowPhysiciansProductSheet(false)} />
+          )}
+
           {/* Bottom persistent Nav Bar */}
           {appStep === "main" && (
-            <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200 shadow-lg px-4 sm:px-8 lg:px-12 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] flex items-center justify-between lg:max-w-7xl lg:left-1/2 lg:-translate-x-1/2">
+            <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.1)] px-2 sm:px-6 lg:px-12 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] flex items-center justify-between lg:max-w-7xl lg:left-1/2 lg:-translate-x-1/2">
+              {/* Home */}
               <button
                 onClick={() => setActiveTab("home")}
-                className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
+                className={`flex flex-col items-center gap-1 cursor-pointer transition-all flex-1 ${
                   activeTab === "home" ? "text-brand-purple scale-105" : "text-slate-400 hover:text-slate-600"
                 }`}
               >
                 <HomeIcon className="w-5.5 h-5.5" />
-                <span className="text-xs font-black">হোম</span>
+                <span className="text-[10px] sm:text-xs font-black">হোম</span>
               </button>
 
+              {/* Search */}
               <button
                 onClick={() => setActiveTab("search")}
-                className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
+                className={`flex flex-col items-center gap-1 cursor-pointer transition-all flex-1 ${
                   activeTab === "search" ? "text-brand-purple scale-105" : "text-slate-400 hover:text-slate-600"
                 }`}
               >
                 <PackageIcon className="w-5.5 h-5.5" />
-                <span className="text-xs font-black">ওষুধ খুঁজুন</span>
+                <span className="text-[10px] sm:text-xs font-black">ওষুধ খুঁজুন</span>
               </button>
 
-              {/* Center Prominent Cart Action Button */}
+              {/* Center Floating Action Button (Physicians Product) */}
+              <div className="relative flex-1 flex justify-center h-full">
+                <div className="absolute -top-7 sm:-top-8 flex justify-center">
+                  <div className="relative">
+                    {/* Fake cutout shadow/curve effect */}
+                    <div className="absolute inset-0 bg-white rounded-full shadow-[0_-5px_10px_-5px_rgba(0,0,0,0.1)] scale-110"></div>
+                    <button
+                      onClick={() => setShowPhysiciansProductSheet(true)}
+                      className="relative z-10 w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-tr from-brand-purple to-brand-lime text-white shadow-lg flex flex-col items-center justify-center transform transition-transform hover:scale-105 active:scale-95"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 sm:w-7 sm:h-7 mb-0.5">
+                        <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
+                        <circle cx="12" cy="13" r="3"></circle>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cart */}
               <button
                 onClick={() => {
                   refreshCartCounter();
                   setIsCartDrawerOpen(true);
                 }}
-                className="flex flex-col items-center gap-1 cursor-pointer transition-all relative text-slate-400 hover:text-brand-purple group"
+                className="flex flex-col items-center gap-1 cursor-pointer transition-all relative text-slate-400 hover:text-brand-purple group flex-1"
                 title="কার্ট দেখুন"
               >
                 <div className="relative p-1 rounded-xl group-hover:bg-brand-purple/10 transition-colors">
@@ -801,27 +829,29 @@ export default function App() {
                     </span>
                   )}
                 </div>
-                <span className="text-xs font-black text-slate-600 group-hover:text-brand-purple">কার্ট</span>
+                <span className="text-[10px] sm:text-xs font-black text-slate-600 group-hover:text-brand-purple">কার্ট</span>
               </button>
-              
+
+              {/* Orders */}
               <button
                 onClick={() => setActiveTab("history")}
-                className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
+                className={`flex flex-col items-center gap-1 cursor-pointer transition-all flex-1 ${
                   activeTab === "history" ? "text-brand-purple scale-105" : "text-slate-400 hover:text-slate-600"
                 }`}
               >
                 <ListIcon className="w-5.5 h-5.5" />
-                <span className="text-xs font-black">অর্ডারসমূহ</span>
+                <span className="text-[10px] sm:text-xs font-black">অর্ডারসমূহ</span>
               </button>
 
+              {/* Account */}
               <button
                 onClick={() => setActiveTab("account")}
-                className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
+                className={`flex flex-col items-center gap-1 cursor-pointer transition-all flex-1 ${
                   activeTab === "account" ? "text-brand-purple scale-105" : "text-slate-400 hover:text-slate-600"
                 }`}
               >
                 <UserIcon className="w-5.5 h-5.5" />
-                <span className="text-xs font-black">প্রোফাইল</span>
+                <span className="text-[10px] sm:text-xs font-black">প্রোফাইল</span>
               </button>
             </div>
           )}

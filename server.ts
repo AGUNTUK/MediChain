@@ -32,7 +32,7 @@ import { LRUCache } from "./src/lib/lruCache.js";
 import { DEFAULT_CATEGORY_OPTIONS } from "./src/constants/categories.js";
 import { scanSmartOrderImage, formatFriendlyErrorMessage } from "./src/lib/smartOrderOCR.js";
 import { matchSmartOrderItems } from "./src/lib/productMatcher.js";
-import { sendOrderAlert, logTelegramConfigStatus } from "./src/lib/telegramService.js";
+import { sendOrderAlert, logTelegramConfigStatus, sendPhysiciansProductRequest } from "./src/lib/telegramService.js";
 import cron from "node-cron";
 import multer from "multer";
 
@@ -1289,6 +1289,49 @@ app.get("/api/notifications/vapid-public-key", (req, res) => {
     res.status(500).json({ error: err.message || "Failed to retrieve VAPID public key." });
   }
 });
+
+// === Physicians Product Quick Request ===
+app.post(
+  "/api/physicians-product-request",
+  requireAuth,
+  uploadMiddleware.array("files", 10),
+  async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const files = req.files as Express.Multer.File[];
+      
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: "No files provided" });
+      }
+
+      const { data: pharmacy, error: pharmError } = await supabaseAdmin
+        .from("pharmacies")
+        .select("name, phone, address")
+        .eq("owner_id", user.id)
+        .single();
+
+      if (pharmError || !pharmacy) {
+        return res.status(404).json({ error: "Pharmacy not found" });
+      }
+
+      const result = await sendPhysiciansProductRequest({
+        pharmacyName: pharmacy.name,
+        phone: pharmacy.phone || user.email || "Unknown",
+        address: pharmacy.address || "Unknown",
+        files: files
+      });
+
+      if (!result.success) {
+        return res.status(500).json({ error: result.error || "Failed to send request" });
+      }
+
+      res.json({ success: true, message: "Request sent to Telegram" });
+    } catch (err: any) {
+      fs.writeFileSync("err.txt", err.stack); log.error(`[System] Physicians Product Request error: ${err.message}`);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
 
 app.post("/api/notifications/push-subscribe", requireAuth, async (req, res) => {
   try {
