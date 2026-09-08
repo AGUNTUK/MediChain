@@ -1729,6 +1729,18 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `tsc --noEmit` verified with 0 errors.
   - Production build verified with `npm run build`.
 
+
+### Task 74: Physicians Product Quick-Request FAB & Telegram Upload Flow
+- **Status:** Completed
+- **Scope:** Implemented a new floating action button (FAB) in the center of the bottom navigation bar and a multi-file upload sheet that sends directly to a Telegram bot admin channel.
+- **Key Actions:**
+  - **Elevated Waterdrop Navigation:** Redesigned the primary bottom navigation bar in `App.tsx` to include 5 distinct touch targets. The center target is the new floating action button (FAB) styled with the MediChain purple-to-lime gradient and an elegant camera icon. A subtle `scale-110` layered shadow creates the optical illusion of a "waterdrop" notch carved out of the navigation bar.
+  - **Physicians Product Bottom Sheet (`PhysiciansProductSheet.tsx`):** Tapping the FAB opens a smooth, animated bottom sheet labeled **Physicians Product (ফিজিসিয়ানস্ প্রোডাক্ট)**. It includes the required informational banner detailing the 25–55% discount expectations and review process.
+  - **Multi-File Interactions:** Implemented two distinct intake actions: Take Photo (triggering device cameras via `capture="environment"`) and Upload File. Both allow multi-file selection.
+  - **Thumbnail Gallery:** Selected files are instantly displayed in a horizontal scrolling thumbnail gallery with an interactive removal toggle.
+  - **Direct-to-Telegram Networking:** The "Send to Place Order" button bridges directly to the `/api/physicians-product-request` backend using standard `multipart/form-data`, ensuring zero data is persisted in Supabase or Supabase Storage, and handles success/error retry states locally.
+  - **Backend API & Fixes (`server.ts` & `telegramService.ts`):** Built the API route with `multer` upload middleware. Fixed identity lookup mapping the authenticated user to `pharmacy_name` correctly in the database. Added defensive `content-type` checking in the frontend to handle potential 413 Payload Too Large HTML responses from reverse proxies gracefully.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).
