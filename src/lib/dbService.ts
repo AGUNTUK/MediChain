@@ -1930,6 +1930,7 @@ export async function getOrders(pharmacyId?: string, page = 1, limit = 100): Pro
           name,
           generic_name,
           company,
+          category_name_fallback,
           strength,
           pack_size,
           mrp
@@ -1986,6 +1987,7 @@ export async function getOrders(pharmacyId?: string, page = 1, limit = 100): Pro
           name: prod.name || itm.name || "Medicine Item",
           genericName: prod.generic_name || itm.generic_name || "",
           company: prod.company || itm.company || "MediChain Partner",
+          category: prod.category_name_fallback || itm.category || "",
           strength: prod.strength || itm.strength || "—",
           packSize: prod.pack_size || itm.pack_size || "100 Tablets",
           quantity: itm.quantity,
@@ -2075,7 +2077,7 @@ export async function getOrderAmendments(orderId: string): Promise<OrderAmendmen
 }
 
 export async function getOrderById(orderId: string): Promise<Order | null> {
-  const { data, error } = await supabaseAdmin
+  let { data, error } = await supabaseAdmin
     .from("orders")
     .select(`
       *,
@@ -2085,7 +2087,7 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
           name,
           generic_name,
           company,
-          category,
+          category_name_fallback,
           strength,
           pack_size,
           mrp
@@ -2104,8 +2106,32 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
     .maybeSingle();
 
   if (error || !data) {
-    if (error) console.error("Error retrieving order by id from database:", error);
-    return null;
+    if (error) console.warn(`[getOrderById] Relational join failed for order ${orderId}: ${error.message}. Attempting resilient direct query fallback...`);
+    
+    // Resilient fallback query: fetch order directly, then order_items and products
+    const { data: fallbackOrder, error: fallbackOrderErr } = await supabaseAdmin
+      .from("orders")
+      .select("*")
+      .eq("id", orderId)
+      .maybeSingle();
+
+    if (fallbackOrderErr || !fallbackOrder) {
+      console.error(`[getOrderById] Order ${orderId} not found in fallback query:`, fallbackOrderErr);
+      return null;
+    }
+
+    // Fetch items with product fallback
+    const { data: fallbackItems } = await supabaseAdmin
+      .from("order_items")
+      .select("*, products(*)")
+      .eq("order_id", orderId);
+
+    const fallbackData = {
+      ...fallbackOrder,
+      order_items: fallbackItems || [],
+      pharmacies: null
+    };
+    data = fallbackData;
   }
 
   let readableId = data.order_number || `MCH-${data.id.substring(0, 5).toUpperCase()}`;
@@ -2136,7 +2162,7 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
       name: prod.name || itm.name || "Medicine Item",
       genericName: prod.generic_name || itm.generic_name || "",
       company: prod.company || itm.company || "MediChain Partner",
-      category: prod.category || itm.category || "",
+      category: prod.category_name_fallback || itm.category || "",
       strength: prod.strength || itm.strength || "—",
       packSize: prod.pack_size || itm.pack_size || "100 Tablets",
       quantity: itm.quantity,
@@ -2266,9 +2292,11 @@ export async function amendOrderLineItem(
 
   // 3. Recalculate remaining items
   const remainingItems = order.items.filter(i => i.productId !== productId);
-  const newTotalAmount = remainingItems.reduce((acc, itm) => acc + (itm.subtotal || (itm.sellingPrice * itm.quantity)), 0);
+  const newItemsSubtotal = remainingItems.reduce((acc, itm) => acc + (itm.subtotal || (itm.sellingPrice * itm.quantity)), 0);
+  const deliveryFee = order.deliveryCharge !== undefined ? order.deliveryCharge : 0;
+  const newTotalAmount = newItemsSubtotal + deliveryFee;
   const newTotalMrp = remainingItems.reduce((acc, itm) => acc + (itm.mrp * itm.quantity), 0);
-  const newTotalSavings = Math.max(0, newTotalMrp - newTotalAmount);
+  const newTotalSavings = Math.max(0, newTotalMrp - newItemsSubtotal);
 
   // 4. Update orders table
   try {

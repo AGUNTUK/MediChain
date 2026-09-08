@@ -1682,6 +1682,19 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `tsc --noEmit` verified with 0 errors.
   - Full production build compiles successfully.
 
+### Task 72: Mark Unavailable (Order Amendment) Query Column Fix
+- **Status:** Completed
+- **Problem:** When triggering "Mark Unavailable" in the Depot WMS or Admin Panel, the API threw `Order <orderId> not found.` error.
+- **Root Cause Analysis:** Supabase PostgREST query in `getOrderById` and `getOrders` attempted to select `category` from the `products` table (`products (..., category, ...)`). In the database schema, products uses `category_name_fallback` and `category_id`, not `category`. PostgreSQL returned error code `42703 (column products_2.category does not exist)`, causing `getOrderById` to return null.
+- **Key Actions:**
+  - Replaced `category` with `category_name_fallback` in `getOrderById` and `getOrders` nested `products` joins in `src/lib/dbService.ts`.
+  - Mapped `category: prod.category_name_fallback || itm.category || ""` across all order fetching functions.
+  - Preserved delivery charge (`deliveryCharge`) when recalculating amended order totals (`newTotalAmount = newItemsSubtotal + deliveryFee`).
+- **VERIFICATION:**
+  - Direct database query verified on live order `dc34b0c1-4c35-445f-9ac4-0f73159e4bfb` and product items with 0 SQL errors.
+  - `tsc --noEmit` verified with 0 errors.
+  - Full production build compiled successfully.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).
