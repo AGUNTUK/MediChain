@@ -98,11 +98,26 @@ export default function PhysiciansProductSheet({ onClose }: Props) {
           ) : (
             <>
               {/* Info Banner */}
-              <div className="bg-brand-purple/5 border border-brand-purple/10 rounded-xl p-4 mb-6">
+              <div className="bg-brand-purple/5 border border-brand-purple/10 rounded-xl p-4 mb-3">
                 <p className="text-sm text-slate-700 leading-relaxed">
                   <span className="font-bold text-brand-purple block mb-1">Pricing & Discounts: 25% - 55%</span>
                   Upload your physician's product list or prescription. Final pricing and availability will be confirmed by our team after review.
                 </p>
+              </div>
+
+              {/* SmartOrder Cross-Reference Notice */}
+              <div className="bg-amber-50/90 border border-amber-200/90 rounded-xl px-3.5 py-2.5 mb-5 flex items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center gap-2 text-xs text-amber-950 font-medium">
+                  <span className="text-base shrink-0">💡</span>
+                  <span>সাধারণ ক্যাটালগ প্রোডাক্টের জন্য <strong>'SmartOrder'</strong> ব্যবহার করুন</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-100/80 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0 border border-emerald-300"
+                >
+                  হোমে যান
+                </button>
               </div>
 
               {/* Action Buttons */}

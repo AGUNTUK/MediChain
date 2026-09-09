@@ -439,9 +439,9 @@ export default function Home({
               );
             })()}
 
-            {/* Smart Search Bar with Direct Voice & Camera Actions (Point 5) */}
+            {/* Smart Search Bar with Direct Voice Search */}
             <div className="space-y-1.5">
-              <div className="flex items-center bg-white border-2 border-slate-200/90 focus-within:border-brand-purple rounded-2xl px-3 py-2 shadow-xs transition-all gap-2">
+              <div className="flex items-center bg-white border-2 border-slate-200/90 focus-within:border-brand-purple rounded-2xl px-3.5 py-2 shadow-xs transition-all gap-2.5">
                 <Search className="text-slate-400 w-5 h-5 shrink-0" />
                 
                 <input
@@ -456,7 +456,8 @@ export default function Home({
                   <button
                     type="button"
                     onClick={() => setSearch("")}
-                    className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                    className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+                    title="মুছুন"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -467,24 +468,13 @@ export default function Home({
                   type="button"
                   onClick={handleVoiceSearch}
                   title="ভয়েস সার্চ (মুখে বলে খুঁজুন)"
-                  className={`p-1.5 rounded-xl transition-all flex items-center justify-center cursor-pointer ${
+                  className={`p-2 rounded-xl transition-all flex items-center justify-center cursor-pointer shrink-0 ${
                     isListening
                       ? "bg-rose-500 text-white animate-pulse shadow-md"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-brand-purple"
                   }`}
                 >
                   <Mic className="w-4 h-4" />
-                </button>
-
-                {/* Camera SmartOrder Scanner Button */}
-                <button
-                  type="button"
-                  onClick={() => setIsScannerOpen(true)}
-                  title="MediChain SmartOrder (Write it. Scan it. Cart it.)"
-                  className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-500/15 text-emerald-700 hover:bg-emerald-600 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer border border-emerald-500/20"
-                >
-                  <Camera className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">SmartOrder</span>
                 </button>
               </div>
 

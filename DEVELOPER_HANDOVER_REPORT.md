@@ -1870,6 +1870,20 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - Full production build (`npm run build`) succeeded cleanly.
   - Dev server restarted and verified live.
 
+### Task 80: Search Bar Shortcut De-duplication & Physicians Product Floating Button Differentiation
+- **Status:** Completed
+- **Scope & User Intent:**
+  - Remove duplicate Camera shortcut from the homepage search bar to eliminate user confusion with the primary "MediChain SmartOrder" banner.
+  - Retain the Voice Search (Mic) icon in the search bar, which is a fully functional Web Speech Recognition feature.
+  - Adjust search bar spacing/padding so the input naturally fills the container without an empty gap.
+  - Differentiate the center floating waterdrop action button for "Physicians Product":
+    - Replaced plain camera icon with a distinct icon incorporating an "Rx" badge and a prominent "ফিজিসিয়ানস্" label.
+    - Added one-time dismissible tooltip on first tap: "এটি বিশেষ 'ফিজিসিয়ানস্ প্রোডাক্ট' অর্ডারের জন্য — সরাসরি আমাদের টিমের কাছে পাঠানো হবে, ক্যাটালগ ম্যাচিং ছাড়াই" with dismiss and action buttons (saved in `localStorage`).
+    - In `PhysiciansProductSheet.tsx`, added guidance notice: "সাধারণ ক্যাটালগ প্রোডাক্টের জন্য 'SmartOrder' ব্যবহার করুন" with a direct home redirection button so pharmacies can instantly distinguish between catalog scanning and special manual-review orders.
+- **VERIFICATION:**
+  - `tsc --noEmit` passed with 0 errors.
+  - Full production build (`npm run build`) succeeded cleanly.
+
 
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.

@@ -9,7 +9,7 @@ import { PWAInstallPrompt } from "./pwa/PWAInstallPrompt";
 import { CartFeedbackProvider } from "./context/FlyToCartContext";
 import SafeBoundary from "./components/SafeBoundary";
 import { Product, Pharmacy, Order, Notification, User } from "./types";
-import { Home as HomeIcon, Search as SearchIcon, Package as PackageIcon, FileText as FileIcon, ClipboardList as ListIcon, User as UserIcon, Shield, Smartphone, ShoppingBag } from "lucide-react";
+import { Home as HomeIcon, Search as SearchIcon, Package as PackageIcon, FileText as FileIcon, ClipboardList as ListIcon, User as UserIcon, Shield, Smartphone, ShoppingBag, Camera, X } from "lucide-react";
 import { authService, productService, orderService, profileService, notificationService } from "./services";
 import { apiFetch } from "./lib/apiFetch";
 
@@ -86,6 +86,32 @@ export default function App() {
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
   const [activeBulkCampaignId, setActiveBulkCampaignId] = useState<string | undefined>();
   const [showPhysiciansProductSheet, setShowPhysiciansProductSheet] = useState(false);
+  const [showPhysiciansTooltip, setShowPhysiciansTooltip] = useState(false);
+
+  const handlePhysiciansActionClick = () => {
+    try {
+      const hasDismissed = localStorage.getItem("medichain_physicians_tooltip_seen");
+      if (!hasDismissed) {
+        setShowPhysiciansTooltip(true);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+    setShowPhysiciansProductSheet(true);
+  };
+
+  const handleDismissPhysiciansTooltip = (proceedToSheet: boolean = false) => {
+    try {
+      localStorage.setItem("medichain_physicians_tooltip_seen", "true");
+    } catch {
+      // ignore
+    }
+    setShowPhysiciansTooltip(false);
+    if (proceedToSheet) {
+      setShowPhysiciansProductSheet(true);
+    }
+  };
 
   // Core Data State
   const [pharmacy, setPharmacy] = useState<Pharmacy | null>(() => {
@@ -799,18 +825,61 @@ export default function App() {
 
               {/* Center Floating Action Button (Physicians Product) */}
               <div className="relative flex-1 flex justify-center h-full">
+                {/* One-time dismissible tooltip for Physicians Product */}
+                {showPhysiciansTooltip && (
+                  <div className="absolute bottom-20 sm:bottom-22 z-50 w-72 sm:w-80 bg-slate-900 text-white rounded-2xl p-3.5 shadow-2xl border border-slate-700 animate-fade-in pointer-events-auto">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-1.5 text-brand-lime text-xs font-black">
+                        <span className="px-1.5 py-0.5 bg-brand-lime/20 rounded-md border border-brand-lime/40 text-[10px]">
+                          Rx বিশেষ সার্ভিস
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDismissPhysiciansTooltip(false)}
+                        className="p-1 text-slate-400 hover:text-white rounded-full transition-colors cursor-pointer"
+                        title="বন্ধ করুন"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <p className="text-xs font-medium text-slate-200 mt-2 leading-relaxed">
+                      এটি বিশেষ 'ফিজিসিয়ানস্ প্রোডাক্ট' অর্ডারের জন্য — সরাসরি আমাদের টিমের কাছে পাঠানো হবে, ক্যাটালগ ম্যাচিং ছাড়াই
+                    </p>
+                    <div className="mt-3 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleDismissPhysiciansTooltip(true)}
+                        className="px-3 py-1.5 bg-gradient-to-r from-brand-purple to-purple-600 hover:opacity-90 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm shadow-purple-900/50 flex items-center gap-1"
+                      >
+                        <span>বুঝেছি, এগিয়ে যান</span>
+                        <span>→</span>
+                      </button>
+                    </div>
+                    {/* Arrow pointing down towards button */}
+                    <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 rotate-45 border-r border-b border-slate-700"></div>
+                  </div>
+                )}
+
                 <div className="absolute -top-7 sm:-top-8 flex justify-center">
                   <div className="relative">
                     {/* Fake cutout shadow/curve effect */}
                     <div className="absolute inset-0 bg-white rounded-full shadow-[0_-5px_10px_-5px_rgba(0,0,0,0.1)] scale-110"></div>
                     <button
-                      onClick={() => setShowPhysiciansProductSheet(true)}
-                      className="relative z-10 w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-tr from-brand-purple to-brand-lime text-white shadow-lg flex flex-col items-center justify-center transform transition-transform hover:scale-105 active:scale-95"
+                      type="button"
+                      onClick={handlePhysiciansActionClick}
+                      title="ফিজিসিয়ানস্ প্রোডাক্ট বিশেষ অর্ডার"
+                      className="relative z-10 w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-tr from-brand-purple via-indigo-600 to-brand-lime text-white shadow-lg flex flex-col items-center justify-center transform transition-transform hover:scale-105 active:scale-95 cursor-pointer group"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 sm:w-7 sm:h-7 mb-0.5">
-                        <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
-                        <circle cx="12" cy="13" r="3"></circle>
-                      </svg>
+                      <div className="relative flex items-center justify-center">
+                        <Camera className="w-5.5 h-5.5 sm:w-6 sm:h-6 text-white drop-shadow-xs" />
+                        <span className="absolute -top-1.5 -right-2 bg-brand-lime text-slate-950 text-[8px] font-black px-1 rounded-full border border-brand-purple shadow-xs">
+                          Rx
+                        </span>
+                      </div>
+                      <span className="text-[7.5px] sm:text-[8.5px] font-extrabold text-white tracking-tight -mt-0.5 leading-none">
+                        ফিজিসিয়ানস্
+                      </span>
                     </button>
                   </div>
                 </div>
