@@ -16,6 +16,7 @@ import {
   Trash2
 } from "lucide-react";
 import { Product } from "../types";
+import { CATEGORY_GROUPS } from "../constants/categories";
 
 interface ProductEditModalProps {
   product?: Product | null;
@@ -394,13 +395,15 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-3 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 cursor-pointer"
                 required
               >
-                <option value="Tablet">Tablet</option>
-                <option value="Capsule">Capsule</option>
-                <option value="Syrup">Syrup</option>
-                <option value="Injection">Injection</option>
-                <option value="Cream">Cream</option>
-                <option value="Supplement">Supplement</option>
-                <option value="Medical Device">Medical Device</option>
+                {CATEGORY_GROUPS.map((group) => (
+                  <optgroup key={group.groupName} label={`${group.groupName} (${group.groupNameBn})`}>
+                    {group.items.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label} ({item.labelBn})
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
             </div>
           </div>
