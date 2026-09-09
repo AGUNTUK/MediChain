@@ -174,7 +174,7 @@ export default function Home({
       // 3. Fetch Live Campaign (optional widget, non-blocking)
       try {
         const { bulkDealsService } = await import("../services");
-        const activeCampaign = await bulkDealsService.getLiveCampaign();
+        const activeCampaign = await bulkDealsService.getLiveCampaign(true);
         setLiveCampaign(activeCampaign);
       } catch (campaignErr) {
         console.warn("Could not load live bulk campaign:", campaignErr);
@@ -189,6 +189,29 @@ export default function Home({
 
   useEffect(() => {
     fetchHomeWidgets();
+
+    const handleCampaignUpdate = async () => {
+      try {
+        const { bulkDealsService } = await import("../services");
+        const activeCampaign = await bulkDealsService.getLiveCampaign(true);
+        setLiveCampaign(activeCampaign);
+      } catch (campaignErr) {
+        console.warn("Could not reload live campaign:", campaignErr);
+      }
+    };
+
+    window.addEventListener("bulk-campaign-updated", handleCampaignUpdate);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        handleCampaignUpdate();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("bulk-campaign-updated", handleCampaignUpdate);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, []);
 
   // Fetch Live Catalog products for Homepage

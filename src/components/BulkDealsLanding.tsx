@@ -211,17 +211,19 @@ export default function BulkDealsLanding({
                         </div>
                         <h3 className="font-bold text-slate-800 text-sm mt-1 truncate">{product.name}</h3>
                         <p className="text-[10px] text-slate-500 truncate">{product.genericName}</p>
-                        <p className="text-[9px] text-slate-400 mt-0.5">Base Wholesale: ৳{product.sellingPrice} / box</p>
+                        <p className="text-[9px] text-slate-400 mt-0.5">MRP: ৳{product.mrp} | Wholesale: ৳{product.sellingPrice} / box</p>
                       </div>
                     </div>
 
                     <div className="bg-slate-50 p-3 border-t border-slate-100 space-y-2 flex-1">
                       {/* Pricing Tiers Display */}
                       <div className="space-y-1.5">
-                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Bulk Pricing Tiers</p>
+                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Bulk Pricing Tiers (off MRP)</p>
                         {ascendingTiers.map((tier, idx) => {
                           const isActive = activeTier?.minQty === tier.minQty;
-                          const tierPrice = product.sellingPrice * (1 - (tier.discountPercent / 100));
+                          const mrpVal = Number(product.mrp) > 0 ? Number(product.mrp) : (Number(product.sellingPrice) || 0);
+                          // Volume bulk tiers are calculated directly from MRP (e.g. 500 - 73% = 135)
+                          const tierPrice = mrpVal * (1 - (tier.discountPercent / 100));
                           
                           return (
                             <div key={idx} className={`flex justify-between items-center text-xs p-1.5 rounded-lg border ${isActive ? 'bg-indigo-50 border-indigo-200 shadow-inner' : 'bg-white border-slate-200'}`}>
@@ -233,7 +235,7 @@ export default function BulkDealsLanding({
                                   ৳{tierPrice.toFixed(2)}
                                 </span>
                                 <span className="ml-1.5 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1 rounded">
-                                  {tier.discountPercent}% OFF
+                                  {tier.discountPercent}% OFF MRP
                                 </span>
                               </div>
                             </div>

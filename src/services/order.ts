@@ -59,11 +59,11 @@ export const orderService = {
   /**
    * Retrieves the current items, subtotal, and savings in the user's active shopping cart.
    */
-  async getCart(): Promise<{ items: any[]; totalAmount: number; totalSavings: number; totalMrp: number }> {
+  async getCart(): Promise<{ items: any[]; totalAmount: number; totalSavings: number; totalMrp: number; totalTierSavings?: number }> {
     try {
       const res = await apiFetch("/api/cart");
       if (!res.ok) {
-        return { items: [], totalAmount: 0, totalSavings: 0, totalMrp: 0 };
+        return { items: [], totalAmount: 0, totalSavings: 0, totalMrp: 0, totalTierSavings: 0 };
       }
       return await res.json();
     } catch (err) {

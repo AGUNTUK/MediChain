@@ -39,6 +39,21 @@ export const productService = {
   },
 
   /**
+   * Fetches a single product by its unique ID.
+   */
+  async getProductById(id: string): Promise<Product | null> {
+    return apiCache.swr(`product_${id}`, async () => {
+      try {
+        const res = await fetch(`/api/products/${encodeURIComponent(id)}`);
+        if (!res.ok) return null;
+        return res.json();
+      } catch {
+        return null;
+      }
+    });
+  },
+
+  /**
    * Fetches the distinct product categories from the catalog.
    */
   async getCategories(): Promise<string[]> {

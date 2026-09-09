@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Plus, Minus, ShoppingCart, Check, Tag, Building2, AlertTriangle, TrendingUp, Bell } from "lucide-react";
+import { Plus, Minus, ShoppingCart, Check, Tag, Building2, AlertTriangle, TrendingUp, Bell, Sparkles } from "lucide-react";
 import { Product } from "../types";
 import { formatProductPriceLabel } from "../lib/utils";
 import { useCartFeedback } from "../context/FlyToCartContext";
@@ -35,6 +35,11 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
   const isSquare = (product.company || "").toLowerCase().includes("square");
   const isOutOfStock = isSquare || (product.availableStock ?? 0) <= 0;
   const isLowStock = !isSquare && (product.availableStock ?? 0) > 0 && (product.availableStock ?? 0) <= 20;
+
+  const hasBulkTiers = Boolean(product.tiers && product.tiers.length > 0);
+  const maxTierDiscount = hasBulkTiers
+    ? Math.max(...(product.tiers || []).map(t => t.discountPercent))
+    : 0;
 
   // Calculate discount and profit margin percentage
   const calculatedDiscount =
@@ -136,6 +141,12 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
 
           {/* Price / Savings Column (Right) */}
           <div className="shrink-0 text-right flex flex-col items-end gap-1 min-w-[95px] sm:min-w-[110px]">
+            {hasBulkTiers && maxTierDiscount > 0 && (
+              <span className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 shadow-2xs flex items-center gap-0.5">
+                <Sparkles className="w-2.5 h-2.5" />
+                <span>বাল্ক ডিল {maxTierDiscount}%</span>
+              </span>
+            )}
             {calculatedDiscount > 0 && (
               <span className="bg-brand-lime text-slate-950 text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider shrink-0 shadow-2xs">
                 <strong className="font-black font-extrabold">{calculatedDiscount}% সাশ্রয়</strong>
@@ -249,6 +260,11 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
             <span className="bg-slate-900/80 backdrop-blur-xs text-white text-[8px] font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider">
               {product.category}
             </span>
+            {hasBulkTiers && maxTierDiscount > 0 && (
+              <span className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase shadow-xs flex items-center gap-0.5">
+                <Sparkles className="w-2.5 h-2.5" /> বাল্ক {maxTierDiscount}% ছাড়
+              </span>
+            )}
             {calculatedDiscount > 0 && (
               <span className="bg-brand-lime text-slate-950 text-[8.5px] font-black px-1.5 py-0.5 rounded-md uppercase shadow-xs flex items-center gap-0.5">
                 <Tag className="w-2.5 h-2.5 stroke-[2.5]" /> <strong className="font-black font-extrabold">{calculatedDiscount}% সাশ্রয়</strong>

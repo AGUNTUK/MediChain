@@ -22,6 +22,28 @@ export interface Product {
   imageUrl?: string;
   image_url?: string;
   barcode?: string;
+  tiers?: BulkTier[];
+}
+
+export interface CartItem {
+  product: Product;
+  quantity: number;
+  basePrice?: number;
+  effectiveUnitPrice?: number;
+  itemSubtotal?: number;
+  tiers?: BulkTier[];
+  activeTier?: BulkTier | null;
+  nextTier?: BulkTier | null;
+  discountPercent?: number;
+  isTierApplied?: boolean;
+  tierSavings?: number;
+}
+
+export interface CartSummary {
+  items: CartItem[];
+  totalMrp: number;
+  totalAmount: number;
+  totalSavings: number;
 }
 
 export type VerificationStatus = "Pending" | "Under Review" | "Approved" | "Verified" | "Rejected" | "Suspended" | "pending" | "verified" | "suspended";

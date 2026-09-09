@@ -199,6 +199,12 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
             <span>ওষুধের মোট দাম</span>
             <span className="font-mono font-bold text-slate-800">৳{cartSummary.totalAmount.toLocaleString()}</span>
           </div>
+          {cartSummary.totalTierSavings > 0 && (
+            <div className="flex justify-between text-purple-700 font-bold bg-purple-50 px-2 py-1 rounded-lg border border-purple-200/60 text-[11px]">
+              <span>ভলিউম বাল্ক টিয়ার সাশ্রয়</span>
+              <span className="font-mono font-black text-purple-800">- ৳{cartSummary.totalTierSavings.toLocaleString()}</span>
+            </div>
+          )}
           <div className="flex justify-between text-slate-500 font-medium">
             <span>ডেলিভারি চার্জ</span>
             <span className="font-mono font-bold text-slate-800">৳40</span>

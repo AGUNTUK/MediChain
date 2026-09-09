@@ -17,14 +17,25 @@ import { Product } from "../types";
 import StockAlertButton from "./StockAlertButton";
 import MediChainLogo from "./MediChainLogo";
 
+interface CartItemWithTier {
+  product: Product;
+  quantity: number;
+  effectiveUnitPrice?: number;
+  itemSubtotal?: number;
+  tierSavings?: number;
+  activeTier?: { minQty: number; discountPercent: number } | null;
+  nextTier?: { minQty: number; discountPercent: number } | null;
+}
+
 interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   cartData: {
-    items: Array<{ product: Product; quantity: number }>;
+    items: Array<CartItemWithTier>;
     totalMrp: number;
     totalAmount: number;
     totalSavings: number;
+    totalTierSavings?: number;
   } | null;
   cartCount: number;
   onUpdateCartQty: (productId: string, currentQty: number, change: number) => Promise<void>;
@@ -140,13 +151,18 @@ export default function CartDrawer({
 
                 {/* 3. Cart Items List */}
                 <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-                  {items.map(({ product, quantity }) => {
+                  {items.map((item) => {
+                    const { product, quantity, effectiveUnitPrice, itemSubtotal, tierSavings, activeTier, nextTier } = item;
                     const isItemStockout = (product.availableStock !== undefined && product.availableStock <= 0);
+                    const unitPrice = effectiveUnitPrice !== undefined ? effectiveUnitPrice : product.sellingPrice;
+                    const lineSubtotal = itemSubtotal !== undefined ? itemSubtotal : unitPrice * quantity;
+                    const hasTierDiscount = activeTier && activeTier.discountPercent > 0;
+
                     return (
                       <div
                         key={product.id}
                         className={`bg-white border rounded-2xl p-3.5 flex flex-col gap-2 relative shadow-xs transition-all group ${
-                          isItemStockout ? "border-rose-300 bg-rose-50/20" : "border-slate-100 hover:border-slate-200/90"
+                          isItemStockout ? "border-rose-300 bg-rose-50/20" : hasTierDiscount ? "border-purple-200/90 bg-purple-50/15 hover:border-brand-purple/40" : "border-slate-100 hover:border-slate-200/90"
                         }`}
                       >
                         <div className="flex gap-3.5 items-start">
@@ -167,13 +183,19 @@ export default function CartDrawer({
 
                           {/* Product Details */}
                           <div className="flex-1 min-w-0 pr-6">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-[9px] font-extrabold bg-brand-purple/10 text-brand-purple px-1.5 py-0.5 rounded uppercase">
                                 {product.category}
                               </span>
                               <span className="text-[10px] font-bold text-slate-400 truncate">
                                 {product.company}
                               </span>
+                              {hasTierDiscount && (
+                                <span className="text-[8.5px] font-black bg-purple-600 text-white px-1.5 py-0.2 rounded-md flex items-center gap-0.5 shadow-3xs">
+                                  <Sparkles className="w-2.5 h-2.5" />
+                                  {activeTier.discountPercent}% MRP ছাড়
+                                </span>
+                              )}
                             </div>
 
                             <h4 className="text-xs font-black text-slate-900 truncate mt-1">
@@ -181,14 +203,37 @@ export default function CartDrawer({
                             </h4>
 
                             <div className="flex items-baseline gap-2 mt-1.5">
-                              <span className="text-[11px] font-bold text-slate-500 font-mono">
-                                ৳{product.sellingPrice} / বক্স
+                              {hasTierDiscount ? (
+                                <span className="text-[10px] line-through text-slate-400 font-mono">
+                                  MRP ৳{product.mrp || product.sellingPrice}
+                                </span>
+                              ) : (
+                                product.mrp && product.mrp > unitPrice ? (
+                                  <span className="text-[10px] line-through text-slate-400 font-mono">
+                                    ৳{product.mrp}
+                                  </span>
+                                ) : null
+                              )}
+                              <span className="text-[11px] font-black text-slate-700 font-mono">
+                                ৳{unitPrice.toFixed(2)} / বক্স
                               </span>
                               <span className="text-slate-300 text-[10px]">•</span>
                               <span className="text-xs font-black text-brand-purple font-mono">
-                                ৳{(product.sellingPrice * quantity).toLocaleString()}
+                                ৳{lineSubtotal.toLocaleString()}
                               </span>
                             </div>
+
+                            {tierSavings && tierSavings > 0 ? (
+                              <div className="mt-1 text-[9.5px] text-emerald-600 font-bold flex items-center gap-1">
+                                <span>🎉 বাল্ক ছাড় সাশ্রয়: ৳{tierSavings.toLocaleString()}</span>
+                              </div>
+                            ) : null}
+
+                            {nextTier && (
+                              <div className="mt-1 text-[9.5px] text-amber-700 font-medium">
+                                আর {nextTier.minQty - quantity}টি কিনলে {nextTier.discountPercent}% MRP ছাড় পাবেন!
+                              </div>
+                            )}
                           </div>
 
                           {/* Remove Button */}
@@ -256,9 +301,21 @@ export default function CartDrawer({
                       <div className="flex justify-between text-brand-purple font-bold bg-brand-purple/5 px-2.5 py-1.5 rounded-xl border border-brand-purple/10">
                         <span className="flex items-center gap-1">
                           <Tag className="w-3.5 h-3.5 text-brand-purple" />
-                          পাইকারি বিশেষ সাশ্রয়
+                          মোট পাইকারি সাশ্রয়
                         </span>
                         <span className="font-mono font-black">- ৳{totalSavings.toLocaleString()}</span>
+                      </div>
+                    )}
+
+                    {(cartData?.totalTierSavings || 0) > 0 && (
+                      <div className="flex justify-between text-purple-700 font-bold bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200/60 text-[11px]">
+                        <span className="flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-purple-600" />
+                          ভলিউম বাল্ক টিয়ার বোনাস সাশ্রয়
+                        </span>
+                        <span className="font-mono font-black text-purple-800">
+                          - ৳{(cartData?.totalTierSavings || 0).toLocaleString()}
+                        </span>
                       </div>
                     )}
 

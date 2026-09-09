@@ -1821,6 +1821,56 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `GET /api/bulk-deals/live` verified returning full payload with hydrated product information.
   - Type check (`tsc --noEmit`) and production bundle build verified with 0 errors.
 
+### Task 78: Full Procurement Bulk Tier Integration & Order Placement Resolution
+- **Status:** Completed
+- **Scope & User Intent:**
+  - Integrate volume bulk tier discounts end-to-end across the procurement UI (Product Cards, Cart Drawer, Cart Screen, and Checkout Summary).
+  - Investigate and eliminate the unexpected error during bulk tier calculations and order placement.
+- **Key Actions & Architectural Improvements:**
+  1. **Backend Pricing & Cart Aggregation (`server.ts` & `src/lib/dbService.ts`):**
+     - Attached live bulk campaign tier tiers to `getAllProductsMaster` cache and `/api/products/:id` so catalog listings and details modals expose active tier pricing.
+     - Updated `/api/cart` endpoint to return normalized `productId` for all items and calculate `totalTierSavings = sum(item.tierSavings)`.
+     - In `createOrderTransaction` (`src/lib/dbService.ts`), verified atomic inventory verification and FEFO allocation with active bulk campaign tiers evaluated at checkout time, applying unit price adjustments and storing accurate subtotals and savings.
+  2. **Frontend UI Tier Display & Cart Sync:**
+     - `src/components/ProductCard.tsx`: Displays "Bulk Deal" indicator badge when tiered volume discounts are configured.
+     - `src/components/CartDrawer.tsx`: Renders active tier discount badge, adjusted unit price, item line savings, and next tier volume nudges.
+     - `src/components/Cart.tsx`: Complete tier details with unit price breakdown, next-tier encouragement banner, and volume bulk savings row. Removed `window.alert` in favor of accessible in-app error feedback to prevent iframe security exceptions.
+     - `src/components/Checkout.tsx`: Summarizes total bill with clear "ভলিউম বাল্ক টিয়ার সাশ্রয়" row when volume tier discounts apply.
+     - `src/App.tsx`: Normalized cart quantities mapping using `item.productId || item.product?.id` preventing undefined index errors.
+- **VERIFICATION:**
+  - `tsc --noEmit` passed with 0 errors.
+  - Production build (`vite build` + `esbuild`) succeeded cleanly.
+  - Dev server restarted and fully functional.
+
+### Task 79: Recalibrate Volume Bulk Tiers to Calculate Directly from MRP (Maximum Retail Price)
+- **Status:** Completed
+- **Scope & User Intent:**
+  - Correct critical tier discount formula: Volume bulk tiers are percentage discounts off the **MRP** (Maximum Retail Price), NOT the selling price / trade price.
+  - Example provided by user:
+    - MRP = 500, Tier 73% discount => 500 - 73% = 135
+    - MRP = 500, Tier 74% discount => 500 - 74% = 130
+    - MRP = 500, Tier 75% discount => 500 - 75% = 125
+    - MRP = 500, Tier 76% discount => 500 - 76% = 120
+- **Key Actions & Formula Standardization:**
+  1. `server.ts` (/api/cart endpoints):
+     - Calculates `mrpPrice = Number(product.mrp) > 0 ? Number(product.mrp) : (Number(product.sellingPrice) || 0)`.
+     - Calculates `effectiveUnitPrice = activeTier ? Math.round((mrpPrice * (1 - activeTier.discountPercent / 100)) * 100) / 100 : basePrice`.
+     - Calculates `tierSavings = isTierApplied ? Math.max(0, Math.round(((basePrice - effectiveUnitPrice) * rawQty) * 100) / 100) : 0`.
+  2. `src/lib/dbService.ts` (`createOrderTransaction`):
+     - Orders calculate effective item price using `Math.round(((product.mrp || product.sellingPrice) * (1 - activeTier.discountPercent / 100)) * 100) / 100`.
+  3. `src/components/ProductDetails.tsx`:
+     - Recalibrates `effectiveUnitPrice` and all tier card previews to derive from `product.mrp` with clear MRP baseline indications.
+  4. `src/components/BulkDealsLanding.tsx` & `src/components/BulkDealsAdmin.tsx`:
+     - Updates tier display formulas and labels to calculate from `mrp`.
+     - Added live effective unit price preview in Bulk Deals Admin editor directly calculating `MRP * (1 - discount% / 100)`.
+  5. `src/components/CartDrawer.tsx` & `src/components/Cart.tsx`:
+     - Displays `MRP ৳${product.mrp}` with strikethrough and `{discount}% MRP ছাড়` badges to ensure complete transparency for ordering pharmacies.
+- **VERIFICATION:**
+  - `tsc --noEmit` passed with 0 errors.
+  - Full production build (`npm run build`) succeeded cleanly.
+  - Dev server restarted and verified live.
+
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

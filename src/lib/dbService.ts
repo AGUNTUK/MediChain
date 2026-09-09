@@ -1664,6 +1664,48 @@ export async function createOrderTransaction(
       // Ignore if inventory table is unavailable
     }
 
+    // Query active bulk tiers for products in order
+    const tierMap = new Map<string, Array<{ minQty: number; discountPercent: number }>>();
+    try {
+      const { data: liveCamps } = await supabaseAdmin
+        .from("bulk_campaigns")
+        .select("id")
+        .eq("status", "Live");
+
+      if (liveCamps && liveCamps.length > 0) {
+        const campIds = liveCamps.map((c: any) => c.id);
+        const { data: bulkProds } = await supabaseAdmin
+          .from("bulk_campaign_products")
+          .select("product_id, tiers")
+          .in("campaign_id", campIds);
+
+        if (bulkProds) {
+          for (const bp of bulkProds) {
+            let tiers = bp.tiers;
+            if (typeof tiers === "string") {
+              try { tiers = JSON.parse(tiers); } catch {}
+            }
+            if (Array.isArray(tiers) && tiers.length > 0) {
+              const sorted = tiers
+                .map((t: any) => ({
+                  minQty: Number(t.minQty || t.min_qty || 0),
+                  discountPercent: Number(t.discountPercent || t.discount_percent || 0)
+                }))
+                .filter((t: any) => t.minQty > 0 && t.discountPercent > 0)
+                .sort((a: any, b: any) => b.minQty - a.minQty);
+
+              if (sorted.length > 0) {
+                tierMap.set(String(bp.product_id).trim().toLowerCase(), sorted);
+                tierMap.set(String(bp.product_id).trim(), sorted);
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[Order Creation] Failed to check bulk campaign tiers:", e);
+    }
+
     // Compute order totals and check stock
     const productsToUpdate: any[] = [];
     let totalAmount = 0;
@@ -1685,7 +1727,19 @@ export async function createOrderTransaction(
       if ((product.availableStock ?? 0) <= 0 || (product.availableStock ?? 0) < actualQuantity) {
         throw new Error(`দুঃখিত, "${product.name}" (${product.company}) বর্তমানে স্টকে নেই বা পর্যাপ্ত মজুদ নেই।`);
       }
-      const itemSubtotal = product.sellingPrice * actualQuantity;
+
+      const mrpPrice = Number(product.mrp) > 0 ? Number(product.mrp) : (Number(product.sellingPrice) || 0);
+      let effectivePrice = product.sellingPrice || mrpPrice;
+      const sortedTiers = tierMap.get(normalizedId) || tierMap.get(String(product.id));
+      if (sortedTiers && sortedTiers.length > 0) {
+        const activeTier = sortedTiers.find((t: any) => actualQuantity >= t.minQty);
+        if (activeTier) {
+          // Volume bulk tier discounts are calculated directly from MRP (e.g. 500 - 73% = 135)
+          effectivePrice = Math.round((mrpPrice * (1 - activeTier.discountPercent / 100)) * 100) / 100;
+        }
+      }
+
+      const itemSubtotal = Math.round((effectivePrice * actualQuantity) * 100) / 100;
       totalAmount += itemSubtotal;
       totalMrp += product.mrp * actualQuantity;
 
@@ -1695,7 +1749,7 @@ export async function createOrderTransaction(
         strength: product.strength,
         packSize: product.packSize,
         quantity: item.quantity,
-        price: product.sellingPrice,
+        price: effectivePrice,
         mrp: product.mrp,
         subtotal: itemSubtotal
       });

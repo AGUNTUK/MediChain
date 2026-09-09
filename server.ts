@@ -855,6 +855,20 @@ async function getAllProductsMaster(): Promise<any[]> {
       };
     });
 
+    try {
+      const liveBulkMap = await getLiveBulkProductsMap().catch(() => new Map());
+      if (liveBulkMap && liveBulkMap.size > 0) {
+        for (const p of mappedProducts) {
+          const tierInfo = liveBulkMap.get(String(p.id).trim()) || liveBulkMap.get(String(p.id).trim().toLowerCase());
+          if (tierInfo && Array.isArray(tierInfo.tiers) && tierInfo.tiers.length > 0) {
+            (p as any).tiers = [...tierInfo.tiers].sort((a: any, b: any) => a.minQty - b.minQty);
+          }
+        }
+      }
+    } catch (bulkErr) {
+      console.warn("Could not attach live bulk tiers to master cache:", bulkErr);
+    }
+
     cachedAllProducts = mappedProducts;
     lastAllProductsFetch = now;
     return mappedProducts;
@@ -974,6 +988,15 @@ app.get("/api/products/:id", async (req, res) => {
     const product = await dbService.getProductById(req.params.id);
     if (!product) {
       return res.status(404).json({ error: "Product not found." });
+    }
+    try {
+      const liveBulkMap = await getLiveBulkProductsMap().catch(() => new Map());
+      const tierInfo = liveBulkMap.get(String(product.id).trim()) || liveBulkMap.get(String(product.id).trim().toLowerCase());
+      if (tierInfo && Array.isArray(tierInfo.tiers) && tierInfo.tiers.length > 0) {
+        (product as any).tiers = [...tierInfo.tiers].sort((a: any, b: any) => a.minQty - b.minQty);
+      }
+    } catch (tierErr) {
+      // Non-blocking
     }
     res.json(product);
   } catch (err: any) {
@@ -1141,31 +1164,181 @@ function parseCampaignRow(row: any) {
   };
 }
 
+interface LiveBulkTierInfo {
+  campaignId: string;
+  tiers: Array<{ minQty: number; discountPercent: number }>;
+}
+
+let cachedLiveBulkMap: Map<string, LiveBulkTierInfo> | null = null;
+let lastLiveBulkMapFetch = 0;
+
+export async function getLiveBulkProductsMap(): Promise<Map<string, LiveBulkTierInfo>> {
+  const now = Date.now();
+  if (cachedLiveBulkMap !== null && (now - lastLiveBulkMapFetch) < BULK_CAMPAIGN_TTL) {
+    return cachedLiveBulkMap;
+  }
+
+  const map = new Map<string, LiveBulkTierInfo>();
+  try {
+    const { data: liveCamps } = await supabaseAdmin
+      .from("bulk_campaigns")
+      .select("id")
+      .eq("status", "Live");
+
+    if (liveCamps && liveCamps.length > 0) {
+      const campIds = liveCamps.map((c: any) => c.id);
+      const { data: campProds } = await supabaseAdmin
+        .from("bulk_campaign_products")
+        .select("campaign_id, product_id, tiers")
+        .in("campaign_id", campIds);
+
+      if (campProds) {
+        for (const cp of campProds) {
+          let tiers = cp.tiers;
+          if (typeof tiers === "string") {
+            try { tiers = JSON.parse(tiers); } catch {}
+          }
+          if (Array.isArray(tiers) && tiers.length > 0) {
+            const sorted = tiers
+              .map((t: any) => ({
+                minQty: Number(t.minQty || t.min_qty || 0),
+                discountPercent: Number(t.discountPercent || t.discount_percent || 0)
+              }))
+              .filter((t: any) => t.minQty > 0 && t.discountPercent > 0)
+              .sort((a: any, b: any) => a.minQty - b.minQty);
+
+            if (sorted.length > 0) {
+              const pid = String(cp.product_id || "").trim();
+              const info = { campaignId: cp.campaign_id, tiers: sorted };
+              map.set(pid, info);
+              map.set(pid.toLowerCase(), info);
+            }
+          }
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn("[Bulk Deals] Error building live bulk map:", err?.message);
+  }
+
+  cachedLiveBulkMap = map;
+  lastLiveBulkMapFetch = now;
+  return map;
+}
+
 async function hydrateCampaignProduct(campaign: any) {
   if (!campaign) return campaign;
-  if (campaign.featured_product_id) {
-    try {
+  try {
+    // 1. Hydrate campaign products and their tiers
+    const { data: campProds } = await supabaseAdmin
+      .from("bulk_campaign_products")
+      .select("*")
+      .eq("campaign_id", campaign.id);
+
+    const hydratedProducts: any[] = [];
+    let featuredTiers: any[] = [];
+
+    if (campProds && campProds.length > 0) {
+      const prodIds = campProds.map((cp: any) => cp.product_id).filter(Boolean);
+      const { data: relatedProds } = await supabaseAdmin
+        .from("products")
+        .select("id, name, generic_name, company, category_name_fallback, strength, pack_size, mrp, selling_price, image_url, stock_quantity")
+        .in("id", prodIds);
+
+      const prodMap = new Map((relatedProds || []).map((p: any) => [String(p.id).trim().toLowerCase(), p]));
+
+      for (const cp of campProds) {
+        const rawProd = prodMap.get(String(cp.product_id).trim().toLowerCase());
+        let rawTiers = cp.tiers;
+        if (typeof rawTiers === "string") {
+          try { rawTiers = JSON.parse(rawTiers); } catch {}
+        }
+        if (!Array.isArray(rawTiers)) rawTiers = [];
+        const sortedTiers = rawTiers
+          .map((t: any) => ({
+            minQty: Number(t.minQty || t.min_qty || 0),
+            discountPercent: Number(t.discountPercent || t.discount_percent || 0)
+          }))
+          .filter((t: any) => t.minQty > 0 && t.discountPercent > 0)
+          .sort((a: any, b: any) => a.minQty - b.minQty);
+
+        if (String(cp.product_id).trim().toLowerCase() === String(campaign.featured_product_id || "").trim().toLowerCase()) {
+          featuredTiers = sortedTiers;
+        }
+
+        hydratedProducts.push({
+          id: cp.id,
+          campaign_id: cp.campaign_id,
+          product_id: cp.product_id,
+          tiers: sortedTiers,
+          product: rawProd ? {
+            id: rawProd.id,
+            name: rawProd.name,
+            genericName: rawProd.generic_name,
+            company: rawProd.company,
+            category: rawProd.category_name_fallback || "Tablet",
+            strength: rawProd.strength,
+            packSize: rawProd.pack_size,
+            mrp: Number(rawProd.mrp || 0),
+            sellingPrice: Number(rawProd.selling_price || 0),
+            imageUrl: rawProd.image_url,
+            image_url: rawProd.image_url,
+            availableStock: rawProd.stock_quantity ?? 100,
+            tiers: sortedTiers
+          } : undefined
+        });
+      }
+    }
+    campaign.products = hydratedProducts;
+
+    // 2. Hydrate featured product
+    if (campaign.featured_product_id) {
       const { data: prod } = await supabaseAdmin
         .from("products")
-        .select("id, name, generic_name, company, strength, pack_size, mrp, selling_price, image_url")
+        .select("id, name, generic_name, company, category_name_fallback, strength, pack_size, mrp, selling_price, image_url, stock_quantity")
         .eq("id", campaign.featured_product_id)
         .maybeSingle();
+
       if (prod) {
+        let invData: any = null;
+        try {
+          const { data: inv } = await supabaseAdmin
+            .from("inventory")
+            .select("available_stock, reserved_stock, sold_stock, batch_number, expiry_date")
+            .eq("product_id", campaign.featured_product_id)
+            .maybeSingle();
+          invData = inv;
+        } catch {
+          // ignore inventory fetch error
+        }
+
+        const availableStock = invData?.available_stock ?? prod.stock_quantity ?? 0;
+        const reservedStock = invData?.reserved_stock ?? 0;
+        const soldStock = invData?.sold_stock ?? 0;
+
         campaign.featured_product = {
           id: prod.id,
           name: prod.name,
           genericName: prod.generic_name,
           company: prod.company,
+          category: prod.category_name_fallback || "Tablet",
           strength: prod.strength,
           packSize: prod.pack_size,
           mrp: prod.mrp,
           sellingPrice: prod.selling_price,
-          imageUrl: prod.image_url
+          imageUrl: prod.image_url,
+          image_url: prod.image_url,
+          availableStock: availableStock,
+          reservedStock: reservedStock,
+          soldStock: soldStock,
+          batchNumber: invData?.batch_number || "BN-2026-X",
+          expiryDate: invData?.expiry_date || "2027-12-31",
+          tiers: featuredTiers.length > 0 ? featuredTiers : undefined
         };
       }
-    } catch (e) {
-      console.warn("[Bulk Deals] Failed to hydrate featured product:", e);
     }
+  } catch (e) {
+    console.warn("[Bulk Deals] Failed to hydrate campaign:", e);
   }
   return campaign;
 }
@@ -1173,7 +1346,7 @@ async function hydrateCampaignProduct(campaign: any) {
 app.get("/api/bulk-deals/live", async (req, res) => {
   const now = Date.now();
   if (cachedLiveCampaign !== null && now - lastLiveCampaignFetch < BULK_CAMPAIGN_TTL) {
-    res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=600");
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     return res.json(cachedLiveCampaign);
   }
 
@@ -1182,7 +1355,7 @@ app.get("/api/bulk-deals/live", async (req, res) => {
       .from("bulk_campaigns")
       .select("*")
       .eq("status", "Live")
-      .order("created_at", { ascending: false })
+      .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
@@ -1194,6 +1367,7 @@ app.get("/api/bulk-deals/live", async (req, res) => {
     if (!data) {
       cachedLiveCampaign = null;
       lastLiveCampaignFetch = now;
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       return res.json(null);
     }
 
@@ -1202,11 +1376,27 @@ app.get("/api/bulk-deals/live", async (req, res) => {
 
     cachedLiveCampaign = parsed;
     lastLiveCampaignFetch = now;
-    res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=600");
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.json(cachedLiveCampaign);
   } catch (err: any) {
     console.warn("[Bulk Deals] Live campaign error:", err.message);
     res.json(null);
+  }
+});
+
+app.get("/api/bulk-deals/active-tiers", async (req, res) => {
+  try {
+    const map = await getLiveBulkProductsMap();
+    const result: Record<string, any[]> = {};
+    for (const [key, value] of map.entries()) {
+      if (!result[key]) {
+        result[key] = value.tiers;
+      }
+    }
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.json({ success: true, tiers: result });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message, tiers: {} });
   }
 });
 
@@ -1250,14 +1440,73 @@ app.get("/api/bulk-deals/campaigns/:id", async (req, res) => {
 
 app.get("/api/bulk-deals/campaigns/:id/products", async (req, res) => {
   try {
-    const { data, error } = await supabaseAdmin
+    const { data: campaignProducts, error } = await supabaseAdmin
       .from("bulk_campaign_products")
-      .select("*, product:products(*)")
+      .select("*")
       .eq("campaign_id", req.params.id);
 
     if (error) throw error;
-    res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=600");
-    res.json(data || []);
+    
+    if (!campaignProducts || campaignProducts.length === 0) {
+      return res.json([]);
+    }
+
+    const productIds = campaignProducts.map(cp => cp.product_id);
+    const { data: products, error: productsError } = await supabaseAdmin
+      .from("products")
+      .select("id, name, generic_name, company, category_name_fallback, strength, pack_size, mrp, selling_price, image_url, stock_quantity")
+      .in("id", productIds);
+
+    if (productsError) throw productsError;
+
+    let invMap = new Map<string, any>();
+    try {
+      const { data: invList } = await supabaseAdmin
+        .from("inventory")
+        .select("product_id, available_stock, reserved_stock, sold_stock, batch_number, expiry_date")
+        .in("product_id", productIds);
+      if (invList) {
+        invMap = new Map(invList.map(i => [i.product_id, i]));
+      }
+    } catch {
+      // ignore inventory error
+    }
+
+    const productsMap = new Map((products || []).map(p => {
+      const inv = invMap.get(p.id);
+      const availableStock = inv?.available_stock ?? p.stock_quantity ?? 0;
+      const reservedStock = inv?.reserved_stock ?? 0;
+      const soldStock = inv?.sold_stock ?? 0;
+      return [
+        p.id, 
+        {
+          id: p.id,
+          name: p.name,
+          genericName: p.generic_name,
+          company: p.company,
+          category: p.category_name_fallback || "Tablet",
+          strength: p.strength,
+          packSize: p.pack_size,
+          mrp: p.mrp,
+          sellingPrice: p.selling_price,
+          imageUrl: p.image_url,
+          image_url: p.image_url,
+          availableStock,
+          reservedStock,
+          soldStock,
+          batchNumber: inv?.batch_number || "BN-2026-X",
+          expiryDate: inv?.expiry_date || "2027-12-31"
+        }
+      ];
+    }));
+
+    const result = campaignProducts.map(cp => ({
+      ...cp,
+      product: productsMap.get(cp.product_id) || null
+    }));
+
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -1297,6 +1546,14 @@ app.post("/api/bulk-deals/campaigns", requireRole(["Admin"]), async (req, res) =
       trust_badges: meta.trust_badges,
       cta_link: meta.cta_link
     };
+
+    if (body.status === "Live") {
+      try {
+        await supabaseAdmin.from("bulk_campaigns").update({ status: "Draft" }).eq("status", "Live");
+      } catch (e) {
+        console.warn("Could not deactivate previous live campaigns:", e);
+      }
+    }
 
     let result = await supabaseAdmin.from("bulk_campaigns").insert([withCols]).select().maybeSingle();
     if (result.error && result.error.code === "PGRST204") {
@@ -1349,6 +1606,14 @@ app.put("/api/bulk-deals/campaigns/:id", requireRole(["Admin"]), async (req, res
       cta_link: meta.cta_link
     };
 
+    if (body.status === "Live") {
+      try {
+        await supabaseAdmin.from("bulk_campaigns").update({ status: "Draft" }).neq("id", id).eq("status", "Live");
+      } catch (e) {
+        console.warn("Could not deactivate previous live campaigns:", e);
+      }
+    }
+
     let result = await supabaseAdmin.from("bulk_campaigns").update(withCols).eq("id", id).select().maybeSingle();
     if (result.error && result.error.code === "PGRST204") {
       result = await supabaseAdmin.from("bulk_campaigns").update(basePayload).eq("id", id).select().maybeSingle();
@@ -1357,6 +1622,8 @@ app.put("/api/bulk-deals/campaigns/:id", requireRole(["Admin"]), async (req, res
 
     cachedLiveCampaign = null;
     lastLiveCampaignFetch = 0;
+    cachedLiveBulkMap = null;
+    lastLiveBulkMapFetch = 0;
 
     const updated = parseCampaignRow(result.data);
     await hydrateCampaignProduct(updated);
@@ -1375,6 +1642,8 @@ app.delete("/api/bulk-deals/campaigns/:id", requireRole(["Admin"]), async (req, 
 
     cachedLiveCampaign = null;
     lastLiveCampaignFetch = 0;
+    cachedLiveBulkMap = null;
+    lastLiveBulkMapFetch = 0;
     res.json({ success: true });
   } catch (err: any) {
     console.error("[Bulk Deals] Error deleting campaign:", err);
@@ -1402,6 +1671,8 @@ app.post("/api/bulk-deals/campaigns/:id/products", requireRole(["Admin"]), async
 
     cachedLiveCampaign = null;
     lastLiveCampaignFetch = 0;
+    cachedLiveBulkMap = null;
+    lastLiveBulkMapFetch = 0;
     res.json({ success: true });
   } catch (err: any) {
     console.error("[Bulk Deals] Error setting campaign products:", err);
@@ -1694,26 +1965,111 @@ app.get("/api/cart", requireAuth, async (req, res) => {
           productMap.set(String(p.id).trim().toLowerCase(), mapped);
           productMap.set(String(p.id).trim(), mapped);
         });
+
+        const liveBulkMap = await getLiveBulkProductsMap();
         
         for (const item of cartItemsInDb) {
           const itemKey = String(item.productId || "").trim().toLowerCase();
           const product = productMap.get(itemKey) || productMap.get(String(item.productId || "").trim());
           if (product) {
+            const rawQty = Math.max(1, parseInt(item.quantity, 10) || 1);
+            const tierInfo = liveBulkMap.get(String(product.id).trim()) || liveBulkMap.get(String(product.id).trim().toLowerCase());
+            const mrpPrice = Number(product.mrp) > 0 ? Number(product.mrp) : (Number(product.sellingPrice) || 0);
+            const basePrice = Number(product.sellingPrice) || mrpPrice;
+            let effectiveUnitPrice = basePrice;
+            let activeTier: any = null;
+            let nextTier: any = null;
+            let discountPercent = 0;
+            let isTierApplied = false;
+            let tiers: any[] = [];
+
+            if (tierInfo && Array.isArray(tierInfo.tiers) && tierInfo.tiers.length > 0) {
+              tiers = [...tierInfo.tiers].sort((a: any, b: any) => a.minQty - b.minQty);
+              const sortedDesc = [...tiers].sort((a: any, b: any) => b.minQty - a.minQty);
+              activeTier = sortedDesc.find((t: any) => rawQty >= t.minQty) || null;
+              nextTier = tiers.find((t: any) => rawQty < t.minQty) || null;
+
+              if (activeTier) {
+                discountPercent = activeTier.discountPercent;
+                // Volume bulk tier discounts are calculated directly from MRP (e.g. 500 - 73% = 135)
+                effectiveUnitPrice = Math.round((mrpPrice * (1 - discountPercent / 100)) * 100) / 100;
+                isTierApplied = true;
+              }
+            }
+
+            const itemSubtotal = Math.round((effectiveUnitPrice * rawQty) * 100) / 100;
+            const tierSavings = isTierApplied ? Math.max(0, Math.round(((basePrice - effectiveUnitPrice) * rawQty) * 100) / 100) : 0;
+
             cartItems.push({
-              product,
-              quantity: Math.max(1, parseInt(item.quantity, 10) || 1)
+              productId: String(product.id || item.productId).trim(),
+              product: {
+                ...product,
+                tiers: tiers.length > 0 ? tiers : undefined
+              },
+              quantity: rawQty,
+              basePrice,
+              effectiveUnitPrice,
+              itemSubtotal,
+              tiers,
+              activeTier,
+              nextTier,
+              discountPercent,
+              isTierApplied,
+              tierSavings
             });
           }
         }
       } else {
         // Fallback to sequential getProductById if bulk query fails
+        const liveBulkMap = await getLiveBulkProductsMap();
         for (const item of cartItemsInDb) {
           try {
             const p = await dbService.getProductById(String(item.productId || "").trim());
             if (p) {
+              const rawQty = Math.max(1, parseInt(item.quantity, 10) || 1);
+              const tierInfo = liveBulkMap.get(String(p.id).trim()) || liveBulkMap.get(String(p.id).trim().toLowerCase());
+              const mrpPrice = Number(p.mrp) > 0 ? Number(p.mrp) : (Number(p.sellingPrice) || 0);
+              const basePrice = Number(p.sellingPrice) || mrpPrice;
+              let effectiveUnitPrice = basePrice;
+              let activeTier: any = null;
+              let nextTier: any = null;
+              let discountPercent = 0;
+              let isTierApplied = false;
+              let tiers: any[] = [];
+
+              if (tierInfo && Array.isArray(tierInfo.tiers) && tierInfo.tiers.length > 0) {
+                tiers = [...tierInfo.tiers].sort((a: any, b: any) => a.minQty - b.minQty);
+                const sortedDesc = [...tiers].sort((a: any, b: any) => b.minQty - a.minQty);
+                activeTier = sortedDesc.find((t: any) => rawQty >= t.minQty) || null;
+                nextTier = tiers.find((t: any) => rawQty < t.minQty) || null;
+
+                if (activeTier) {
+                  discountPercent = activeTier.discountPercent;
+                  // Volume bulk tier discounts are calculated directly from MRP (e.g. 500 - 73% = 135)
+                  effectiveUnitPrice = Math.round((mrpPrice * (1 - discountPercent / 100)) * 100) / 100;
+                  isTierApplied = true;
+                }
+              }
+
+              const itemSubtotal = Math.round((effectiveUnitPrice * rawQty) * 100) / 100;
+              const tierSavings = isTierApplied ? Math.max(0, Math.round(((basePrice - effectiveUnitPrice) * rawQty) * 100) / 100) : 0;
+
               cartItems.push({
-                product: p,
-                quantity: Math.max(1, parseInt(item.quantity, 10) || 1)
+                productId: String(p.id || item.productId).trim(),
+                product: {
+                  ...p,
+                  tiers: tiers.length > 0 ? tiers : undefined
+                },
+                quantity: rawQty,
+                basePrice,
+                effectiveUnitPrice,
+                itemSubtotal,
+                tiers,
+                activeTier,
+                nextTier,
+                discountPercent,
+                isTierApplied,
+                tierSavings
               });
             }
           } catch (e) {
@@ -1724,14 +2080,16 @@ app.get("/api/cart", requireAuth, async (req, res) => {
     }
 
     const totalMrp = cartItems.reduce((acc, item) => acc + ((item.product.mrp || 0) * item.quantity), 0);
-    const totalAmount = cartItems.reduce((acc, item) => acc + ((item.product.sellingPrice || item.product.mrp || 0) * item.quantity), 0);
+    const totalAmount = cartItems.reduce((acc, item) => acc + (item.itemSubtotal !== undefined ? item.itemSubtotal : ((item.product.sellingPrice || 0) * item.quantity)), 0);
     const totalSavings = Math.max(0, totalMrp - totalAmount);
+    const totalTierSavings = cartItems.reduce((acc, item) => acc + (Number(item.tierSavings) || 0), 0);
 
     res.json({
       items: cartItems,
       totalMrp,
       totalAmount,
-      totalSavings
+      totalSavings,
+      totalTierSavings
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

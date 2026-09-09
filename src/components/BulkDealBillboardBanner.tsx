@@ -39,7 +39,23 @@ export default function BulkDealBillboardBanner({
         { icon: "truck", label: "Fast Delivery" }
       ];
 
-  const featured = campaign.featured_product;
+  const [resolvedProduct, setResolvedProduct] = React.useState<Product | null>(campaign.featured_product || null);
+
+  React.useEffect(() => {
+    if (campaign.featured_product) {
+      setResolvedProduct(campaign.featured_product);
+    } else if (campaign.featured_product_id) {
+      import("../services/product").then(({ productService }) => {
+        productService.getProductById(campaign.featured_product_id!).then(p => {
+          if (p) setResolvedProduct(p);
+        }).catch(() => {});
+      });
+    } else {
+      setResolvedProduct(null);
+    }
+  }, [campaign.featured_product, campaign.featured_product_id]);
+
+  const featured = resolvedProduct || campaign.featured_product;
   const discountPercent = campaign.discount_display_percent ?? 25;
   const ctaText = campaign.cta_text || "Order Now";
   const titleText = campaign.title || "Super Bulk Savings";
@@ -86,6 +102,11 @@ export default function BulkDealBillboardBanner({
         {/* LEFT SECTION (~20% width) */}
         {/* ======================================================== */}
         <div className="w-full md:w-[22%] shrink-0 flex flex-col justify-center border-b md:border-b-0 md:border-r border-purple-200/60 pb-2 md:pb-0 md:pr-3">
+          {tagline && (
+            <p className="text-[10px] font-bold text-purple-900/80 text-center md:text-left mb-2 line-clamp-1 leading-tight tracking-tight">
+              {tagline}
+            </p>
+          )}
           {/* 3 Small Trust-Badge Icons in a row with 2-word labels */}
           <div className="grid grid-cols-3 gap-2">
             {badges.map((badge, idx) => {

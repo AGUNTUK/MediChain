@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ShoppingBag, Trash2, Plus, Minus, Receipt, ArrowRight, ShieldCheck, ArrowLeft, Package } from "lucide-react";
+import { ShoppingBag, Trash2, Plus, Minus, Receipt, ArrowRight, ShieldCheck, ArrowLeft, Package, Sparkles } from "lucide-react";
 import { Product } from "../types";
 import { orderService } from "../services";
 
@@ -11,10 +11,19 @@ interface CartProps {
 
 export default function Cart({ onCheckoutTrigger, onRefreshCartCounter, onBack }: CartProps) {
   const [cartData, setCartData] = useState<{
-    items: Array<{ product: Product; quantity: number }>;
+    items: Array<{
+      product: Product;
+      quantity: number;
+      effectiveUnitPrice?: number;
+      itemSubtotal?: number;
+      tierSavings?: number;
+      activeTier?: { minQty: number; discountPercent: number } | null;
+      nextTier?: { minQty: number; discountPercent: number } | null;
+    }>;
     totalMrp: number;
     totalAmount: number;
     totalSavings: number;
+    totalTierSavings?: number;
   } | null>(null);
 
   const fetchCart = async () => {
@@ -30,14 +39,19 @@ export default function Cart({ onCheckoutTrigger, onRefreshCartCounter, onBack }
     fetchCart();
   }, []);
 
+  const [updateError, setUpdateError] = useState<string | null>(null);
+
   const handleUpdateQty = async (productId: string, currentQty: number, change: number) => {
     const newQty = currentQty + change;
     try {
+      setUpdateError(null);
       await orderService.updateCartItem(productId, newQty);
       fetchCart();
       onRefreshCartCounter();
     } catch (err: any) {
-      alert(err.message || "Cannot update cart quantity.");
+      console.error("Failed to update cart quantity:", err);
+      setUpdateError(err.message || "Cannot update cart quantity.");
+      setTimeout(() => setUpdateError(null), 3000);
     }
   };
 
@@ -98,74 +112,121 @@ export default function Cart({ onCheckoutTrigger, onRefreshCartCounter, onBack }
           </span>
         </div>
 
-        {cartData.items.map(({ product, quantity }) => (
-          <div
-            key={product.id}
-            className="bg-white rounded-2xl p-3.5 border border-slate-100 flex gap-3 relative group"
-          >
-            {/* Remove item absolute */}
-            <button
-              onClick={() => handleRemoveItem(product.id)}
-              className="absolute top-3 right-3 text-slate-300 hover:text-rose-500 p-1 rounded-lg hover:bg-slate-50 transition-all cursor-pointer"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-
-            {/* Product image */}
-            <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-50 border border-slate-100 flex-shrink-0 flex items-center justify-center">
-              {product.imageUrl || product.image_url ? (
-                <img src={product.imageUrl || product.image_url} alt={product.name} loading="lazy" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-              ) : (
-                <Package className="w-6 h-6 text-slate-300" />
-              )}
-            </div>
-
-            {/* Icon / Brand block */}
-            <div className="flex-1 min-w-0">
-              <span className="text-[8px] bg-brand-purple/10 text-brand-purple font-extrabold px-1.5 py-0.5 rounded tracking-wide">
-                {product.category}
-              </span>
-              <h4 className="text-xs font-black text-brand-charcoal mt-1 leading-tight truncate">
-                {product.name} <span className="text-[10px] font-bold text-slate-400">{product.strength}</span>
-              </h4>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider truncate">{product.genericName}</p>
-              <div className="flex items-center gap-2 mt-0.5">
-                <p className="text-[8px] text-slate-400 font-semibold truncate">{product.company}</p>
-                <span className="text-slate-300 text-[8px]">•</span>
-                <p className="text-[8px] text-brand-purple font-bold">Pack: {product.packSize || "N/A"}</p>
-              </div>
-
-              {/* Subtotal & item calculation */}
-              <div className="flex items-center gap-3 mt-3">
-                <span className="text-[10px] font-bold text-slate-400 font-mono">
-                  ৳{product.sellingPrice} &times; {quantity}
-                </span>
-                <span className="text-xs font-extrabold text-brand-purple font-mono">
-                  ৳{(product.sellingPrice * quantity).toLocaleString()}
-                </span>
-              </div>
-            </div>
-
-            {/* Vertical Increment/Decrement controller */}
-            <div className="flex flex-col justify-center items-center bg-slate-100 rounded-xl px-1.5 py-1.5 border border-slate-200/40">
-              <button
-                onClick={() => handleUpdateQty(product.id, quantity, 1)}
-                className="text-slate-500 hover:text-brand-purple p-1 rounded hover:bg-white transition-all cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
-              <span className="w-6 text-center text-xs font-black text-slate-800 font-mono py-1">
-                {quantity}
-              </span>
-              <button
-                onClick={() => handleUpdateQty(product.id, quantity, -1)}
-                className="text-slate-500 hover:text-brand-purple p-1 rounded hover:bg-white transition-all cursor-pointer"
-              >
-                <Minus className="w-3.5 h-3.5" />
-              </button>
-            </div>
+        {updateError && (
+          <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs px-3 py-2 rounded-xl flex items-center gap-2">
+            <span>{updateError}</span>
           </div>
-        ))}
+        )}
+
+        {cartData.items.map((item) => {
+          const { product, quantity, effectiveUnitPrice, itemSubtotal, tierSavings, activeTier, nextTier } = item;
+          const unitPrice = effectiveUnitPrice !== undefined ? effectiveUnitPrice : product.sellingPrice;
+          const lineSubtotal = itemSubtotal !== undefined ? itemSubtotal : unitPrice * quantity;
+          const hasTierDiscount = Boolean(activeTier && activeTier.discountPercent > 0);
+
+          return (
+            <div
+              key={product.id}
+              className={`bg-white rounded-2xl p-3.5 border flex gap-3 relative group transition-all ${
+                hasTierDiscount ? "border-purple-200 bg-purple-50/15" : "border-slate-100"
+              }`}
+            >
+              {/* Remove item absolute */}
+              <button
+                onClick={() => handleRemoveItem(product.id)}
+                className="absolute top-3 right-3 text-slate-300 hover:text-rose-500 p-1 rounded-lg hover:bg-slate-50 transition-all cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+
+              {/* Product image */}
+              <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-50 border border-slate-100 flex-shrink-0 flex items-center justify-center">
+                {product.imageUrl || product.image_url ? (
+                  <img src={product.imageUrl || product.image_url} alt={product.name} loading="lazy" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <Package className="w-6 h-6 text-slate-300" />
+                )}
+              </div>
+
+              {/* Icon / Brand block */}
+              <div className="flex-1 min-w-0 pr-4">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[8px] bg-brand-purple/10 text-brand-purple font-extrabold px-1.5 py-0.5 rounded tracking-wide">
+                    {product.category}
+                  </span>
+                  {hasTierDiscount && (
+                    <span className="text-[8.5px] font-black bg-purple-600 text-white px-1.5 py-0.2 rounded-md flex items-center gap-0.5 shadow-3xs">
+                      <Sparkles className="w-2.5 h-2.5" />
+                      {activeTier?.discountPercent}% MRP ছাড়
+                    </span>
+                  )}
+                </div>
+                <h4 className="text-xs font-black text-brand-charcoal mt-1 leading-tight truncate">
+                  {product.name} <span className="text-[10px] font-bold text-slate-400">{product.strength}</span>
+                </h4>
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider truncate">{product.genericName}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="text-[8px] text-slate-400 font-semibold truncate">{product.company}</p>
+                  <span className="text-slate-300 text-[8px]">•</span>
+                  <p className="text-[8px] text-brand-purple font-bold">Pack: {product.packSize || "N/A"}</p>
+                </div>
+
+                {/* Subtotal & item calculation */}
+                <div className="flex items-baseline gap-2 mt-2">
+                  {hasTierDiscount ? (
+                    <span className="text-[10px] line-through text-slate-400 font-mono">
+                      MRP ৳{product.mrp || product.sellingPrice}
+                    </span>
+                  ) : (
+                    product.mrp && product.mrp > unitPrice ? (
+                      <span className="text-[10px] line-through text-slate-400 font-mono">
+                        ৳{product.mrp}
+                      </span>
+                    ) : null
+                  )}
+                  <span className="text-[10px] font-bold text-slate-500 font-mono">
+                    ৳{unitPrice.toFixed(2)} &times; {quantity}
+                  </span>
+                  <span className="text-slate-300 text-[10px]">•</span>
+                  <span className="text-xs font-black text-brand-purple font-mono">
+                    ৳{lineSubtotal.toLocaleString()}
+                  </span>
+                </div>
+
+                {tierSavings && tierSavings > 0 ? (
+                  <div className="mt-1 text-[9px] text-emerald-600 font-bold flex items-center gap-1">
+                    <span>🎉 বাল্ক ছাড় সাশ্রয়: ৳{tierSavings.toLocaleString()}</span>
+                  </div>
+                ) : null}
+
+                {nextTier && (
+                  <div className="mt-1 text-[9px] text-amber-700 font-medium">
+                    আর {nextTier.minQty - quantity}টি কিনলে {nextTier.discountPercent}% MRP ছাড় পাবেন!
+                  </div>
+                )}
+              </div>
+
+              {/* Vertical Increment/Decrement controller */}
+              <div className="flex flex-col justify-center items-center bg-slate-100 rounded-xl px-1.5 py-1.5 border border-slate-200/40">
+                <button
+                  onClick={() => handleUpdateQty(product.id, quantity, 1)}
+                  className="text-slate-500 hover:text-brand-purple p-1 rounded hover:bg-white transition-all cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+                <span className="w-6 text-center text-xs font-black text-slate-800 font-mono py-1">
+                  {quantity}
+                </span>
+                <button
+                  onClick={() => handleUpdateQty(product.id, quantity, -1)}
+                  className="text-slate-500 hover:text-brand-purple p-1 rounded hover:bg-white transition-all cursor-pointer"
+                >
+                  <Minus className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Cart Summary & Order Trigger Section */}
@@ -186,6 +247,17 @@ export default function Cart({ onCheckoutTrigger, onRefreshCartCounter, onBack }
             </span>
             <span className="font-mono font-black">- ৳{cartData.totalSavings.toLocaleString()}</span>
           </div>
+          {(cartData.totalTierSavings || 0) > 0 && (
+            <div className="flex justify-between text-purple-700 font-bold bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200/60 text-[11px]">
+              <span className="flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-purple-600" />
+                ভলিউম বাল্ক টিয়ার বোনাস সাশ্রয়
+              </span>
+              <span className="font-mono font-black text-purple-800">
+                - ৳{(cartData.totalTierSavings || 0).toLocaleString()}
+              </span>
+            </div>
+          )}
           <div className="flex justify-between font-black text-brand-charcoal pt-1.5 text-sm">
             <span>Net Procurement Amount</span>
             <span className="text-brand-purple font-mono text-base">৳{cartData.totalAmount.toLocaleString()}</span>

@@ -132,10 +132,11 @@ export default function App() {
   const [cartCount, setCartCount] = useState(0);
   const [cartQuantities, setCartQuantities] = useState<Record<string, number>>({});
   const [cartData, setCartData] = useState<{
-    items: Array<{ product: Product; quantity: number }>;
+    items: Array<any>;
     totalMrp: number;
     totalAmount: number;
     totalSavings: number;
+    totalTierSavings?: number;
   } | null>(null);
 
   // Sync products and credentials
@@ -194,7 +195,10 @@ export default function App() {
 
       const qtyMap: Record<string, number> = {};
       data.items?.forEach((item: any) => {
-        qtyMap[item.productId] = item.quantity;
+        const pId = item.productId || item.product?.id;
+        if (pId) {
+          qtyMap[pId] = item.quantity;
+        }
       });
       setCartQuantities(qtyMap);
     } catch (err) {

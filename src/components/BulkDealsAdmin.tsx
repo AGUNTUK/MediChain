@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { 
   Plus, Edit, Trash2, CheckCircle2, AlertTriangle, Search, X, Package, Calendar, 
-  Shield, Zap, Truck, Check, Star, ArrowRight, Loader2
+  Shield, Zap, Truck, Check, Star, ArrowRight, Loader2, Eye
 } from "lucide-react";
 import { bulkDealsService, productService } from "../services";
 import { BulkCampaign, BulkCampaignProduct, Product, TrustBadgeItem } from "../types";
+import BulkDealBillboardBanner from "./BulkDealBillboardBanner";
 
 const FIXED_ICON_OPTIONS: Array<{ key: TrustBadgeItem["icon"]; label: string; icon: React.ComponentType<{ className?: string }> }> = [
   { key: "shield", label: "Shield", icon: Shield },
@@ -76,10 +77,8 @@ export default function BulkDealsAdmin() {
       setFeaturedProduct(campaign.featured_product);
     } else if (campaign.featured_product_id) {
       try {
-        const res = await productService.getProductsPaginated({ search: campaign.featured_product_id, limit: 1 });
-        if (res.products && res.products.length > 0) {
-          setFeaturedProduct(res.products[0]);
-        }
+        const p = await productService.getProductById(campaign.featured_product_id);
+        setFeaturedProduct(p);
       } catch {
         setFeaturedProduct(null);
       }
@@ -379,6 +378,29 @@ export default function BulkDealsAdmin() {
         )}
 
         <div className="p-4 sm:p-6 space-y-8">
+          {/* REAL-TIME PREVIEW OF BILLBOARD BANNER */}
+          <div className="bg-slate-50 border border-purple-200/80 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
+                <Eye className="w-4 h-4 text-purple-600" />
+                Live Billboard Banner Preview
+              </span>
+              <span className="text-[11px] font-semibold text-slate-500">
+                Updates dynamically as you edit the fields below
+              </span>
+            </div>
+            <div className="rounded-3xl p-1 bg-white border border-purple-100 shadow-2xs">
+              <BulkDealBillboardBanner
+                campaign={{
+                  ...currentCampaign,
+                  status: "Live", // Always show in preview
+                  featured_product: featuredProduct || currentCampaign.featured_product,
+                  trust_badges: badges
+                } as BulkCampaign}
+              />
+            </div>
+          </div>
+
           {/* SECTION 1: BILLBOARD BANNER SHOWCASE FIELDS */}
           <div className="bg-purple-50/40 rounded-2xl p-4 sm:p-5 border border-purple-100 space-y-6">
             <div className="flex items-center justify-between border-b border-purple-200/60 pb-3">
@@ -717,45 +739,62 @@ export default function BulkDealsAdmin() {
                   </div>
                   <div className="p-3 bg-white space-y-2">
                     <div className="grid grid-cols-12 gap-3 text-[11px] font-bold text-slate-500 px-1">
-                      <div className="col-span-5">Min Qty (Cartons/Units)</div>
-                      <div className="col-span-5">Discount %</div>
-                      <div className="col-span-2"></div>
+                      <div className="col-span-4">Min Qty (বক্স/কার্টন)</div>
+                      <div className="col-span-4">ডিসকাউন্ট % (MRP থেকে)</div>
+                      <div className="col-span-3">কার্যকর রেট (৳)</div>
+                      <div className="col-span-1"></div>
                     </div>
-                    {cp.tiers?.map((tier, tIdx) => (
-                      <div key={tIdx} className="grid grid-cols-12 gap-3 items-center">
-                        <div className="col-span-5">
-                          <input
-                            type="number"
-                            min="1"
-                            value={tier.minQty}
-                            onChange={e => updateTier(pIdx, tIdx, "minQty", parseInt(e.target.value) || 0)}
-                            className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs"
-                          />
-                        </div>
-                        <div className="col-span-5">
-                          <div className="relative">
+                    {cp.tiers?.map((tier, tIdx) => {
+                      const prodMrp = Number(cp.product?.mrp || 0);
+                      const previewEffective = prodMrp > 0
+                        ? (prodMrp * (1 - (Number(tier.discountPercent) || 0) / 100)).toFixed(2)
+                        : null;
+
+                      return (
+                        <div key={tIdx} className="grid grid-cols-12 gap-3 items-center">
+                          <div className="col-span-4">
                             <input
                               type="number"
-                              min="0"
-                              max="100"
-                              value={tier.discountPercent}
-                              onChange={e => updateTier(pIdx, tIdx, "discountPercent", parseFloat(e.target.value) || 0)}
-                              className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs pr-6"
+                              min="1"
+                              value={tier.minQty}
+                              onChange={e => updateTier(pIdx, tIdx, "minQty", parseInt(e.target.value) || 0)}
+                              className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs"
+                              placeholder="10"
                             />
-                            <span className="absolute right-2 top-1.5 text-xs text-slate-400">%</span>
+                          </div>
+                          <div className="col-span-4">
+                            <div className="relative">
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.5"
+                                value={tier.discountPercent}
+                                onChange={e => updateTier(pIdx, tIdx, "discountPercent", parseFloat(e.target.value) || 0)}
+                                className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs pr-6"
+                                placeholder="73"
+                              />
+                              <span className="absolute right-2 top-1.5 text-xs text-slate-400">%</span>
+                            </div>
+                          </div>
+                          <div className="col-span-3">
+                            <div className="px-2 py-1.5 bg-purple-50 border border-purple-200 rounded-lg text-xs font-mono font-bold text-brand-purple text-center">
+                              {previewEffective ? `৳${previewEffective}` : "-"}
+                            </div>
+                          </div>
+                          <div className="col-span-1 text-right">
+                            <button 
+                              type="button" 
+                              onClick={() => removeTier(pIdx, tIdx)} 
+                              className="text-slate-400 hover:text-rose-500 p-1 cursor-pointer"
+                              title="টিয়ার মুছুন"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </div>
-                        <div className="col-span-2 text-right">
-                          <button 
-                            type="button" 
-                            onClick={() => removeTier(pIdx, tIdx)} 
-                            className="text-slate-400 hover:text-rose-500 p-1 cursor-pointer"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     <button
                       type="button"
                       onClick={() => addTier(pIdx)}
