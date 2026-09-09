@@ -40,6 +40,7 @@ import { apiCache } from "../lib/apiCache";
 import { useCartFeedback } from "../context/FlyToCartContext";
 import SmartOrderModal from "./SmartOrderModal";
 import HeroCarousel from "./HeroCarousel";
+import BulkDealBillboardBanner from "./BulkDealBillboardBanner";
 import CategoryIcon, { getCategoryConfig } from "./CategoryIcon";
 import { ALL_CATEGORY_VALUES } from "../constants/categories";
 import { useDebounce } from "../hooks/useDebounce";
@@ -361,6 +362,17 @@ export default function Home({
               onOpenBulkDeals={onOpenBulkDeals} 
             />
           </div>
+
+          {/* Admin-Editable Bulk Deal Billboard Banner (Show below hero section) */}
+          {liveCampaign && liveCampaign.status === "Live" && (
+            <div className="px-3 sm:px-4 pt-3 max-w-7xl mx-auto w-full">
+              <BulkDealBillboardBanner
+                campaign={liveCampaign}
+                onOpenBulkDeals={onOpenBulkDeals}
+                onOpenProductDetails={onOpenProductDetails}
+              />
+            </div>
+          )}
           
           <div className="p-4 space-y-5 pb-32">
             {/* Active Order Live Tracker Pulse Card */}
@@ -639,51 +651,6 @@ export default function Home({
                 </div>
               )}
             </div>
-
-            {/* Live Wholesale Bulk Campaign Banner Card */}
-            {liveCampaign && (
-              <div 
-                onClick={() => onOpenBulkDeals?.(liveCampaign.id)}
-                className="bg-gradient-to-r from-purple-50/90 via-white to-lime-50/70 rounded-3xl p-4 sm:p-5 text-slate-900 shadow-xs border border-purple-200/80 relative overflow-hidden cursor-pointer hover:scale-[1.01] transition-all group"
-              >
-                <div className="absolute top-0 right-0 w-64 h-64 bg-radial from-purple-400/10 to-transparent blur-2xl pointer-events-none"></div>
-                <div className="relative z-10 space-y-2.5">
-                  <div className="flex justify-between items-center">
-                    <span className="bg-brand-lime text-slate-950 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
-                      <Flame className="w-3 h-3 fill-slate-950" />
-                      লাইভ পাইকারি স্পেশাল অফার
-                    </span>
-                    <span className="text-[10px] text-purple-700 font-mono font-bold flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-purple-600" />
-                      সীমিত সময়ের অফার
-                    </span>
-                  </div>
-
-                  <div>
-                    <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight">
-                      {liveCampaign.title || "ম্যানুফ্যাকচারার কোয়ার্টারলি পাইকারি অফার"}
-                    </h3>
-                    <p className="text-xs text-slate-600 font-medium line-clamp-1 mt-0.5">
-                      {liveCampaign.description || "একসাথে বেশি ওষুধ কিনে সর্বোচ্চ ২৮% পর্যন্ত বাড়তি লাভ উপভোগ করুন।"}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-black text-purple-700">বেশি পরিমাণে বিশেষ ছাড়</span>
-                      <span className="text-[10px] text-slate-500">• সরাসরি ওষুধ কোম্পানি থেকে</span>
-                    </div>
-                    <button
-                      type="button"
-                      className="bg-purple-600 hover:bg-purple-700 text-white font-black text-xs px-3.5 py-1.5 rounded-xl flex items-center gap-1 shadow-xs group-hover:scale-105 transition-transform cursor-pointer"
-                    >
-                      <span>অফার দেখুন</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* FULL LIVE PRODUCT CATALOG SECTION ON HOMEPAGE */}
             <div id="home-product-catalog" className="pt-2 space-y-4 scroll-mt-20">

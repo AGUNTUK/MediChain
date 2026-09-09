@@ -1783,6 +1783,44 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `npm run lint` (`tsc --noEmit`): 0 errors, 100% clean type check.
   - `npm run build`: Production bundle and backend compilation succeeded with 0 errors.
 
+### Task 77: Admin-Editable Bulk Deal Billboard Banner & Save Campaign RLS Fix
+- **Status:** Completed
+- **Scope & User Intent:**
+  - Build a fully admin-editable "Bulk Deal Billboard Banner" component for the MediChain home page, replacing the existing static bulk deal placeholder card and extending the `bulk_campaigns` feature.
+  - Diagnose and resolve the root cause of the "Save Campaign" failure in the admin panel.
+  - Deliver exact visual styling matching the 4:1 wide billboard banner spec (soft lavender gradient, Orchid Purple badge, Lime Green accents, organic soft blobs, 3 editable trust badges, featured product details & rotated image, torn-paper discount badge, and lime CTA button).
+- **Key Actions & Architectural Improvements:**
+  1. **Root Cause Analysis & Fix of Save Campaign Bug:**
+     - *Issue:* Frontend previously attempted direct inserts and updates to Supabase table `bulk_campaigns` via the client-side public anon key (`supabase.from('bulk_campaigns').insert(...)`). In migration `08_rls_hardening.sql`, RLS was enabled with SELECT-only policies for public users.
+     - *Fix:* Added authenticated backend API routes in `server.ts` powered by `supabaseAdmin` with RBAC authorization (`requireRole(["Admin"])`):
+       - `POST /api/bulk-deals/campaigns`: Create new bulk campaign.
+       - `PUT /api/bulk-deals/campaigns/:id`: Update existing campaign.
+       - `DELETE /api/bulk-deals/campaigns/:id`: Delete campaign and purge cache.
+       - `POST /api/bulk-deals/campaigns/:id/products`: Sync campaign tiered products.
+     - Replaced direct client-side Supabase calls in `src/services/bulkDeals.ts` with authenticated `apiFetch` requests.
+  2. **Database Schema & Dual-Write Fallback:**
+     - Created migrations in `supabase-migrations/13_bulk_campaigns_billboard.sql` and `supabase/migrations/13_bulk_campaigns_billboard.sql` adding `featured_product_id`, `discount_display_percent`, `trust_badges` (JSONB), and `cta_link`.
+     - Implemented dual-write and serialization fallback in `server.ts` (`parseCampaignRow` and insertion handlers) that embeds billboard fields into `subtext` JSON, ensuring instantaneous, unbroken functionality even prior to manual migration execution on Supabase.
+  3. **Billboard Banner Component (`src/components/BulkDealBillboardBanner.tsx`):**
+     - Ratio: ~4:1 desktop aspect ratio (min-height ~205-220px) with responsive stacking on mobile.
+     - Colorway & Elements: Background lavender gradient (`#F5EEFE` via `#FAF5FF` to `#F1E5FE`), corner organic blobs (`#A855F7`/15% and `#A3E635`/25%), charcoal primary text (`#14161B`), muted grey details (`#6B7280`).
+     - Left Section (~20%): Official MediChain logo mark (`/logo.png` via `MediChainIconOnly`) + brand name (`Medi` in brand purple, `Chain` in brand lime), tagline ("B2B Pharma Wholesale, Made Smarter"), and 3 trust badge slots with admin-editable 2-word labels and dynamic Lucide icons (`shield`, `lightning`, `truck`, `check`, `star`).
+     - Middle Section (~45%): Large bold product name, strength/generic dosage info, manufacturer company, and featured medicine pack image rotated at -6° with drop shadow and ambient lime backlight.
+     - Right Section (~35%): Rotated pill badge with campaign title, "torn paper" style SVG clipped badge in purple gradient (`#A855F7` to `#7C3AED`) with bold lime green percentage (`#A3E635`) and white "OFF", plus solid lime green "Order Now" button with dark circular arrow icon.
+     - Interactive Navigation: Click transitions directly to product details modal or bulk deals view.
+  4. **Admin Panel Upgrades (`src/components/BulkDealsAdmin.tsx`):**
+     - Upgraded campaign editor with live product search & selector (auto-populating product name, strength, company, and image preview).
+     - Added inputs for discount display %, 3 customizable trust badges (icon dropdown and label), CTA label, destination link, and Draft/Live status toggle.
+     - Added clear loading indicators, form validation, error alert banners, and instant live campaign preview.
+  5. **Home Page Integration (`src/components/Home.tsx`):**
+     - Positioned `<BulkDealBillboardBanner />` immediately below `<HeroCarousel />`.
+     - Strictly conditional: renders only when a campaign is marked `Live`.
+     - Cleanly removed the obsolete placeholder card.
+- **VERIFICATION:**
+  - Automated test script `scripts/create_test_billboard_campaign.mjs` executed: successfully created Live campaign `82c86ae4-df77-4878-a55c-e4bf630d2621` featuring `A Pak SR 200` with 28% discount and 3 trust badges.
+  - `GET /api/bulk-deals/live` verified returning full payload with hydrated product information.
+  - Type check (`tsc --noEmit`) and production bundle build verified with 0 errors.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

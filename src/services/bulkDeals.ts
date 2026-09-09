@@ -1,12 +1,18 @@
 import { supabase } from "../lib/supabaseClient";
 import { BulkCampaign, BulkCampaignProduct } from "../types";
 import { apiCache } from "../lib/apiCache";
+import { apiFetch } from "../lib/apiFetch";
 
 export const bulkDealsService = {
+  clearCache(): void {
+    apiCache.invalidate("bulk_campaigns");
+    apiCache.invalidate("live_campaign");
+  },
+
   async getCampaigns(): Promise<BulkCampaign[]> {
     return apiCache.swr("bulk_campaigns", async () => {
       try {
-        const res = await fetch("/api/bulk-deals/campaigns");
+        const res = await apiFetch("/api/bulk-deals/campaigns");
         if (res.ok) {
           const data = await res.json();
           return Array.isArray(data) ? data : [];
@@ -31,7 +37,7 @@ export const bulkDealsService = {
   async getLiveCampaign(): Promise<BulkCampaign | null> {
     return apiCache.swr("live_campaign", async () => {
       try {
-        const res = await fetch("/api/bulk-deals/live");
+        const res = await apiFetch("/api/bulk-deals/live");
         if (res.ok) {
           const data = await res.json();
           return data as BulkCampaign | null;
@@ -58,6 +64,16 @@ export const bulkDealsService = {
 
   async getCampaignById(id: string): Promise<BulkCampaign | null> {
     return apiCache.swr(`campaign_${id}`, async () => {
+      try {
+        const res = await apiFetch(`/api/bulk-deals/campaigns/${encodeURIComponent(id)}`);
+        if (res.ok) {
+          const data = await res.json();
+          return data as BulkCampaign | null;
+        }
+      } catch (err) {
+        console.warn("[Bulk Deals] Server fetch by ID failed, falling back to Supabase...", err);
+      }
+
       const { data, error } = await supabase
         .from("bulk_campaigns")
         .select("*")
@@ -75,7 +91,7 @@ export const bulkDealsService = {
   async getCampaignProducts(campaignId: string): Promise<BulkCampaignProduct[]> {
     return apiCache.swr(`campaign_products_${campaignId}`, async () => {
       try {
-        const res = await fetch(`/api/bulk-deals/campaigns/${encodeURIComponent(campaignId)}/products`);
+        const res = await apiFetch(`/api/bulk-deals/campaigns/${encodeURIComponent(campaignId)}/products`);
         if (res.ok) {
           const data = await res.json();
           return Array.isArray(data) ? data : [];
@@ -98,70 +114,79 @@ export const bulkDealsService = {
   },
 
   async createCampaign(campaign: Partial<BulkCampaign>): Promise<BulkCampaign | null> {
-    const { data, error } = await supabase
-      .from("bulk_campaigns")
-      .insert([campaign])
-      .select()
-      .maybeSingle();
-      
-    if (error) {
-      console.error("Error creating campaign:", error);
-      return null;
+    try {
+      const res = await apiFetch("/api/bulk-deals/campaigns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(campaign)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        this.clearCache();
+        return data as BulkCampaign;
+      }
+      const errJson = await res.json().catch(() => null);
+      throw new Error(errJson?.error || `Server returned ${res.status}`);
+    } catch (err: any) {
+      console.error("[Bulk Deals] Error creating campaign via API:", err.message);
+      throw err;
     }
-    return data as BulkCampaign;
   },
 
   async updateCampaign(id: string, updates: Partial<BulkCampaign>): Promise<BulkCampaign | null> {
-    const { data, error } = await supabase
-      .from("bulk_campaigns")
-      .update(updates)
-      .eq("id", id)
-      .select()
-      .maybeSingle();
-      
-    if (error) {
-      console.error("Error updating campaign:", error);
-      return null;
+    try {
+      const res = await apiFetch(`/api/bulk-deals/campaigns/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        this.clearCache();
+        apiCache.invalidate(`campaign_${id}`);
+        return data as BulkCampaign;
+      }
+      const errJson = await res.json().catch(() => null);
+      throw new Error(errJson?.error || `Server returned ${res.status}`);
+    } catch (err: any) {
+      console.error("[Bulk Deals] Error updating campaign via API:", err.message);
+      throw err;
     }
-    return data as BulkCampaign;
   },
 
   async deleteCampaign(id: string): Promise<boolean> {
-    const { error } = await supabase
-      .from("bulk_campaigns")
-      .delete()
-      .eq("id", id);
-      
-    if (error) {
-      console.error("Error deleting campaign:", error);
+    try {
+      const res = await apiFetch(`/api/bulk-deals/campaigns/${encodeURIComponent(id)}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        this.clearCache();
+        apiCache.invalidate(`campaign_${id}`);
+        apiCache.invalidate(`campaign_products_${id}`);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error("[Bulk Deals] Error deleting campaign via API:", err);
       return false;
     }
-    return true;
   },
 
   async setCampaignProducts(campaignId: string, products: { product_id: string, tiers: any[] }[]): Promise<boolean> {
-    // First, delete existing products for this campaign
-    await supabase
-      .from("bulk_campaign_products")
-      .delete()
-      .eq("campaign_id", campaignId);
-      
-    if (products.length === 0) return true;
-    
-    const insertData = products.map(p => ({
-      campaign_id: campaignId,
-      product_id: p.product_id,
-      tiers: p.tiers
-    }));
-
-    const { error } = await supabase
-      .from("bulk_campaign_products")
-      .insert(insertData);
-      
-    if (error) {
-      console.error("Error setting campaign products:", error);
+    try {
+      const res = await apiFetch(`/api/bulk-deals/campaigns/${encodeURIComponent(campaignId)}/products`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ products })
+      });
+      if (res.ok) {
+        apiCache.invalidate(`campaign_products_${campaignId}`);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error("[Bulk Deals] Error setting campaign products via API:", err);
       return false;
     }
-    return true;
   }
 };

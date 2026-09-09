@@ -270,17 +270,29 @@ export interface ImportHistoryEvent {
 }
 
 
+export interface TrustBadgeItem {
+  icon: "shield" | "lightning" | "truck" | "check" | "star";
+  label: string;
+}
+
 export interface BulkCampaign {
   id: string;
   title: string;
-  subtext: string;
-  banner_color: string;
-  banner_image_url: string;
-  cta_text: string;
+  subtext?: string;
+  description?: string;
+  banner_color?: string;
+  banner_image_url?: string;
+  cta_text?: string;
+  cta_link?: string;
   status: "Draft" | "Live" | "Expired";
+  featured_product_id?: string;
+  featured_product?: Product;
+  discount_display_percent?: number;
+  trust_badges?: TrustBadgeItem[];
   start_at?: string;
   end_at?: string;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface BulkTier {
