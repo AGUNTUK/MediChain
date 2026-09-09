@@ -18,7 +18,7 @@ export default function HeroCarousel({
 
   return (
     <div className="relative w-full rounded-2xl sm:rounded-3xl overflow-hidden bg-white border border-slate-200/80 shadow-xs sm:shadow-sm flex-shrink-0">
-      <div className="w-full relative bg-gradient-to-r from-white via-[#FAF8FF] to-[#ECE7FE] px-4 sm:px-8 md:px-10 py-5 sm:py-6 sm:pb-8 flex items-center justify-between min-h-[250px] sm:min-h-[275px] md:min-h-[300px] overflow-hidden">
+      <div className="w-full relative bg-gradient-to-r from-white via-[#FAF8FF] to-[#ECE7FE] px-4 sm:px-8 md:px-10 py-5 sm:py-6 flex items-center justify-between min-h-[200px] sm:min-h-[220px] md:min-h-[240px] overflow-hidden">
         {/* Left Text & CTA Content */}
         <div className="relative z-20 w-full sm:max-w-[56%] md:max-w-[55%] lg:max-w-[54%] flex flex-col justify-center">
           
@@ -38,16 +38,11 @@ export default function HeroCarousel({
             <span className="inline-block hover:animate-wiggle shrink-0 cursor-default">👋</span>
           </h1>
 
-          {/* Brand Tagline / Slogan: ফার্মেসির স্মার্ট পার্টনার */}
-          <div className="mt-2 sm:mt-2.5 text-base sm:text-lg md:text-[22px] font-black text-slate-800 leading-snug tracking-tight">
-            <span className="text-[#6344E7]">ফার্মেসির স্মার্ট পার্টনার</span>
-          </div>
-
           {/* Value Bullet Points: 
               ২১,০০০+ ওষুধ • সাশ্রয়ী দাম
               সহজ অর্ডার • দ্রুত ডেলিভারি
               প্রতিযোগিতামূলক wholesale pricing ও আকর্ষণীয় discount */}
-          <div className="mt-2.5 sm:mt-3 space-y-1 sm:space-y-1.5 text-xs sm:text-[13px] font-bold text-slate-600">
+          <div className="mt-3 sm:mt-4 space-y-1 sm:space-y-1.5 text-xs sm:text-[13px] font-bold text-slate-600">
             <div className="flex items-center gap-2">
               <span className="w-4 h-4 rounded-full bg-emerald-100 text-[#70C016] flex items-center justify-center text-[10px] font-black shrink-0">✓</span>
               <span>২১,০০০+ ওষুধ • সাশ্রয়ী দাম</span>

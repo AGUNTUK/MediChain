@@ -64,7 +64,6 @@ export default function BulkDealBillboardBanner({
       aria-label="Bulk Deal Billboard Banner"
       onClick={handleAction}
       className="group relative w-full overflow-hidden rounded-3xl border border-purple-200/90 shadow-lg shadow-purple-900/5 bg-gradient-to-r from-[#F5EEFE] via-[#FAF5FF] to-[#F1E5FE] transition-all duration-300 hover:shadow-xl hover:shadow-purple-900/10 hover:border-purple-300 cursor-pointer"
-      style={{ minHeight: "205px" }}
     >
       {/* DECORATIVE ORGANIC SOFT BLOBS (Tucked into corners behind content) */}
       <div 
@@ -80,29 +79,15 @@ export default function BulkDealBillboardBanner({
         aria-hidden="true" 
       />
 
-      {/* THREE HORIZONTAL SECTIONS CONTAINER (Desktop 4:1 Ratio ~200-220px, Responsive Stacking on Mobile) */}
-      <div className="relative z-10 flex flex-col md:flex-row items-center justify-between p-4 sm:p-5 md:py-3.5 md:px-6 gap-4 md:gap-2 h-full">
+      {/* THREE HORIZONTAL SECTIONS CONTAINER (Responsive Stacking on Mobile) */}
+      <div className="relative z-10 flex flex-col md:flex-row items-center justify-between p-3 sm:p-4 md:py-2 md:px-5 gap-3 md:gap-2 h-full min-h-[120px]">
         
         {/* ======================================================== */}
         {/* LEFT SECTION (~20% width) */}
         {/* ======================================================== */}
-        <div className="w-full md:w-[22%] shrink-0 flex flex-col justify-center border-b md:border-b-0 md:border-r border-purple-200/60 pb-3 md:pb-0 md:pr-4">
-          {/* Logo + Brand Name (Official Codebase Logo) */}
-          <div className="flex items-center gap-2.5">
-            <MediChainIconOnly className="w-9 h-9 sm:w-10 sm:h-10 shrink-0 filter drop-shadow-xs" />
-            <div>
-              <span className="text-base sm:text-lg font-black tracking-tight block leading-none select-none">
-                <span className="text-brand-purple">Medi</span>
-                <span className="text-brand-lime">Chain</span>
-              </span>
-              <span className="text-[10px] text-[#6B7280] font-medium block leading-tight mt-1 line-clamp-1">
-                {tagline}
-              </span>
-            </div>
-          </div>
-
+        <div className="w-full md:w-[22%] shrink-0 flex flex-col justify-center border-b md:border-b-0 md:border-r border-purple-200/60 pb-2 md:pb-0 md:pr-3">
           {/* 3 Small Trust-Badge Icons in a row with 2-word labels */}
-          <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-purple-200/50">
+          <div className="grid grid-cols-3 gap-2">
             {badges.map((badge, idx) => {
               const IconComp = BADGE_ICONS[badge.icon] || Shield;
               return (
@@ -122,7 +107,7 @@ export default function BulkDealBillboardBanner({
         {/* ======================================================== */}
         {/* MIDDLE SECTION (~45% width, centered) */}
         {/* ======================================================== */}
-        <div className="w-full md:w-[45%] flex items-center justify-center px-2 md:px-4 py-1">
+        <div className="w-full md:w-[45%] flex items-center justify-center px-2 md:px-3 py-1">
           <div className="flex items-center gap-4 sm:gap-6 max-w-md">
             
             {/* Product Details (Text) */}

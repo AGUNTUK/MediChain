@@ -70,23 +70,6 @@ export default function GoodMorningHeroVisual({ className = "" }: { className?: 
       {/* Main 3D Pharmaceutical Composition */}
       <div className="relative z-10 w-full max-w-[340px] sm:max-w-[420px] h-[220px] sm:h-[260px] md:h-[290px] flex items-center justify-center pointer-events-none">
         
-        {/* Floating "Smart Procurement" Glassmorphic Disc Badge (Top Right) */}
-        <motion.div 
-          animate={{ y: [0, -5, 0] }}
-          transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-1 sm:top-3 right-1 sm:right-5 z-30 flex flex-col items-center justify-center text-center w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-tr from-[#6D28D9]/95 via-[#7C3AED]/90 to-[#4F46E5]/95 backdrop-blur-md border border-white/40 shadow-xl p-2 pointer-events-auto"
-        >
-          <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white/20 flex items-center justify-center mb-1">
-            <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white stroke-[2.5]" />
-          </div>
-          <span className="text-[8.5px] sm:text-[10px] font-extrabold text-white leading-tight tracking-tight">
-            Smart Depot
-          </span>
-          <span className="text-[7px] sm:text-[8px] font-semibold text-[#84CC16] leading-none mt-0.5 flex items-center gap-0.5">
-            99.8% On-Time
-          </span>
-        </motion.div>
-
         {/* 3D Rendered Shopping Bag with Realistic Medicines */}
         <div className="relative flex items-center justify-center w-[205px] sm:w-[245px] md:w-[265px] h-full translate-x-2 sm:translate-x-0">
           <svg 
