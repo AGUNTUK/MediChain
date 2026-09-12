@@ -2541,9 +2541,10 @@ function resolvePdfItemType(item: any): string {
   return "Tablet";
 }
 
-function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, invoiceNumber: string) {
+function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, invoiceNumber: string, customFilename?: string) {
+  const safeFilename = customFilename || (invoiceNumber ? `${invoiceNumber.replace(/[^a-zA-Z0-9-_]/g, "_")}.pdf` : `invoice-${order.id || "order"}.pdf`);
   res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `attachment; filename="invoice-${order.id}.pdf"`);
+  res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}"`);
 
   const doc = new PDFDocument({ margin: 0, size: "A4" });
   doc.pipe(res);
@@ -2628,9 +2629,11 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
   doc.moveTo(320, stripY).lineTo(320, stripY + 58).strokeColor("#E2E8F0").lineWidth(0.8).stroke();
 
   // Right column: PAYMENT
+  const methodLabel = order.paymentMethod ? `Method: ${order.paymentMethod}` : "Method: Cash on Delivery (COD)";
+  const displayDueDate = order.dueDate ? order.dueDate : invoiceDate;
   doc.font("Helvetica-Bold").fontSize(8).fillColor("#A855F7").text("PAYMENT", 335, stripY);
-  doc.font("Helvetica").fontSize(7.5).fillColor("#6B7280").text("Method: Cash on Delivery (COD)", 335, stripY + 12);
-  doc.text(`Due Date: ${invoiceDate}`, 335, stripY + 24);
+  doc.font("Helvetica").fontSize(7.5).fillColor("#6B7280").text(methodLabel, 335, stripY + 12);
+  doc.text(`Due Date: ${displayDueDate}`, 335, stripY + 24);
 
   // Status pill badge
   if (isPaid) {
@@ -2724,7 +2727,7 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
   const summaryX = 335;
   const summaryWidth = doc.page.width - 335 - 30;
   const wholesaleSavings = Math.max(0, totalMrpSum - subtotalMedicines);
-  const deliveryCharge = DEFAULT_DELIVERY_CHARGE; // Fixed platform-wide constant (Tk 40)
+  const deliveryCharge = order.deliveryCharge !== undefined ? Number(order.deliveryCharge) : DEFAULT_DELIVERY_CHARGE;
   const netPayable = subtotalMedicines + deliveryCharge;
   const amountDue = isPaid ? 0.00 : netPayable;
 
@@ -3970,6 +3973,56 @@ app.post("/api/admin/invoices/:id/download", requireRole(["Admin"]), async (req,
     generateInvoicePdf(res, order, pharmacy, invoiceNumber);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/custom-invoices/pdf", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const customData = req.body;
+    if (!customData || !customData.items || !Array.isArray(customData.items)) {
+      return res.status(400).json({ error: "Invalid custom invoice payload." });
+    }
+
+    const orderPayload = {
+      id: customData.id || `custom-${Date.now()}`,
+      readableId: customData.orderRef || customData.invoiceNumber,
+      pharmacyName: customData.recipientName || "Institutional Partner",
+      pharmacyOwner: customData.contactPerson || "Authorized Representative",
+      pharmacyPhone: customData.phone || "N/A",
+      pharmacyAddress: customData.address || "Institutional Delivery Address",
+      deliveryAddress: customData.address || "Institutional Delivery Address",
+      paymentStatus: customData.paymentStatus || "Pending",
+      paymentMethod: customData.paymentMethod || "Cash on Delivery",
+      dueDate: customData.dueDate,
+      deliveryCharge: customData.deliveryCharge !== undefined ? Number(customData.deliveryCharge) : 0,
+      createdAt: customData.createdAt || new Date().toISOString(),
+      items: customData.items.map((it: any) => ({
+        name: it.name,
+        category: it.category || "Tablet",
+        strength: it.strength || "",
+        packSize: it.packSize || "",
+        quantity: Number(it.quantity) || 1,
+        mrp: Number(it.mrp) || 0,
+        sellingPrice: Number(it.rate) || 0,
+        subtotal: (Number(it.rate) || 0) * (Number(it.quantity) || 1)
+      }))
+    };
+
+    const pharmacyPayload = {
+      pharmacyName: customData.recipientName,
+      ownerName: customData.contactPerson,
+      phone: customData.phone,
+      address: customData.address,
+      licenseNo: customData.licenseOrRegNo || "N/A - Institutional Direct Supply"
+    };
+
+    const invoiceNumber = customData.invoiceNumber || `INV-INST-${Date.now().toString().slice(-6)}`;
+    const filename = `${invoiceNumber.replace(/[^a-zA-Z0-9-_]/g, "_")}.pdf`;
+
+    generateInvoicePdf(res, orderPayload, pharmacyPayload, invoiceNumber, filename);
+  } catch (err: any) {
+    console.error("[Custom Invoice PDF Error]:", err);
+    res.status(500).json({ error: err.message || "Failed to generate custom invoice PDF" });
   }
 });
 

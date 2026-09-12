@@ -56,6 +56,7 @@ import PharmacyVerificationPanel from "./PharmacyVerificationPanel";
 import AdminNotificationCenter from "./AdminNotificationCenter";
 import AuditLogPanel from "./AuditLogPanel";
 import AdminRestockRequests from "./AdminRestockRequests";
+import CustomInvoiceGenerator from "./CustomInvoiceGenerator";
 
 interface AdminPanelProps {
   currentUser: User;
@@ -72,7 +73,8 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
     "/admin/pharmacies" | 
     "/admin/restock-requests" |
     "/admin/notifications" | 
-    "/admin/settings" | "/admin/bulk-deals" | "/admin/audit-logs" | "/admin/finance"
+    "/admin/settings" | "/admin/bulk-deals" | "/admin/audit-logs" | "/admin/finance" |
+    "/admin/invoice-generator"
   >("/admin/dashboard");
 
   const [pendingRestockCount, setPendingRestockCount] = useState(0);
@@ -93,7 +95,8 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
         "/admin/settings",
         "/admin/bulk-deals",
         "/admin/audit-logs",
-        "/admin/finance"
+        "/admin/finance",
+        "/admin/invoice-generator"
       ];
       if (validRoutes.includes(matched)) {
         setActiveRoute(matched);
@@ -1432,6 +1435,21 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
             </button>
 
             <button
+              onClick={() => navigateTo("/admin/invoice-generator")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all ${
+                activeRoute === "/admin/invoice-generator" ? "bg-indigo-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              <div className="flex items-center justify-between flex-1">
+                <span>Invoice Generator</span>
+                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-100 text-purple-700 border border-purple-200">
+                  Custom
+                </span>
+              </div>
+            </button>
+
+            <button
               onClick={() => navigateTo("/admin/audit-logs")}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all ${
                 activeRoute === "/admin/audit-logs" ? "bg-indigo-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
@@ -1497,6 +1515,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
               {activeRoute === "/admin/audit-logs" && "SYSTEM TRANSACTION AUDIT LOGS"}
               {activeRoute === "/admin/settings" && "SYSTEM PLATFORM SCHEMAS"}
               {activeRoute === "/admin/bulk-deals" && "BULK DEALS MANAGER"}
+              {activeRoute === "/admin/invoice-generator" && "INSTITUTIONAL INVOICE GENERATOR"}
             </h2>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-4 w-full sm:w-auto justify-between sm:justify-end">
@@ -2486,9 +2505,19 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                       <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-3 shadow-xs">
                         <div className="flex items-center justify-between mb-2">
                           <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">Wholesale Orders</h3>
-                          <span className="text-[11px] font-semibold text-slate-500">
-                            {orders.length} {orders.length === 1 ? "order" : "orders"}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => navigateTo("/admin/invoice-generator")}
+                              className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                              title="Generate Custom Invoice for Institutes"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              <span>Custom Invoice Generator</span>
+                            </button>
+                            <span className="text-[11px] font-semibold text-slate-500">
+                              {orders.length} {orders.length === 1 ? "order" : "orders"}
+                            </span>
+                          </div>
                         </div>
                         
                         {orders.length === 0 ? (
@@ -2894,6 +2923,17 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
 
 
               
+              {/* SCREEN: CUSTOM INSTITUTIONAL INVOICE GENERATOR */}
+              {activeRoute === "/admin/invoice-generator" && (
+                <div className="-m-4 sm:-m-6 lg:-m-8 h-[calc(100%+2rem)] sm:h-[calc(100%+3rem)] lg:h-[calc(100%+4rem)] min-h-[720px] flex flex-col">
+                  <CustomInvoiceGenerator
+                    products={products}
+                    pharmacies={pharmacies}
+                    onBackToOrders={() => navigateTo("/admin/orders")}
+                  />
+                </div>
+              )}
+
               {/* SCREEN 7: RESTOCK REQUESTS & DEMAND */}
               {activeRoute === "/admin/restock-requests" && (
                 <AdminRestockRequests 

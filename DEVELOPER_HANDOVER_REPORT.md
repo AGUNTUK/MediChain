@@ -1907,6 +1907,41 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `tsc --noEmit` verified with 0 errors.
   - Production build compiled cleanly.
 
+### Task 82: Admin Panel Custom Institutional Invoice Generator
+- **Status:** Completed
+- **Scope & User Intent:**
+  - **Custom Institutional Direct Supply Invoices**: Provided administrators with a full-featured, editable Custom Invoice Generator in the Admin Panel (`/admin/invoice-generator`) specifically crafted for institutes (hospitals, clinics, diagnostic centers, NGOs, and unregistered entities) receiving direct pharmaceutical supplies with custom negotiated rates.
+  - **Fully Editable Client/Recipient Profile**:
+    - Organization/Institute/Pharmacy name input (with auto-suggestion from registered pharmacies if desired, or completely custom institute name).
+    - Phone number and physical delivery address/location.
+    - Contact person / Attention to / Proprietor name.
+    - Drug License / Registration / Tax ID (optional, defaults to "N/A - Direct Institutional Supply" or custom entry).
+  - **Editable Invoice Metadata**:
+    - Custom Memo/Invoice Number (auto-generated e.g. `INV-INST-XXXX` with full manual override).
+    - Invoice Issue Date & Due Date / Payment Terms (Immediate, Net 7, Net 15, Net 30).
+    - Payment Method (Cash on Delivery, Bank Transfer, Cheque, bKash / MFS, Institutional Credit).
+    - Payment Status (Pending / Due vs Paid).
+    - Delivery Charge (editable: ৳0, standard ৳40, or custom).
+    - Special Adjustment / Additional Rebate amount.
+  - **Product Line Items with Catalog Autocomplete & Ad-Hoc Items**:
+    - Live search and instant selection from MediChain's product catalog (with auto-fill of Name, Generic, Company, Category/Type, Strength, Pack Size, MRP, and default rate).
+    - Add custom non-catalog items (surgical products, hospital supplies, bulk packs, custom medicines).
+    - Editable fields per row: Dosage Type/Category, Item Name, Strength/Pack Size, Quantity, MRP, and Unit Rate (Institutional Price).
+    - Real-time synchronization: Discount % = `((MRP - Rate) / MRP) * 100`, Net Discount = `(MRP - Rate) * Quantity`, Row Total = `Rate * Quantity`.
+    - Add item, remove item, clear, and duplicate operations.
+  - **Authentic MediChain Invoice Format**:
+    - Generates and displays the exact official MediChain invoice layout matching `ModernInvoiceModal` and PDFKit (brand header with diagonal gradient, logo, watermark, billed-to card, payment status badge, line items table, wholesale savings calculations, terms & conditions, three-part signatures, verification reference, and green verified seal).
+    - Live synchronous interactive preview with zoom controls (Fit, 100%, Zoom In, Zoom Out).
+    - One-click native Print (`window.print()`) optimized for A4 portrait laser print via `@media print`.
+    - Download PDF support (via dedicated backend endpoint `POST /api/admin/custom-invoices/pdf` streaming PDFKit output).
+    - Local and database persistence: Save institutional invoices to a history ledger for search, re-printing, and status updates.
+  - **Admin Navigation Integration**:
+    - Integrated directly into `AdminPanel.tsx` with dedicated sidebar link (`/admin/invoice-generator`), top header title, and quick-launcher button from the B2B Wholesale Orders list.
+- **VERIFICATION:**
+  - Full TypeScript compilation (`tsc --noEmit`) verified 100% clean.
+  - Production build (`npm run build`) verified clean.
+  - Server routes tested and live on port 3000.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

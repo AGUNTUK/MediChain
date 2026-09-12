@@ -390,4 +390,46 @@ export interface RestockMetrics {
   totalResolvedCount: number;
 }
 
+export interface CustomInvoiceItem {
+  id: string;
+  productId?: string;
+  name: string;
+  category?: string;
+  strength?: string;
+  packSize?: string;
+  mrp: number;
+  rate: number;
+  quantity: number;
+  discountPercentage?: number;
+  netDiscount: number;
+  total: number;
+}
+
+export interface CustomInvoiceData {
+  id: string;
+  invoiceNumber: string;
+  orderRef?: string;
+  createdAt: string;
+  dueDate?: string;
+  recipientType?: "institute" | "hospital" | "clinic" | "pharmacy" | "ngo" | "other";
+  recipientName: string;
+  contactPerson?: string;
+  phone: string;
+  address: string;
+  licenseOrRegNo?: string;
+  paymentMethod: string;
+  paymentStatus: "Paid" | "Pending";
+  items: CustomInvoiceItem[];
+  subtotal: number;
+  totalMrp: number;
+  totalSavings: number;
+  deliveryCharge: number;
+  specialAdjustment: number;
+  netPayable: number;
+  paidAmount: number;
+  dueAmount: number;
+  notes?: string;
+  updatedAt?: string;
+}
+
 
