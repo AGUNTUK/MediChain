@@ -1885,6 +1885,28 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - Full production build (`npm run build`) succeeded cleanly.
 
 
+### Task 81: Admin Panel B2B Wholesale Order Operations Hardening & Fixes
+- **Status:** Completed
+- **Scope & User Intent:**
+  - **Bug #1 (Buyer Enlistment Info Hardcoded Prototype Mock)**:
+    - Root cause: Static JSX in `src/components/AdminPanel.tsx` rendered hardcoded values for "Lazz Pharma (Dhanmondi)" across all selected orders, and the order list row fell back to "Lazz Pharma".
+    - Fix: Dynamically bind the order detail pane to the matched pharmacy from `pharmacies` state (matched on `selectedOrderDetails.pharmacyId`), with full fallback to order-level properties (`pharmacyName`, `pharmacyOwner`, `pharmacyPhone`, `pharmacyAddress`, `deliveryAddress`, `pharmacyLicense`).
+    - Remove hardcoded "Lazz Pharma" string from order list row fallback.
+  - **Bug #2 (Invisible White-on-Light Input and Select Text)**:
+    - Root cause: `text-white` was applied to inputs and select dropdowns styled with light backgrounds (`bg-slate-50` and `bg-white`), rendering typed search text and dropdown options invisible.
+    - Fix: Restyled order status select dropdown, wholesale order search input, inventory search input, and database export buttons with `text-slate-900` / `text-slate-700`, crisp borders (`border-slate-200`), and focus states.
+  - **Bug #3 (Invoice Download Dead Placeholder & Stream Consumption Fix)**:
+    - Root cause: Originally, `handleDownloadInvoice` called an obsolete `POST /api/admin/invoices/:id/download` route. When re-pointed to `orderService.downloadInvoice(orderId)` targeting `GET /api/orders/:id/invoice`, `orderService.downloadInvoice` attempted to parse the PDF binary response with `res.json()`, triggering `Unexpected token '%', "%PDF-1.3 ... is not valid JSON`.
+    - Fix: Updated `orderService.downloadInvoice` to properly consume the response as `await res.blob()`, generate an object URL via `window.URL.createObjectURL(blob)`, create and click an anchor element with the formatted PDF filename (`Invoice-${readableId}.pdf`), and clean up the object URL. Included robust error extraction from `res` if not OK.
+  - **Bug #4 (Design System Consistency & Clean Terminology)**:
+    - Standardized order ID display to feature human-readable ID (`order.readableId || order.id`) as primary title with raw UUID muted below.
+    - Renamed outdated prototype terms to clean, industry-standard labels: "ACTIVE WORKSPACE SHEET" -> "Order Details", "BUYER ENLISTMENT INFO" -> "Pharmacy Information", "WHOLESALE MANIFEST ITEMS" -> "Order Items", "ROUTING WORKFLOW PIPELINE" -> "Delivery Status", "Orders Ledger Pipeline" -> "Wholesale Orders".
+    - Added clean order financial summary (COD status and total payable).
+    - Replaced harsh `border-slate-900` / `border-slate-850` remnants with consistent `border-slate-200` light cards matching the rest of the application.
+- **VERIFICATION:**
+  - `tsc --noEmit` verified with 0 errors.
+  - Production build compiled cleanly.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

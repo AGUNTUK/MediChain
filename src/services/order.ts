@@ -161,17 +161,36 @@ export const orderService = {
   },
 
   /**
-   * Downloads the invoice for a given order.
+   * Downloads the PDF invoice for a given order and initiates browser download.
    */
-  async downloadInvoice(orderId: string): Promise<{ success: boolean; invoiceUrl: string; orderDetails: any }> {
+  async downloadInvoice(orderId: string, filename?: string): Promise<{ success: boolean; blob: Blob }> {
     const res = await apiFetch(`/api/orders/${orderId}/invoice`);
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || "Failed to download invoice.");
+      let errorMessage = "Failed to download invoice.";
+      try {
+        const err = await res.json();
+        if (err?.error) errorMessage = err.error;
+      } catch {
+        try {
+          const text = await res.text();
+          if (text) errorMessage = text;
+        } catch {}
+      }
+      throw new Error(errorMessage);
     }
 
-    return res.json();
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename || `Invoice-${orderId.substring(0, 8)}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+
+    return { success: true, blob };
   },
 
   /**

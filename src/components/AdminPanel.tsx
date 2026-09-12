@@ -979,44 +979,36 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
     }
   };
 
+  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
+
   const handleDownloadInvoice = async (orderId: string) => {
     try {
-      const order = orders.find(o => o.id === orderId);
+      setDownloadingInvoiceId(orderId);
+      const order = orders.find(o => o.id === orderId) || (selectedOrderDetails?.id === orderId ? selectedOrderDetails : null);
       if (!order) {
         setErrorMsg("Order details not found.");
         return;
       }
       
-      const invId = "INV-" + orderId.replace("MCH-", "");
-      await apiFetch(`/api/admin/invoices/${invId}/download`, { method: "POST" });
+      // Execute the authenticated PDF invoice download with descriptive filename
+      const filename = `Invoice-${order.readableId ? order.readableId.replace(/^MCH-/, "") : order.id.substring(0, 8)}.pdf`;
+      await orderService.downloadInvoice(orderId, filename);
       
-      // refresh invoices
-      const invRes = await apiFetch("/api/admin/invoices");
-      if (invRes.ok) {
-        const invData = await invRes.json();
-        setInvoices(invData.invoices || []);
-      }
-      
-      const pharmacy = pharmacies.find(p => p.id === order.pharmacyId) || {
-        id: "pharm_default",
-        pharmacyName: "Lazz Pharma (Dhanmondi)",
-        ownerName: "Zahid Hasan",
-        phone: "01712345678",
-        address: "House 42, Road 9A, Dhanmondi",
-        city: "Dhaka",
-        licenseNo: "DC-PH-2025-1194"
-      };
+      // Refresh invoices ledger state
+      try {
+        const invRes = await apiFetch("/api/admin/invoices");
+        if (invRes.ok) {
+          const invData = await invRes.json();
+          setInvoices(invData.invoices || []);
+        }
+      } catch {}
 
-      setSelectedInvoice({
-        id: invId,
-        orderId,
-        order,
-        pharmacy,
-        downloadCount: ((invoices.find(i => i.id === invId)?.downloadCount) || 0) + 1
-      });
-      setSuccessMsg("Procurement invoice ledger generated successfully.");
+      setSuccessMsg(`B2B Invoice PDF for order ${order.readableId || order.id} downloaded successfully.`);
     } catch (err: any) {
-      setErrorMsg("An error occurred generating invoice.");
+      console.error("Invoice download error:", err);
+      setErrorMsg(err.message || "An error occurred downloading the invoice PDF.");
+    } finally {
+      setDownloadingInvoiceId(null);
     }
   };
 
@@ -2300,7 +2292,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                         placeholder="Search stock reserves..."
                         value={invSearch}
                         onChange={(e) => setInvSearch(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-9 pr-4 text-xs font-semibold text-white focus:outline-none focus:border-indigo-500 transition-all"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-9 pr-4 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
                       />
                     </div>
 
@@ -2401,7 +2393,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                                         type="number"
                                         value={editingInvStock}
                                         onChange={(e) => setEditingInvStock(e.target.value)}
-                                        className="bg-slate-50 border border-slate-700 rounded px-2 py-1 text-xs text-white max-w-[100px] font-bold"
+                                        className="bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900 max-w-[100px] font-bold focus:outline-none focus:border-indigo-500"
                                       />
                                     ) : (
                                       <span className={isLow ? "text-amber-400" : "text-slate-900"}>{p.availableStock.toLocaleString()} units</span>
@@ -2413,7 +2405,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                                         type="text"
                                         value={editingInvBatch}
                                         onChange={(e) => setEditingInvBatch(e.target.value)}
-                                        className="bg-slate-50 border border-slate-700 rounded px-2 py-1 text-xs text-white max-w-[120px]"
+                                        className="bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900 max-w-[120px] focus:outline-none focus:border-indigo-500"
                                       />
                                     ) : (
                                       p.batchNumber
@@ -2425,7 +2417,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                                         type="date"
                                         value={editingInvExpiry}
                                         onChange={(e) => setEditingInvExpiry(e.target.value)}
-                                        className="bg-slate-50 border border-slate-700 rounded px-2 py-1 text-xs text-white"
+                                        className="bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
                                       />
                                     ) : (
                                       <span className={daysToExpiry <= 180 ? "text-amber-400" : "text-slate-500"}>
@@ -2477,65 +2469,86 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                     {/* Orders List Pane */}
                     <div className="lg:col-span-2 space-y-4">
                       {/* Search */}
-                      <div className="bg-white/60 border border-slate-200 p-4 rounded-2xl">
+                      <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
                         <div className="relative">
-                          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                           <input
                             type="text"
-                            placeholder="Search procurement order ID or invoice ID..."
+                            placeholder="Search wholesale orders by order ID or pharmacy..."
                             value={orderSearch}
                             onChange={(e) => setOrderSearch(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-9 pr-4 text-xs font-semibold text-white focus:outline-none focus:border-indigo-500 transition-all"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-9 pr-4 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
                           />
                         </div>
                       </div>
 
                       {/* List */}
-                      <div className="bg-white/60 border border-slate-200 rounded-2xl p-6 space-y-3">
-                        <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider mb-2">Orders Ledger Pipeline</h3>
+                      <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-3 shadow-xs">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">Wholesale Orders</h3>
+                          <span className="text-[11px] font-semibold text-slate-500">
+                            {orders.length} {orders.length === 1 ? "order" : "orders"}
+                          </span>
+                        </div>
                         
                         {orders.length === 0 ? (
-                          <p className="text-xs text-slate-500">No matching wholesale pipeline orders found.</p>
+                          <p className="text-xs text-slate-500 py-4 text-center">No matching wholesale orders found.</p>
                         ) : (
-                          <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
+                          <div className="space-y-2.5 max-h-[520px] overflow-y-auto pr-1">
                             {orders
-                              .filter(o => (o.id?.toLowerCase() || "").includes(orderSearch.toLowerCase()) || (o.pharmacyId?.toLowerCase() || "").includes(orderSearch.toLowerCase()))
+                              .filter(o => {
+                                const s = orderSearch.toLowerCase();
+                                const orderPharmacy = pharmacies.find(ph => ph.id === o.pharmacyId);
+                                return (
+                                  (o.id?.toLowerCase() || "").includes(s) ||
+                                  (o.readableId?.toLowerCase() || "").includes(s) ||
+                                  (o.pharmacyId?.toLowerCase() || "").includes(s) ||
+                                  (orderPharmacy?.pharmacyName?.toLowerCase() || "").includes(s) ||
+                                  (o.pharmacyName?.toLowerCase() || "").includes(s)
+                                );
+                              })
                               .map((o, idx) => {
                                 const isSelected = selectedOrderDetails?.id === o.id;
                                 const orderPharmacy = pharmacies.find(ph => ph.id === o.pharmacyId);
+                                const displayName = orderPharmacy?.pharmacyName || o.pharmacyName || "Wholesale Partner";
+                                const displayId = o.readableId || o.id;
+
                                 return (
                                   <div
                                     key={o.id || `order-${idx}`}
                                     onClick={() => setSelectedOrderDetails(o)}
                                     className={`p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${
-                                      isSelected ? "border-indigo-500 bg-indigo-500/5 shadow" : "border-slate-900 bg-white hover:border-slate-850"
+                                      isSelected
+                                        ? "border-indigo-600 bg-indigo-50/50 shadow-xs"
+                                        : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60"
                                     }`}
                                   >
-                                    <div className="flex items-center gap-4">
-                                      <div className={`p-2.5 rounded-lg ${
-                                        o.status === "Pending" ? "bg-amber-500/10 text-amber-400" :
-                                        o.status === "Delivered" || o.status === "Completed" ? "bg-emerald-500/10 text-emerald-400" :
-                                        "bg-slate-200 text-slate-500"
+                                    <div className="flex items-center gap-3">
+                                      <div className={`p-2.5 rounded-xl ${
+                                        o.status === "Pending" ? "bg-amber-100 text-amber-700" :
+                                        o.status === "Delivered" || o.status === "Completed" ? "bg-emerald-100 text-emerald-700" :
+                                        o.status === "Cancelled" ? "bg-rose-100 text-rose-700" :
+                                        "bg-slate-100 text-slate-600"
                                       }`}>
                                         <ShoppingCart className="w-4 h-4" />
                                       </div>
                                       <div>
                                         <div className="flex items-center gap-2">
-                                          <p className="font-extrabold text-slate-900 text-xs">{o.id}</p>
-                                          <span className="text-[10px] text-slate-500 font-bold">•</span>
-                                          <p className="text-[10px] text-slate-500 font-bold">{new Date(o.createdAt).toLocaleDateString()}</p>
+                                          <p className="font-extrabold text-slate-900 text-xs font-mono">{displayId}</p>
+                                          <span className="text-[10px] text-slate-300 font-bold">•</span>
+                                          <p className="text-[10px] text-slate-500 font-medium">{new Date(o.createdAt).toLocaleDateString()}</p>
                                         </div>
-                                        <p className="text-[10px] text-slate-500 font-semibold mt-0.5">{orderPharmacy?.pharmacyName || "Lazz Pharma"}</p>
+                                        <p className="text-[11px] text-slate-700 font-semibold mt-0.5">{displayName}</p>
                                       </div>
                                     </div>
 
                                     <div className="text-right">
                                       <p className="font-black text-slate-900 text-xs">৳{o.totalAmount.toLocaleString()}</p>
-                                      <span className={`text-[8px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-full block mt-1 w-max ml-auto ${
-                                        o.status === "Pending" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
-                                        o.status === "Delivered" || o.status === "Completed" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
-                                        o.status === "Cancelled" ? "bg-rose-500/10 text-rose-500 border border-rose-500/20" :
-                                        "bg-slate-200 text-slate-500 border border-slate-700/50"
+                                      <span className={`text-[8px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-full block mt-1 w-max ml-auto border ${
+                                        o.status === "Pending" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                                        o.status === "Delivered" || o.status === "Completed" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                                        o.status === "Cancelled" ? "bg-rose-50 text-rose-700 border-rose-200" :
+                                        "bg-slate-100 text-slate-600 border-slate-200"
                                       }`}>
                                         {o.status}
                                       </span>
@@ -2551,53 +2564,98 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                     {/* Order Details Pane */}
                     <div className="lg:col-span-1">
                       {selectedOrderDetails ? (
-                        <div className="bg-white/60 border border-slate-200 rounded-2xl p-6 space-y-6 animate-fade-in">
-                          <div className="flex items-center justify-between border-b border-slate-850 pb-4">
+                        <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5 shadow-sm animate-fade-in">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                             <div>
-                              <span className="text-[9px] uppercase font-bold text-indigo-400 tracking-wider">Active Workspace Sheet</span>
-                              <h4 className="text-xs font-black text-slate-900 mt-0.5">{selectedOrderDetails.id}</h4>
+                              <span className="text-[10px] uppercase font-bold text-indigo-600 tracking-wider">Order Details</span>
+                              <h4 className="text-sm font-black text-slate-900 mt-0.5 font-mono">
+                                {selectedOrderDetails.readableId || selectedOrderDetails.id}
+                              </h4>
+                              {selectedOrderDetails.readableId && selectedOrderDetails.id !== selectedOrderDetails.readableId && (
+                                <p className="text-[10px] font-mono text-slate-400 truncate max-w-[220px]" title={selectedOrderDetails.id}>
+                                  UUID: {selectedOrderDetails.id}
+                                </p>
+                              )}
                             </div>
                             <button
                               onClick={() => setSelectedOrderDetails(null)}
-                              className="p-1 rounded hover:bg-slate-850 text-slate-500"
+                              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                              title="Close details"
                             >
                               <X className="w-4 h-4" />
                             </button>
                           </div>
 
                           {/* Pharmacy Info Block */}
-                          <div className="space-y-2">
-                            <span className="text-[9px] uppercase font-bold text-slate-500 tracking-widest block">Buyer Enlistment Info</span>
-                            <div className="bg-slate-50/60 p-3 rounded-xl border border-slate-900 text-xs text-slate-700">
-                              <p className="font-extrabold text-slate-900 text-xs">Lazz Pharma (Dhanmondi)</p>
-                              <p className="text-[10px] text-slate-500 mt-1">Owner: Zahid Hasan</p>
-                              <p className="text-[10px] text-slate-500">Phone: 01712345678</p>
-                              <p className="text-[10px] text-slate-500">Address: House 42, Road 9A, Dhanmondi</p>
-                              <p className="text-[10px] text-slate-500">License No: DC-PH-2025-1194</p>
-                            </div>
-                          </div>
+                          {(() => {
+                            const orderPh = pharmacies.find(p => p.id === selectedOrderDetails.pharmacyId);
+                            const phName = orderPh?.pharmacyName || selectedOrderDetails.pharmacyName || "Registered Pharmacy";
+                            const ownerName = orderPh?.ownerName || selectedOrderDetails.pharmacyOwner || "N/A";
+                            const phone = orderPh?.phone || selectedOrderDetails.pharmacyPhone || "N/A";
+                            const address = orderPh?.address || selectedOrderDetails.pharmacyAddress || selectedOrderDetails.deliveryAddress || (orderPh?.area ? `${orderPh.area}, ${orderPh.city}` : "N/A");
+                            const license = orderPh?.licenseNo || orderPh?.tradeLicenseNo || selectedOrderDetails.pharmacyLicense || "N/A";
+                            const status = orderPh?.verificationStatus;
+
+                            return (
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">Pharmacy Information</span>
+                                  {status && (
+                                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                                      status === "Verified"
+                                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                        : status === "Pending"
+                                        ? "bg-amber-50 text-amber-700 border-amber-200"
+                                        : "bg-slate-100 text-slate-600 border-slate-200"
+                                    }`}>
+                                      {status}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-1.5">
+                                  <p className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
+                                    <Building className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                                    <span>{phName}</span>
+                                  </p>
+                                  <div className="space-y-1 text-[11px] text-slate-600">
+                                    <p><span className="text-slate-400 font-medium">Owner:</span> <span className="font-semibold text-slate-800">{ownerName}</span></p>
+                                    <p><span className="text-slate-400 font-medium">Phone:</span> <span className="font-semibold text-slate-800">{phone}</span></p>
+                                    <p><span className="text-slate-400 font-medium">Address:</span> <span className="text-slate-700">{address}</span></p>
+                                    <p><span className="text-slate-400 font-medium">License No:</span> <span className="font-mono text-slate-800">{license}</span></p>
+                                    {selectedOrderDetails.deliveryAddress && selectedOrderDetails.deliveryAddress !== address && (
+                                      <p><span className="text-slate-400 font-medium">Shipping Address:</span> <span className="text-slate-700">{selectedOrderDetails.deliveryAddress}</span></p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
 
                           {/* Items Purchased List */}
                           <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                              <span className="text-[9px] uppercase font-bold text-slate-500 tracking-widest block">Wholesale Manifest items</span>
+                              <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">Order Items</span>
                               {["Pending", "Confirmed", "Processing", "Packed"].includes(selectedOrderDetails.status) ? (
-                                <span className="text-[9px] font-bold text-indigo-400">Editable before Transit</span>
+                                <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                                  Editable Before Dispatch
+                                </span>
                               ) : (
-                                <span className="text-[9px] text-slate-500 font-medium">Locked ({selectedOrderDetails.status})</span>
+                                <span className="text-[9px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                                  Locked ({selectedOrderDetails.status})
+                                </span>
                               )}
                             </div>
                             <div className="max-h-[180px] overflow-y-auto space-y-1.5 pr-1">
                               {selectedOrderDetails.items?.map((item, idx) => (
-                                <div key={idx} className="bg-slate-50/40 p-2.5 rounded-lg border border-slate-900 text-xs flex justify-between items-center gap-2">
+                                <div key={idx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs flex justify-between items-center gap-2">
                                   <div className="min-w-0">
                                     <p className="font-bold text-slate-900 truncate">{item.name}</p>
-                                    <p className="text-[9px] text-slate-500">{item.strength} • {item.packSize}</p>
+                                    <p className="text-[10px] text-slate-500">{item.strength} • {item.packSize}</p>
                                   </div>
                                   <div className="flex items-center gap-2 shrink-0">
                                     <div className="text-right">
-                                      <p className="font-semibold text-slate-700">{item.quantity} Qty</p>
-                                      <p className="text-[9px] text-slate-500">৳{item.sellingPrice} ea</p>
+                                      <p className="font-semibold text-slate-800">{item.quantity} Qty</p>
+                                      <p className="text-[10px] text-slate-500">৳{item.sellingPrice} ea</p>
                                     </div>
                                     {["Pending", "Confirmed", "Processing", "Packed"].includes(selectedOrderDetails.status) && (
                                       <button
@@ -2606,11 +2664,11 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                                           setAdminAmendingItem({ productId: item.productId, name: item.name, quantity: item.quantity });
                                           setAdminAmendReason("হোলসেলার স্টকে সাময়িক অনুপলব্ধ");
                                         }}
-                                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 text-[10px] font-bold cursor-pointer transition-colors shadow-2xs"
+                                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-[10px] font-bold cursor-pointer transition-colors shadow-2xs"
                                         title="Mark item unavailable from wholesaler"
                                       >
-                                        <Ban className="w-3 h-3 text-rose-400" />
-                                        <span>Mark Unavailable</span>
+                                        <Ban className="w-3 h-3 text-rose-500" />
+                                        <span>Unavailable</span>
                                       </button>
                                     )}
                                   </div>
@@ -2621,22 +2679,22 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
 
                           {/* Procurement Amendment Audit History */}
                           {selectedOrderDetails.amendments && selectedOrderDetails.amendments.length > 0 && (
-                            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 space-y-1.5">
+                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-1.5">
                               <div className="flex items-center justify-between">
-                                <span className="text-[9px] font-black uppercase text-amber-400 tracking-wider flex items-center gap-1">
-                                  <History className="w-3 h-3 text-amber-400" />
+                                <span className="text-[9px] font-black uppercase text-amber-800 tracking-wider flex items-center gap-1">
+                                  <History className="w-3 h-3 text-amber-600" />
                                   Amendment Audit ({selectedOrderDetails.amendments.length})
                                 </span>
-                                <span className="text-[8.5px] text-amber-300 font-bold">COD Total Recalculated</span>
+                                <span className="text-[8.5px] text-amber-700 font-bold">COD Total Recalculated</span>
                               </div>
-                              <div className="divide-y divide-amber-500/10">
+                              <div className="divide-y divide-amber-200/60">
                                 {selectedOrderDetails.amendments.map((amend, aIdx) => (
                                   <div key={aIdx} className="py-1.5 text-[10px] flex justify-between items-start gap-2">
                                     <div>
-                                      <p className="font-bold text-amber-200">{amend.productName} (-{amend.removedQuantity} Qty)</p>
-                                      <p className="text-[9px] text-amber-400/70 italic">"{amend.reason}"</p>
+                                      <p className="font-bold text-amber-900">{amend.productName} (-{amend.removedQuantity} Qty)</p>
+                                      <p className="text-[9px] text-amber-700 italic">"{amend.reason}"</p>
                                     </div>
-                                    <div className="text-right text-[8.5px] text-amber-400/80 shrink-0">
+                                    <div className="text-right text-[8.5px] text-amber-700 shrink-0">
                                       <span>{amend.amendedBy}</span>
                                     </div>
                                   </div>
@@ -2645,13 +2703,35 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                             </div>
                           )}
 
+                          {/* Order Financial Summary */}
+                          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1.5">
+                            <div className="flex justify-between items-center text-slate-600 text-[11px]">
+                              <span>Payment Terms:</span>
+                              <span className="font-semibold text-slate-800">Cash on Delivery (COD)</span>
+                            </div>
+                            <div className="flex justify-between items-center text-slate-600 text-[11px]">
+                              <span>Payment Status:</span>
+                              <span className={`font-semibold px-2 py-0.5 rounded text-[10px] ${
+                                selectedOrderDetails.paymentStatus === "Paid"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-amber-100 text-amber-800"
+                              }`}>
+                                {selectedOrderDetails.paymentStatus}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center pt-1.5 border-t border-slate-200 text-xs font-bold text-slate-900">
+                              <span>Total COD Payable:</span>
+                              <span className="text-sm font-black text-indigo-700">৳{selectedOrderDetails.totalAmount?.toLocaleString()}</span>
+                            </div>
+                          </div>
+
                           {/* Pipeline status controller */}
                           <div className="space-y-2">
-                            <span className="text-[9px] uppercase font-bold text-slate-500 tracking-widest block">Routing workflow pipeline</span>
+                            <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">Delivery Status</span>
                             <select
                               value={selectedOrderDetails.status}
                               onChange={(e) => handleUpdateOrderStatus(selectedOrderDetails.id, e.target.value as any)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-semibold text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
+                              className="w-full bg-white border border-slate-200 rounded-xl py-2 px-3 text-xs font-semibold text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-xs"
                             >
                               <option value="Pending">Pending Approval</option>
                               <option value="Confirmed">Confirmed</option>
@@ -2664,17 +2744,26 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                           </div>
 
                           {/* Order actions */}
-                          <div className="space-y-2 border-t border-slate-850 pt-4 flex gap-3">
+                          <div className="space-y-2 border-t border-slate-100 pt-3">
                             <button
                               onClick={() => handleDownloadInvoice(selectedOrderDetails.id)}
-                              className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-2.5 px-4 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow"
+                              disabled={downloadingInvoiceId === selectedOrderDetails.id}
+                              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-xs"
                             >
-                              <FileText className="w-4 h-4" /> Download B2B Invoice
+                              {downloadingInvoiceId === selectedOrderDetails.id ? (
+                                <>
+                                  <RefreshCw className="w-4 h-4 animate-spin" /> Generating & Downloading PDF...
+                                </>
+                              ) : (
+                                <>
+                                  <FileText className="w-4 h-4" /> Download Invoice (PDF)
+                                </>
+                              )}
                             </button>
                           </div>
                         </div>
                       ) : (
-                        <div className="bg-white/20 border border-slate-850 border-dashed rounded-2xl p-8 text-center text-slate-500 text-xs">
+                        <div className="bg-white border border-slate-200 border-dashed rounded-2xl p-8 text-center text-slate-500 text-xs shadow-xs">
                           Select a wholesale order from the pipeline to review inventory manifests and update delivery routing.
                         </div>
                       )}
@@ -2876,7 +2965,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
 
                       <button
                         onClick={() => handleExportData("json")}
-                        className="flex-1 bg-slate-50 hover:bg-slate-850 text-white border border-slate-200 font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+                        className="flex-1 bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200 font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
                       >
                         <Download className="w-4 h-4" /> Export JSON DB Backup
                       </button>
@@ -2890,7 +2979,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                       ) : (
                         <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
                           {exportHistory.map((item, index) => (
-                            <div key={item.id || index} className="bg-slate-50/60 p-3 rounded-xl border border-slate-900 flex justify-between items-center text-[11px]">
+                            <div key={item.id || index} className="bg-slate-50/60 p-3 rounded-xl border border-slate-200 flex justify-between items-center text-[11px]">
                               <div>
                                 <p className="font-extrabold text-slate-900 text-xs">{item.type}</p>
                                 <p className="text-[9px] text-slate-500 mt-0.5">By {item.exportedByAdmin} • {new Date(item.exportedAt).toLocaleString()}</p>
