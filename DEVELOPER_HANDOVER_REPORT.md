@@ -1942,6 +1942,30 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - Production build (`npm run build`) verified clean.
   - Server routes tested and live on port 3000.
 
+### Task 83: Full Catalog Search & Autocomplete Fix in Custom Invoice Generator
+- **Status:** Completed
+- **Problem Statement & Root Cause:**
+  - User reported: "Not showing all product in product suggestions while searching" with screenshot showing search for "Lorix" returning no suggestions.
+  - Root Cause: `CustomInvoiceGenerator.tsx` previously performed local filtering solely on the incoming `products` prop (`products.filter(...)`). In `AdminPanel.tsx`, `products` was initialized with a paginated slice (`limit: 50`) from page 1 of the product catalog. Consequently, 2,150+ products out of the 2,200+ product catalog (including "Lorix Cream 5%", "Lorix Plus Lotion", and others) were absent from the array and could not be searched. Furthermore, when matches were empty, the dropdown failed to display any feedback or fallback.
+- **Architectural Implementation:**
+  1. **Debounced Live Backend Search Across All 2,200+ Medicines (`CustomInvoiceGenerator.tsx`)**:
+     - Integrated `productService.getProducts({ search: query, limit: 50 })` with a 150ms debounce and request ID tracking to prevent race conditions.
+     - Kept immediate local matching on the existing prop array for instantaneous 0ms keystroke feedback, seamlessly merging and deduplicating live results from the server.
+  2. **Active Search State & Visual Feedback**:
+     - Added `isSearchingCatalog` state with animated spinning indicator (`Loader2`) inside the input and dropdown header.
+     - Added clear search button (`X`) to reset query and close suggestions.
+  3. **High-Z-Index Responsive Dropdown with Rich Product Metadata**:
+     - Elevated dropdown with `z-50 shadow-2xl max-h-80 overflow-y-auto` to prevent clipping on mobile and compact screens.
+     - Formatted each suggestion with dosage type pill, strength badge, company name, generic name, pack size, MRP, and institutional trade rate.
+     - Handled `onMouseDown` selection so mouse and touch clicks on mobile register before input blur events.
+  4. **Smart Zero-Results Fallback & Click-Outside Dismissal**:
+     - If a search produces no catalog matches, renders an explicit notification with an instant action button: `[+ Add "{catalogSearch}" as Custom Item]`.
+     - Attached `mousedown` and `touchstart` document listeners to cleanly dismiss dropdown when interacting outside.
+- **VERIFICATION:**
+  - Tested search via `/api/products?search=Lorix` returning `Lorix Cream 5%` and `Lorix Plus Lotion`.
+  - Typecheck (`tsc --noEmit`) passed with 0 errors.
+  - Full build (`npm run build`) passed with 0 errors.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).
