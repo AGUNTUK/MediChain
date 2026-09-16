@@ -1,11 +1,12 @@
-﻿@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400;1,700;1,900&display=swap');
 @import "tailwindcss";
 
 @variant dark (&:where(.dark, .dark *));
 
 /* ==========================================================================
    Bengali Custom Typography: Li Alinur Banglaborno
-   Universal Bengali Font across all screens, components & PDF/print
+   STRICT BENGALI ONLY: Used exclusively for Bengali Unicode characters (U+0980-09FF)
+   All English letters & numbers fall through to the Serif font family stack.
    ========================================================================== */
 @font-face {
   font-family: 'Li Alinur Banglaborno';
@@ -14,6 +15,7 @@
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
+  unicode-range: U+0980-09FF, U+0964-0965, U+200C-200D, U+25CC;
 }
 
 @font-face {
@@ -23,6 +25,7 @@
   font-weight: 400;
   font-style: normal;
   font-display: swap;
+  unicode-range: U+0980-09FF, U+0964-0965, U+200C-200D, U+25CC;
 }
 
 @font-face {
@@ -32,6 +35,7 @@
   font-weight: 500;
   font-style: normal;
   font-display: swap;
+  unicode-range: U+0980-09FF, U+0964-0965, U+200C-200D, U+25CC;
 }
 
 @font-face {
@@ -41,6 +45,7 @@
   font-weight: 600;
   font-style: normal;
   font-display: swap;
+  unicode-range: U+0980-09FF, U+0964-0965, U+200C-200D, U+25CC;
 }
 
 @font-face {
@@ -50,6 +55,7 @@
   font-weight: 700;
   font-style: normal;
   font-display: swap;
+  unicode-range: U+0980-09FF, U+0964-0965, U+200C-200D, U+25CC;
 }
 
 @font-face {
@@ -59,6 +65,7 @@
   font-weight: 800;
   font-style: normal;
   font-display: swap;
+  unicode-range: U+0980-09FF, U+0964-0965, U+200C-200D, U+25CC;
 }
 
 @font-face {
@@ -68,6 +75,7 @@
   font-weight: 900;
   font-style: normal;
   font-display: swap;
+  unicode-range: U+0980-09FF, U+0964-0965, U+200C-200D, U+25CC;
 }
 
 @font-face {
@@ -77,6 +85,7 @@
   font-weight: 100 900;
   font-style: italic;
   font-display: swap;
+  unicode-range: U+0980-09FF, U+0964-0965, U+200C-200D, U+25CC;
 }
 
 @font-face {
@@ -86,6 +95,7 @@
   font-weight: 400;
   font-style: italic;
   font-display: swap;
+  unicode-range: U+0980-09FF, U+0964-0965, U+200C-200D, U+25CC;
 }
 
 @font-face {
@@ -95,6 +105,7 @@
   font-weight: 700;
   font-style: italic;
   font-display: swap;
+  unicode-range: U+0980-09FF, U+0964-0965, U+200C-200D, U+25CC;
 }
 
 @theme {
@@ -134,9 +145,10 @@
   --color-emerald-900: var(--color-lime-900);
   --color-emerald-950: var(--color-lime-950);
 
-  --font-sans: "Li Alinur Banglaborno", "Inter", "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  --font-bangla: "Li Alinur Banglaborno", "Inter", sans-serif;
+  --font-sans: "Li Alinur Banglaborno", "Lora", "Merriweather", "Georgia", "Cambria", "Times New Roman", Times, serif;
+  --font-serif: "Lora", "Merriweather", "Georgia", "Cambria", "Times New Roman", Times, serif;
+  --font-mono: "Lora", "Merriweather", "Georgia", "Cambria", "Courier New", monospace, serif;
+  --font-bangla: "Li Alinur Banglaborno", "Lora", "Georgia", serif;
   
   --color-brand-purple: #a855f7;
   --color-brand-purple-dark: #9333ea;
@@ -169,9 +181,16 @@ input,
 textarea,
 select,
 optgroup {
-  font-family: "Li Alinur Banglaborno", "Inter", "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: "Li Alinur Banglaborno", "Lora", "Merriweather", "Georgia", "Cambria", "Times New Roman", Times, serif;
   line-height: 1.45;
   letter-spacing: 0.015em;
+}
+
+code,
+pre,
+kbd,
+samp {
+  font-family: "Lora", "Merriweather", "Georgia", "Cambria", "Courier New", monospace, serif;
 }
 
 body {

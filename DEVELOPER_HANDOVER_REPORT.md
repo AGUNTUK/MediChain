@@ -1966,6 +1966,29 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - Typecheck (`tsc --noEmit`) passed with 0 errors.
   - Full build (`npm run build`) passed with 0 errors.
 
+### Task 84: Split Bengali & English Typography (Strict Bengali for Local Fonts, Serif Family for English Letters & Numbers)
+- **Status:** Completed
+- **User Instruction:**
+  - "codebase এর ফন্ট ফোল্ডারে যে ফন্টগুলো আছে সেগুলো শুধু বাংলা টাইপোগ্রাফির জন্য ইউজ করবা, যেটা ইতিমধ্যে ইউজ করা আছে। কিন্তু ইংলিশ টাইপোগ্রাফির ক্ষেত্রে শেরিফ ফ্যামিলির ফন্ট ইউজ করবা। যত ইংলিশ লেটার্স এবং নাম্বার্স আছে সব শেরিফ ফ্যামিলির ফন্টসে হবে।"
+- **Architectural Implementation:**
+  1. **Strict Bengali Unicode Range Enforced on `Li Alinur Banglaborno` (`src/index.css`)**:
+     - Configured `unicode-range: U+0980-09FF, U+0964-0965, U+200C-200D, U+25CC;` across all `@font-face` definitions (weights 100-900, normal and italic) for the local fonts in `public/fonts/`.
+     - This guarantees that the local Bengali font is strictly used for Bengali characters (Bengali alphabets, Bengali digits, signs, virama, and punctuation), completely bypassing Latin characters and numbers.
+  2. **Serif Font Family Stack for All English Letters & Numbers**:
+     - Imported premium Google Serif fonts `Lora` (weights 400-700, italic) and `Merriweather` (weights 300-900, italic) in `src/index.css` and `index.html`.
+     - Designed high-fidelity cross-platform Serif font stack: `"Lora", "Merriweather", "Georgia", "Cambria", "Times New Roman", Times, serif`.
+     - Configured Tailwind v4 `@theme` variables:
+       - `--font-sans`: `"Li Alinur Banglaborno", "Lora", "Merriweather", "Georgia", "Cambria", "Times New Roman", Times, serif`
+       - `--font-serif`: `"Lora", "Merriweather", "Georgia", "Cambria", "Times New Roman", Times, serif`
+       - `--font-mono`: `"Lora", "Merriweather", "Georgia", "Cambria", "Courier New", monospace, serif`
+       - `--font-bangla`: `"Li Alinur Banglaborno", "Lora", "Georgia", serif`
+  3. **Universal Application Across Elements, Inputs & Invoices**:
+     - Applied to base CSS selectors `html, body, button, input, textarea, select, optgroup` and code tags (`code, pre, kbd, samp`).
+     - Updated invoice template styling in `ModernInvoiceModal.tsx` and `CustomInvoiceGenerator.tsx` to use the Serif stack for all English SKU labels, totals, dates, and order numbers.
+- **VERIFICATION:**
+  - `compile_applet` passed cleanly.
+  - `npm run lint` (`tsc --noEmit`) passed with 0 errors.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

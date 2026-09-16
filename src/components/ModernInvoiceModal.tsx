@@ -345,7 +345,7 @@ export default function ModernInvoiceModal({ order, pharmacy, onClose }: ModernI
                 width: `${BASE_INVOICE_WIDTH}px`,
                 transform: `scale(${scale})`,
                 transformOrigin: "top left",
-                fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+                fontFamily: "'Li Alinur Banglaborno', 'Lora', 'Merriweather', 'Georgia', 'Cambria', 'Times New Roman', Times, serif"
               }}
             >
               {/* ==================== WATERMARK ==================== */}
