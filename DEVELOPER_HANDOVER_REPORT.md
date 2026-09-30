@@ -1989,6 +1989,22 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `compile_applet` passed cleanly.
   - `npm run lint` (`tsc --noEmit`) passed with 0 errors.
 
+### Task 85: Aristopharma 17% Wholesale Discount Update & Catalog Audit
+- **Status:** Completed
+- **User Instruction:**
+  - "Aristo pharmar shob product 17% discount kore dao, And dekho nicher shob product app a ache kina,na thakle amake bolo"
+- **Implementation & Results:**
+  1. **Wholesale Discount Applied to 62 Aristopharma Products**:
+     - Queried and updated all 62 Aristopharma Ltd products in the live PostgreSQL database (`products` table).
+     - Recalculated `selling_price = Math.round((mrp * 0.83) * 100) / 100`, automatically yielding `discount_percentage = 17%` via generated column.
+     - Flushed backend cache and verified live `/api/products` reflects 17% discount across all SKUs.
+  2. **Catalog Availability Audit (31 Requested Items)**:
+     - 25 items confirmed available in app catalog with 17% discount applied.
+     - 6 items identified as missing and reported: `Siloflo 8`, `Mirovan 2.5`, `Reumacap`, `Reumacap SR`, `Afrin Adult`, `Hycogel`.
+- **VERIFICATION:**
+  - `compile_applet` passed cleanly.
+  - Live API verified for 17% discount.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).
