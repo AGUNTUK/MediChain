@@ -2023,6 +2023,25 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `compile_applet` passed cleanly.
   - Dev server verified on port 3000.
 
+### Task 87: Time-Aware Dynamic & Creative Pharmacy Hero Greetings
+- **Status:** Completed
+- **User Instruction:**
+  - "All the time greeting showing 'Good Morning', Not measering time,time onujayi eta change koro,and creative greeting text use koro"
+- **Implementation (`src/components/HeroCarousel.tsx`):**
+  1. **Time-Aware Evaluation Engine**:
+     - Built `getTimeGreeting()` to dynamically detect client local device time (`new Date().getHours()`).
+     - Added 5 distinct time slots with custom contextual icons, badges, and bilingual labels:
+       - Morning (05:00 - 11:59): `GOOD MORNING • শুভ সকাল` (Sunrise), tagline: "দিনের শুরুতে ফার্মেসির ফ্রেশ স্টক প্রস্তুত রাখুন"
+       - Afternoon (12:00 - 16:59): `GOOD AFTERNOON • শুভ দুপুর` (Sun), tagline: "ব্যস্ত সময়ে ফার্মেসির স্টক সবসময় ফুল রাখুন"
+       - Evening (17:00 - 19:59): `GOOD EVENING • শুভ সন্ধ্যা` (Sunset), tagline: "সন্ধ্যার পিক আওয়ারে নিরবচ্ছিন্ন ওষুধের সাপ্লাই"
+       - Night (20:00 - 23:59): `GOOD NIGHT • শুভ রাত্রি` (Moon), tagline: "আগামীকালের স্টক আজ রাতেই গুছিয়ে অর্ডার করুন"
+       - Late Hours (00:00 - 04:59): `LATE HOURS • গভীর রাত` (Moon), tagline: "২৪/৭ সহজ অর্ডার, সকাল হলেই দ্রুততম ডেলিভারি"
+  2. **Active Liveness Interval**:
+     - Added 60s background check so long-running sessions seamlessly update as day transitions.
+- **VERIFICATION:**
+  - `compile_applet` passed cleanly.
+  - Port 3000 tested and verified.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).
