@@ -2005,6 +2005,24 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `compile_applet` passed cleanly.
   - Live API verified for 17% discount.
 
+### Task 86: Rebrand Physicians Product Option to Pharmacy "Short List" Order
+- **Status:** Completed
+- **User Instruction:**
+  - "Ei option tar text change kore dao,akhon theke ei option use kore pharmacy owner ra 'Short List' er picture pathabe"
+- **Implementation:**
+  1. **Bottom Navigation Bar & Action Button (`src/App.tsx`)**:
+     - Updated floating camera button label from `ফিজিসিয়ানস্` to `শর্ট লিস্ট` (Short List).
+     - Updated dismissible tooltip badge to `শর্ট লিস্ট সার্ভিস` and copy explaining pharmacy short list photo uploads directly to team.
+  2. **Order Sheet Modal (`src/components/PhysiciansProductSheet.tsx`)**:
+     - Updated header to `Pharmacy Short List` / `শর্ট লিস্ট অর্ডার`.
+     - Rebranded information banner to highlight wholesale pricing and best discounts for handwritten short lists.
+     - Updated button labels: `ছবি তুলুন (Take Photo)`, `ফাইল আপলোড (Upload File)`, and `শর্ট লিস্ট পাঠান (Send Short List)`.
+  3. **Telegram Alert Caption (`src/lib/telegramService.ts`)**:
+     - Updated alert header to `📋 New Pharmacy Short List Request`.
+- **VERIFICATION:**
+  - `compile_applet` passed cleanly.
+  - Dev server verified on port 3000.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

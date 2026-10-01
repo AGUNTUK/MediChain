@@ -188,7 +188,7 @@ export async function sendPhysiciansProductRequest(details: PhysiciansProductReq
   const { pharmacyName, phone, address, files } = details;
 
   const caption = [
-    `🩺 *New Physicians Product Request*`,
+    `📋 *New Pharmacy Short List Request*`,
     `🏥 ${escapeTelegramMarkdown(pharmacyName)}`,
     `📍 ${escapeTelegramMarkdown(address)}`,
     `📞 ${escapeTelegramMarkdown(phone)}`

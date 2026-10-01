@@ -823,15 +823,15 @@ export default function App() {
                 <span className="text-[10px] sm:text-xs font-black">ওষুধ খুঁজুন</span>
               </button>
 
-              {/* Center Floating Action Button (Physicians Product) */}
+              {/* Center Floating Action Button (Short List) */}
               <div className="relative flex-1 flex justify-center h-full">
-                {/* One-time dismissible tooltip for Physicians Product */}
+                {/* One-time dismissible tooltip for Short List */}
                 {showPhysiciansTooltip && (
                   <div className="absolute bottom-20 sm:bottom-22 z-50 w-72 sm:w-80 bg-slate-900 text-white rounded-2xl p-3.5 shadow-2xl border border-slate-700 animate-fade-in pointer-events-auto">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-1.5 text-brand-lime text-xs font-black">
                         <span className="px-1.5 py-0.5 bg-brand-lime/20 rounded-md border border-brand-lime/40 text-[10px]">
-                          Rx বিশেষ সার্ভিস
+                          শর্ট লিস্ট সার্ভিস
                         </span>
                       </div>
                       <button
@@ -844,7 +844,7 @@ export default function App() {
                       </button>
                     </div>
                     <p className="text-xs font-medium text-slate-200 mt-2 leading-relaxed">
-                      এটি বিশেষ 'ফিজিসিয়ানস্ প্রোডাক্ট' অর্ডারের জন্য — সরাসরি আমাদের টিমের কাছে পাঠানো হবে, ক্যাটালগ ম্যাচিং ছাড়াই
+                      এটি ফার্মেসির 'শর্ট লিস্ট' পিকচার পাঠানোর জন্য — খাতা বা ওষুধের শর্ট লিস্টের ছবি সরাসরি আমাদের টিমের কাছে পাঠানো হবে, ক্যাটালগ ম্যাচিং ছাড়াই
                     </p>
                     <div className="mt-3 flex items-center justify-end gap-2">
                       <button
@@ -852,7 +852,7 @@ export default function App() {
                         onClick={() => handleDismissPhysiciansTooltip(true)}
                         className="px-3 py-1.5 bg-gradient-to-r from-brand-purple to-purple-600 hover:opacity-90 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm shadow-purple-900/50 flex items-center gap-1"
                       >
-                        <span>বুঝেছি, এগিয়ে যান</span>
+                        <span>বুঝেছি, এগিয়ে যান</span>
                         <span>→</span>
                       </button>
                     </div>
@@ -868,7 +868,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={handlePhysiciansActionClick}
-                      title="ফিজিসিয়ানস্ প্রোডাক্ট বিশেষ অর্ডার"
+                      title="ফার্মেসির শর্ট লিস্ট পাঠান"
                       className="relative z-10 w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-tr from-brand-purple via-indigo-600 to-brand-lime text-white shadow-lg flex flex-col items-center justify-center transform transition-transform hover:scale-105 active:scale-95 cursor-pointer group"
                     >
                       <div className="relative flex items-center justify-center">
@@ -878,7 +878,7 @@ export default function App() {
                         </span>
                       </div>
                       <span className="text-[7.5px] sm:text-[8.5px] font-extrabold text-white tracking-tight -mt-0.5 leading-none">
-                        ফিজিসিয়ানস্
+                        শর্ট লিস্ট
                       </span>
                     </button>
                   </div>
