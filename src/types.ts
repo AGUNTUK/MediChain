@@ -23,6 +23,9 @@ export interface Product {
   image_url?: string;
   barcode?: string;
   tiers?: BulkTier[];
+  buyingPrice?: number | null; // Confidential internal cost (Admin only, null = unknown)
+  unitGrossProfit?: number | null; // Admin only: sellingPrice - buyingPrice
+  grossMarginPercent?: number | null; // Admin only: unit gross margin %
 }
 
 export interface CartItem {
@@ -125,6 +128,12 @@ export interface OrderItem {
   company?: string;
   category?: string;
   discountPercentage?: number;
+  buyingPrice?: number | null; // Confidential historical snapshot (Admin only, null = unknown)
+  lineSalesAmount?: number | null; // Historical snapshot: sellingPrice * quantity
+  lineCostAmount?: number | null; // Historical snapshot: buyingPrice * quantity
+  lineProfitAmount?: number | null; // Historical snapshot: lineSalesAmount - lineCostAmount
+  unitGrossProfit?: number | null; // Admin only: sellingPrice - buyingPrice
+  grossMarginPercent?: number | null; // Admin only: unit margin %
 }
 
 export interface Order {
@@ -166,6 +175,14 @@ export interface Order {
   batchId?: string;
   unverifiedPicksCount?: number;
   amendments?: OrderAmendment[];
+  // Internal Financial Analytics (Admin only)
+  totalCogs?: number | null; // Sum of line COGS for items with known buying price
+  grossProfit?: number | null; // Sales revenue minus totalCogs
+  grossMarginPercent?: number | null; // Overall gross margin %
+  deliveryCost?: number; // Internal delivery expense (BDT 40 per order)
+  deliveryExpense?: number; // Internal delivery expense alias
+  netProfit?: number | null; // grossProfit - deliveryCost (null if COGS incomplete)
+  hasUnknownCostItems?: boolean; // Flag indicating if any item has unknown buying price
 }
 
 export interface OrderAmendment {

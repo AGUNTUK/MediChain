@@ -38,6 +38,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [strength, setStrength] = useState("");
   const [packSize, setPackSize] = useState("");
   const [mrp, setMrp] = useState<number | "">("");
+  const [buyingPrice, setBuyingPrice] = useState<number | "" | null>("");
   const [sellingPrice, setSellingPrice] = useState<number | "">("");
   const [availableStock, setAvailableStock] = useState<number | "">("");
   const [batchNumber, setBatchNumber] = useState("");
@@ -61,6 +62,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       setStrength(product.strength || "");
       setPackSize(product.packSize || "");
       setMrp(product.mrp ?? "");
+      setBuyingPrice(product.buyingPrice !== undefined && product.buyingPrice !== null ? product.buyingPrice : "");
       setSellingPrice(product.sellingPrice ?? "");
       setAvailableStock(product.availableStock ?? 100);
       setBatchNumber(product.batchNumber || "");
@@ -75,6 +77,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       setStrength("");
       setPackSize("100's Box");
       setMrp("");
+      setBuyingPrice("");
       setSellingPrice("");
       setAvailableStock(500);
       setBatchNumber(`BN-${new Date().getFullYear()}-X`);
@@ -160,6 +163,16 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     const numSelling = typeof sellingPrice === "number" ? sellingPrice : parseFloat(sellingPrice as string) || 0;
     const numStock = typeof availableStock === "number" ? availableStock : parseInt(availableStock as string) || 0;
 
+    let finalBuyingPrice: number | null = null;
+    if (buyingPrice !== "" && buyingPrice !== null && buyingPrice !== undefined) {
+      const parsedBp = typeof buyingPrice === "number" ? buyingPrice : parseFloat(buyingPrice as string);
+      if (isNaN(parsedBp) || parsedBp < 0) {
+        setErrorMessage("Buying price must be a valid non-negative number (≥ 0).");
+        return;
+      }
+      finalBuyingPrice = Math.round(parsedBp * 100) / 100;
+    }
+
     const discountPercentage = numMrp > 0 ? Math.round(((numMrp - numSelling) / numMrp) * 100) : 0;
 
     const updatedData: Partial<Product> = {
@@ -172,6 +185,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       packSize: packSize.trim() || "1 Box",
       mrp: numMrp,
       sellingPrice: numSelling,
+      buyingPrice: finalBuyingPrice,
       discountPercentage: discountPercentage > 0 ? discountPercentage : 0,
       availableStock: numStock,
       batchNumber: batchNumber.trim() || "BN-2026-X",
@@ -438,50 +452,115 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
           </div>
 
           {/* PRICING & STOCK */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-950/60 p-4 rounded-xl border border-slate-800">
-            <div className="space-y-1">
-              <label className="text-slate-400 font-bold block uppercase text-[10px]">
-                Wholesale MRP (৳) *
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="e.g., 480.00"
-                value={mrp}
-                onChange={(e) => setMrp(e.target.value === "" ? "" : parseFloat(e.target.value))}
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono font-bold"
-                required
-              />
+          <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-1">
+                <label className="text-slate-400 font-bold block uppercase text-[10px]">
+                  Wholesale MRP (৳) *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g., 480.00"
+                  value={mrp}
+                  onChange={(e) => setMrp(e.target.value === "" ? "" : parseFloat(e.target.value))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono font-bold"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-amber-400 font-bold block uppercase text-[10px] flex items-center gap-1">
+                    <span>Buying Price (৳)</span>
+                    <span className="text-[8px] bg-amber-500/20 text-amber-300 px-1 py-0.2 rounded font-black border border-amber-500/30">ADMIN ONLY</span>
+                  </label>
+                </div>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="e.g., 330.00 (Blank = Unknown)"
+                  value={buyingPrice ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setBuyingPrice(val === "" ? "" : parseFloat(val));
+                  }}
+                  className="w-full bg-slate-900 border border-amber-500/40 rounded-xl py-2 px-3 text-xs text-amber-300 placeholder:text-slate-600 focus:outline-none focus:border-amber-400 font-mono font-bold"
+                />
+                <p className="text-[9px] text-slate-500 leading-tight">
+                  Confidential acquisition cost. Leave empty if unknown.
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-emerald-400 font-bold block uppercase text-[10px]">
+                  Trade Price (৳) *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g., 360.00"
+                  value={sellingPrice}
+                  onChange={(e) => setSellingPrice(e.target.value === "" ? "" : parseFloat(e.target.value))}
+                  className="w-full bg-slate-900 border border-emerald-500/50 rounded-xl py-2 px-3 text-xs text-emerald-400 focus:outline-none focus:border-emerald-500 font-mono font-black"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-400 font-bold block uppercase text-[10px]">
+                  Available Stock (Box) *
+                </label>
+                <input
+                  type="number"
+                  placeholder="e.g., 500"
+                  value={availableStock}
+                  onChange={(e) => setAvailableStock(e.target.value === "" ? "" : parseInt(e.target.value))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                  required
+                />
+              </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-emerald-400 font-bold block uppercase text-[10px]">
-                Trade Price (৳) *
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="e.g., 360.00"
-                value={sellingPrice}
-                onChange={(e) => setSellingPrice(e.target.value === "" ? "" : parseFloat(e.target.value))}
-                className="w-full bg-slate-900 border border-emerald-500/50 rounded-xl py-2 px-3 text-xs text-emerald-400 focus:outline-none focus:border-emerald-500 font-mono font-black"
-                required
-              />
-            </div>
+            {/* Live Profitability & Pricing Analysis (Internal Admin Visibility Only) */}
+            {(() => {
+              const numMrp = typeof mrp === "number" ? mrp : parseFloat(mrp as string) || 0;
+              const numSelling = typeof sellingPrice === "number" ? sellingPrice : parseFloat(sellingPrice as string) || 0;
+              const hasBuying = buyingPrice !== "" && buyingPrice !== null && buyingPrice !== undefined && !isNaN(Number(buyingPrice));
+              const numBuying = hasBuying ? Number(buyingPrice) : null;
+              const discountPct = numMrp > 0 && numSelling > 0 ? Math.round(((numMrp - numSelling) / numMrp) * 100) : 0;
 
-            <div className="space-y-1">
-              <label className="text-slate-400 font-bold block uppercase text-[10px]">
-                Available Stock (Box) *
-              </label>
-              <input
-                type="number"
-                placeholder="e.g., 500"
-                value={availableStock}
-                onChange={(e) => setAvailableStock(e.target.value === "" ? "" : parseInt(e.target.value))}
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
-                required
-              />
-            </div>
+              const unitProfit = numBuying !== null && numSelling > 0 ? (numSelling - numBuying) : null;
+              const grossMargin = unitProfit !== null && numSelling > 0 ? ((unitProfit / numSelling) * 100) : null;
+
+              return (
+                <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                  <div className="flex items-center gap-3">
+                    <span className="text-slate-400 font-medium">
+                      Customer Discount: <strong className="text-emerald-400 font-bold">{discountPct}% OFF MRP</strong>
+                    </span>
+                    <span className="text-slate-600">•</span>
+                    <span className="text-slate-400 font-medium">
+                      Unit Profitability:{" "}
+                      {unitProfit !== null ? (
+                        <span className={`font-mono font-bold ${unitProfit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                          ৳{unitProfit.toFixed(2)}/unit ({grossMargin?.toFixed(1)}% margin)
+                        </span>
+                      ) : (
+                        <span className="text-amber-400 font-semibold italic">
+                          Buying cost unavailable (NULL)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+
+                  <span className="text-[10px] text-slate-500 font-mono flex items-center gap-1">
+                    <span>🔒 Confidential — never exposed to pharmacies</span>
+                  </span>
+                </div>
+              );
+            })()}
           </div>
 
           {/* BATCH & EXPIRY */}

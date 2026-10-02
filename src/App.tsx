@@ -1,6 +1,4 @@
 import React, { useState, useEffect, Suspense, lazy } from "react";
-import { Analytics } from "@vercel/analytics/react";
-import { SpeedInsights } from "@vercel/speed-insights/react";
 import Splash from "./components/Splash";
 import Login from "./components/Login";
 import Home from "./components/Home";
@@ -697,8 +695,6 @@ export default function App() {
       <SafeBoundary>
         <Suspense fallback={<LoadingScreen />}>
           <AdminPanel currentUser={currentUser} onLogout={handleLogout} />
-          <Analytics />
-          <SpeedInsights />
         </Suspense>
       </SafeBoundary>
     );
@@ -709,8 +705,6 @@ export default function App() {
       <SafeBoundary>
         <Suspense fallback={<LoadingScreen />}>
           <DepotDashboard currentUser={currentUser} onLogout={handleLogout} />
-          <Analytics />
-          <SpeedInsights />
         </Suspense>
       </SafeBoundary>
     );
@@ -721,8 +715,6 @@ export default function App() {
       <SafeBoundary>
         <Suspense fallback={<LoadingScreen />}>
           <DeliveryDashboard currentUser={currentUser} onLogout={handleLogout} />
-          <Analytics />
-          <SpeedInsights />
         </Suspense>
       </SafeBoundary>
     );
@@ -731,8 +723,6 @@ export default function App() {
   return (
     <SafeBoundary>
       <CartFeedbackProvider>
-        <Analytics />
-        <SpeedInsights />
         <div className="flex h-screen w-screen bg-slate-50 font-sans select-none overflow-hidden justify-center items-center">
           <div className="w-full h-full lg:max-w-7xl lg:border-x lg:border-slate-200 bg-white shadow-2xl relative flex flex-col overflow-hidden">
           {/* Screen Content */}

@@ -99,6 +99,12 @@ export const schemas = {
     batchNumber: z.string().min(1, "Batch number is required."),
     expiryDate: z.string().min(4, "Expiry date is required."),
     imageUrl: z.string().optional(),
+    buyingPrice: z.union([
+      z.number().min(0, "Buying price cannot be negative."),
+      z.string().trim().regex(/^\d+(\.\d+)?$/, "Buying price must be a valid number.").transform(Number),
+      z.null(),
+      z.literal("").transform(() => null)
+    ]).optional().nullable(),
   }).refine((data) => data.mrp >= data.sellingPrice, {
     message: "MRP must be greater than or equal to the wholesale Selling Price.",
     path: ["mrp"],

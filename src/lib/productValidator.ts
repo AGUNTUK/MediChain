@@ -18,6 +18,13 @@ export function validateProduct(productData: any): ValidationResult {
   if (sellingPriceValue <= 0) return { isValid: false, error: "Selling Price must be greater than 0." };
   if (sellingPriceValue > mrpValue) return { isValid: false, error: "Selling Price cannot be greater than MRP." };
 
+  if (productData.buyingPrice !== undefined && productData.buyingPrice !== null && productData.buyingPrice !== "") {
+    const bp = typeof productData.buyingPrice === "number" ? productData.buyingPrice : parseFloat(productData.buyingPrice);
+    if (isNaN(bp) || bp < 0) {
+      return { isValid: false, error: "Buying Price must be a valid non-negative number." };
+    }
+  }
+
   return { isValid: true };
 }
 

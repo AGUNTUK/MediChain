@@ -1,3 +1,5 @@
+import { apiFetch } from "../lib/apiFetch";
+
 export interface RestockRequest {
   id: string;
   productId: string;
@@ -16,7 +18,7 @@ export interface RestockAdminMetrics {
 export const restockService = {
   async getMyRestockRequests(): Promise<RestockRequest[]> {
     try {
-      const res = await fetch("/api/alerts/my-requests");
+      const res = await apiFetch("/api/alerts/my-requests");
       if (!res.ok) return [];
       const data = await res.json();
       return Array.isArray(data) ? data : (data.requests || []);
@@ -27,7 +29,7 @@ export const restockService = {
 
   async getAdminMetrics(): Promise<RestockAdminMetrics> {
     try {
-      const res = await fetch("/api/admin/restock/metrics");
+      const res = await apiFetch("/api/admin/restock-requests/metrics");
       if (!res.ok) return { totalPendingRequests: 0, totalRestocked: 0, highDemandProducts: [] };
       return await res.json();
     } catch (e) {
@@ -35,3 +37,4 @@ export const restockService = {
     }
   }
 };
+

@@ -43,7 +43,8 @@ import {
   ClipboardList,
   Menu,
   BellRing,
-  Ban
+  Ban,
+  Lock
 } from "lucide-react";
 
 import * as XLSX from "xlsx";
@@ -138,6 +139,12 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
   const [prodCategoryFilter, setProdCategoryFilter] = useState("");
   const [prodCompanyFilter, setProdCompanyFilter] = useState("");
   const [prodStockFilter, setProdStockFilter] = useState<"" | "in_stock" | "low_stock" | "out_of_stock">("");
+  const [costFilter, setCostFilter] = useState<"all" | "missing_cost" | "known_cost">("all");
+  const [missingBuyingPriceCount, setMissingBuyingPriceCount] = useState<number>(0);
+  const [knownBuyingPriceCount, setKnownBuyingPriceCount] = useState<number>(0);
+  const [showMissingCostModal, setShowMissingCostModal] = useState<boolean>(false);
+  const [missingCostProducts, setMissingCostProducts] = useState<any[]>([]);
+  const [loadingMissingReport, setLoadingMissingReport] = useState<boolean>(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -240,11 +247,12 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
     try {
       const results = await Promise.allSettled([
         apiFetch("/api/admin/dashboard").then(r => r.ok ? r.json() : null),
-        productService.getProductsPaginated({
+        productService.getAdminProductsPaginated({
           page: catalogPage,
           limit: 50,
           search: prodSearch,
-          category: prodCategoryFilter
+          category: prodCategoryFilter,
+          filter: costFilter !== "all" ? costFilter : undefined
         }),
         orderService.getOrders(),
         apiFetch("/api/admin/pharmacies").then(r => r.ok ? r.json() : null),
@@ -283,6 +291,12 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
         setProducts(paginatedRes.value.products || []);
         setCatalogTotalCount(paginatedRes.value.total || 0);
         setCatalogTotalPages(paginatedRes.value.pages || 1);
+        if (paginatedRes.value.missingBuyingPriceCount !== undefined) {
+          setMissingBuyingPriceCount(paginatedRes.value.missingBuyingPriceCount);
+        }
+        if (paginatedRes.value.knownBuyingPriceCount !== undefined) {
+          setKnownBuyingPriceCount(paginatedRes.value.knownBuyingPriceCount);
+        }
       }
 
       if (ordData.status === "fulfilled" && Array.isArray(ordData.value)) {
@@ -390,25 +404,32 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
     return () => clearTimeout(handler);
   }, [prodSearch]);
 
-  // Reset catalog page to 1 when search or category filter changes
+  // Reset catalog page to 1 when search, category, or cost filter changes
   useEffect(() => {
     setCatalogPage(1);
-  }, [debouncedProdSearch, prodCategoryFilter]);
+  }, [debouncedProdSearch, prodCategoryFilter, costFilter]);
 
-  // Refetch catalog when page or debounced search/category filters change
+  // Refetch catalog when page, filters, or cost filter change
   useEffect(() => {
     const fetchCatalog = async () => {
       setCatalogLoading(true);
       try {
-        const paginatedRes = await productService.getProductsPaginated({
+        const paginatedRes = await productService.getAdminProductsPaginated({
           page: catalogPage,
           limit: 50,
           search: debouncedProdSearch,
-          category: prodCategoryFilter
+          category: prodCategoryFilter,
+          filter: costFilter !== "all" ? costFilter : undefined
         });
         setProducts(paginatedRes.products || []);
         setCatalogTotalCount(paginatedRes.total || 0);
         setCatalogTotalPages(paginatedRes.pages || 1);
+        if (paginatedRes.missingBuyingPriceCount !== undefined) {
+          setMissingBuyingPriceCount(paginatedRes.missingBuyingPriceCount);
+        }
+        if (paginatedRes.knownBuyingPriceCount !== undefined) {
+          setKnownBuyingPriceCount(paginatedRes.knownBuyingPriceCount);
+        }
       } catch (err) {
         console.error("Error refetching catalog:", err);
       } finally {
@@ -419,7 +440,21 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
     if (!loading) {
       fetchCatalog();
     }
-  }, [catalogPage, debouncedProdSearch, prodCategoryFilter]);
+  }, [catalogPage, debouncedProdSearch, prodCategoryFilter, costFilter]);
+
+  const openMissingCostReport = async () => {
+    setShowMissingCostModal(true);
+    setLoadingMissingReport(true);
+    try {
+      const res = await productService.getProductsMissingBuyingPrice();
+      setMissingCostProducts(res.products || []);
+      setMissingBuyingPriceCount(res.missingCount);
+    } catch (err) {
+      console.error("Failed to load missing cost report", err);
+    } finally {
+      setLoadingMissingReport(false);
+    }
+  };
 
   const lowStockThreshold = 100;
   const getDaysToExpiry = (dateStr?: string) => {
@@ -1896,6 +1931,63 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                     </div>
                   </div>
 
+                  {/* Cost & Margin Management Bar (Confidential Admin Only) */}
+                  <div className="bg-amber-500/10 border border-amber-500/20 p-3 sm:p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5 mr-2">
+                        <Lock className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Buying Cost Filter:</span>
+                      </span>
+                      <button
+                        onClick={() => setCostFilter("all")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          costFilter === "all"
+                            ? "bg-amber-600 text-white shadow-sm"
+                            : "bg-white text-slate-700 hover:bg-amber-50 border border-amber-200"
+                        }`}
+                      >
+                        All ({catalogTotalCount})
+                      </button>
+                      <button
+                        onClick={() => setCostFilter("missing_cost")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          costFilter === "missing_cost"
+                            ? "bg-rose-600 text-white shadow-sm"
+                            : "bg-white text-rose-700 hover:bg-rose-50 border border-rose-200"
+                        }`}
+                      >
+                        <span>Missing Buying Price</span>
+                        <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-100 text-rose-800 font-black">
+                          {missingBuyingPriceCount}
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => setCostFilter("known_cost")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          costFilter === "known_cost"
+                            ? "bg-emerald-600 text-white shadow-sm"
+                            : "bg-white text-emerald-700 hover:bg-emerald-50 border border-emerald-200"
+                        }`}
+                      >
+                        <span>Known Cost</span>
+                        <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-black">
+                          {knownBuyingPriceCount}
+                        </span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={openMissingCostReport}
+                        className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                        title="Open Dedicated Products Missing Buying Price Report"
+                      >
+                        <AlertCircle className="w-3.5 h-3.5 text-slate-950" />
+                        <span>Products Missing Buying Price ({missingBuyingPriceCount})</span>
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Bulk Import Section */}
                   <div className="bg-white/40 border border-slate-200 rounded-2xl p-4 sm:p-6">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
@@ -2158,7 +2250,13 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                             <th className="p-4 font-bold">Strength & Pack</th>
                             <th className="p-4 font-bold text-center">Stock Level</th>
                             <th className="p-4 font-bold text-right">MRP (৳)</th>
+                            <th className="p-4 font-bold text-right">
+                              <span className="flex items-center justify-end gap-1 text-amber-700 font-bold">
+                                <Lock className="w-3 h-3" /> Cost (৳)
+                              </span>
+                            </th>
                             <th className="p-4 font-bold text-right">Trade Price (৳)</th>
+                            <th className="p-4 font-bold text-right">Profit / Margin</th>
                             <th className="p-4 font-bold text-right">Discount</th>
                             <th className="p-4 font-bold text-center">Actions</th>
                           </tr>
@@ -2182,9 +2280,11 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                                 <td className="p-4"><div className="h-3 bg-slate-200 rounded w-12 mx-auto"></div></td>
                                 <td className="p-4"><div className="h-3 bg-slate-200 rounded w-12 ml-auto"></div></td>
                                 <td className="p-4"><div className="h-3 bg-slate-200 rounded w-12 ml-auto"></div></td>
+                                <td className="p-4"><div className="h-3 bg-slate-200 rounded w-12 ml-auto"></div></td>
+                                <td className="p-4"><div className="h-3 bg-slate-200 rounded w-16 ml-auto"></div></td>
                                 <td className="p-4"><div className="h-3 bg-slate-200 rounded w-14 ml-auto"></div></td>
                                 <td className="p-4"><div className="h-6 bg-slate-200 rounded w-12 mx-auto"></div></td>
-                               </tr>
+                              </tr>
                             ))
                           ) : (
                             products
@@ -2240,7 +2340,34 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                                   </span>
                                 </td>
                                 <td className="p-4 text-right text-slate-500">৳{p.mrp.toFixed(2)}</td>
+                                <td className="p-4 text-right">
+                                  {p.buyingPrice !== null && p.buyingPrice !== undefined ? (
+                                    <span className="font-mono font-bold text-amber-700">
+                                      ৳{Number(p.buyingPrice).toFixed(2)}
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200" title="Buying cost unavailable">
+                                      Unavailable
+                                    </span>
+                                  )}
+                                </td>
                                 <td className="p-4 text-right font-bold text-slate-900">৳{p.sellingPrice.toFixed(2)}</td>
+                                <td className="p-4 text-right">
+                                  {p.buyingPrice !== null && p.buyingPrice !== undefined ? (
+                                    <div>
+                                      <span className={`font-mono font-bold ${
+                                        p.sellingPrice - p.buyingPrice >= 0 ? "text-emerald-700" : "text-rose-700"
+                                      }`}>
+                                        ৳{(p.sellingPrice - p.buyingPrice).toFixed(2)}
+                                      </span>
+                                      <span className="block text-[9px] text-slate-500 font-semibold">
+                                        {(((p.sellingPrice - p.buyingPrice) / p.sellingPrice) * 100).toFixed(1)}% margin
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400 italic">Cost unavailable</span>
+                                  )}
+                                </td>
                                 <td className="p-4 text-right font-extrabold text-emerald-400">{p.discountPercentage}% OFF</td>
                                 <td className="p-4">
                                   <div className="flex items-center justify-center gap-2">
@@ -2685,6 +2812,14 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                                     <div className="text-right">
                                       <p className="font-semibold text-slate-800">{item.quantity} Qty</p>
                                       <p className="text-[10px] text-slate-500">৳{item.sellingPrice} ea</p>
+                                      <p className="text-[9.5px] font-mono text-amber-700">
+                                        Cost: {item.buyingPrice != null ? `৳${item.buyingPrice}` : "Unavailable"}
+                                      </p>
+                                      {item.lineProfitAmount != null && (
+                                        <p className={`text-[9px] font-mono font-bold ${item.lineProfitAmount >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                                          Profit: ৳{item.lineProfitAmount.toFixed(2)}
+                                        </p>
+                                      )}
                                     </div>
                                     {["Pending", "Confirmed", "Processing", "Packed"].includes(selectedOrderDetails.status) && (
                                       <button
@@ -2752,6 +2887,51 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                               <span>Total COD Payable:</span>
                               <span className="text-sm font-black text-indigo-700">৳{selectedOrderDetails.totalAmount?.toLocaleString()}</span>
                             </div>
+                          </div>
+
+                          {/* Internal Order Profitability (Confidential Admin Only) */}
+                          <div className="bg-amber-50/70 border border-amber-200/80 p-3 rounded-xl text-xs space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[9px] font-black uppercase text-amber-900 tracking-wider flex items-center gap-1">
+                                <Lock className="w-3 h-3 text-amber-700" /> Internal Order Profitability
+                              </span>
+                              <span className="text-[8px] bg-amber-200 text-amber-900 font-extrabold px-1.5 py-0.2 rounded">CONFIDENTIAL</span>
+                            </div>
+                            <div className="flex justify-between items-center text-slate-700 text-[11px]">
+                              <span>Order Sales Revenue:</span>
+                              <span className="font-semibold text-slate-900">৳{selectedOrderDetails.totalAmount?.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-slate-700 text-[11px]">
+                              <span>Total COGS (Acquisition):</span>
+                              <span className="font-mono font-semibold text-slate-900">
+                                {selectedOrderDetails.totalCogs != null ? `৳${selectedOrderDetails.totalCogs.toFixed(2)}` : "Cost unavailable"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center text-slate-700 text-[11px]">
+                              <span>Gross Profit:</span>
+                              <span className="font-mono font-bold text-emerald-800">
+                                {selectedOrderDetails.grossProfit != null 
+                                  ? `৳${selectedOrderDetails.grossProfit.toFixed(2)} (${selectedOrderDetails.grossMarginPercent ?? 0}%)` 
+                                  : "Unavailable"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center text-slate-700 text-[11px]">
+                              <span>Delivery Expense (Internal):</span>
+                              <span className="font-mono text-slate-700">৳{selectedOrderDetails.deliveryExpense ?? 40}.00</span>
+                            </div>
+                            <div className="flex justify-between items-center pt-1.5 border-t border-amber-200 text-xs font-bold">
+                              <span className="text-slate-900">Net Profit:</span>
+                              <span className={`text-xs font-black font-mono ${
+                                selectedOrderDetails.netProfit != null && selectedOrderDetails.netProfit >= 0 ? "text-emerald-800" : "text-rose-800"
+                              }`}>
+                                {selectedOrderDetails.netProfit != null ? `৳${selectedOrderDetails.netProfit.toFixed(2)}` : "Unavailable"}
+                              </span>
+                            </div>
+                            {selectedOrderDetails.hasUnknownCostItems && (
+                              <p className="text-[9.5px] text-amber-800 italic pt-1 leading-tight">
+                                ⚠️ Notice: Some items in this order do not have a known buying cost. Actual COGS & profit figures exclude unknown cost items.
+                              </p>
+                            )}
                           </div>
 
                           {/* Pipeline status controller */}
@@ -2829,13 +3009,78 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-white/60 border border-slate-200 p-4 sm:p-5 rounded-2xl space-y-2">
-                      <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Gross Revenue Processed</p>
-                      <h3 className="text-xl font-black text-slate-900">৳{financeSummary?.totalPaidAmount?.toLocaleString() || "0"}</h3>
-                      <p className="text-[9px] text-slate-500">Total value of all completed orders</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div className="bg-white/60 border border-slate-200 p-4 sm:p-5 rounded-2xl space-y-1.5 shadow-sm">
+                      <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Gross Revenue</p>
+                      <h3 className="text-xl font-black text-slate-900">
+                        ৳{(financeSummary?.totalSales ?? financeSummary?.totalPaidAmount ?? 0).toLocaleString()}
+                      </h3>
+                      <p className="text-[9px] text-slate-500">Total active order volume</p>
+                    </div>
+
+                    <div className="bg-white/60 border border-slate-200 p-4 sm:p-5 rounded-2xl space-y-1.5 shadow-sm">
+                      <p className="text-[10px] uppercase font-bold text-amber-700 tracking-wider flex items-center gap-1">
+                        <Lock className="w-3 h-3 text-amber-600" /> Total COGS
+                      </p>
+                      <h3 className="text-xl font-black font-mono text-slate-900">
+                        ৳{financeSummary?.totalCogs != null ? financeSummary.totalCogs.toLocaleString() : "0"}
+                      </h3>
+                      <p className="text-[9px] text-slate-500">Real acquisition cost</p>
+                    </div>
+
+                    <div className="bg-white/60 border border-slate-200 p-4 sm:p-5 rounded-2xl space-y-1.5 shadow-sm">
+                      <p className="text-[10px] uppercase font-bold text-emerald-700 tracking-wider">Gross Profit</p>
+                      <h3 className="text-xl font-black font-mono text-emerald-700">
+                        ৳{financeSummary?.totalGrossProfit != null ? financeSummary.totalGrossProfit.toLocaleString() : "0"}
+                      </h3>
+                      <p className="text-[9px] font-semibold text-emerald-600">
+                        {financeSummary?.overallGrossMarginPercent != null ? `${financeSummary.overallGrossMarginPercent}% gross margin` : "From actual cost"}
+                      </p>
+                    </div>
+
+                    <div className="bg-white/60 border border-slate-200 p-4 sm:p-5 rounded-2xl space-y-1.5 shadow-sm">
+                      <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Delivery Expense</p>
+                      <h3 className="text-xl font-black font-mono text-slate-800">
+                        ৳{financeSummary?.totalDeliveryExpense != null ? financeSummary.totalDeliveryExpense.toLocaleString() : "0"}
+                      </h3>
+                      <p className="text-[9px] text-slate-500">Standard ৳40 per order</p>
+                    </div>
+
+                    <div className="bg-white/60 border border-slate-200 p-4 sm:p-5 rounded-2xl space-y-1.5 shadow-sm">
+                      <p className="text-[10px] uppercase font-bold text-indigo-700 tracking-wider">Net Profit</p>
+                      <h3 className={`text-xl font-black font-mono ${
+                        (financeSummary?.totalNetProfit ?? 0) >= 0 ? "text-indigo-700" : "text-rose-700"
+                      }`}>
+                        ৳{financeSummary?.totalNetProfit != null ? financeSummary.totalNetProfit.toLocaleString() : "0"}
+                      </h3>
+                      <p className="text-[9px] text-slate-500">Gross profit minus delivery</p>
                     </div>
                   </div>
+
+                  {/* Missing Buying Price Alert Card */}
+                  {((financeSummary?.productsMissingBuyingPriceCount ?? 0) > 0 || missingBuyingPriceCount > 0) && (
+                    <div className="bg-amber-50 border border-amber-200/80 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-amber-100 rounded-xl text-amber-700 shrink-0">
+                          <AlertTriangle className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-amber-900">
+                            Products Missing Buying Price: {financeSummary?.productsMissingBuyingPriceCount ?? missingBuyingPriceCount}
+                          </h4>
+                          <p className="text-[11px] text-amber-800">
+                            These catalog items have no internal acquisition cost recorded. Profit calculations strictly exclude them to avoid fake/assumed numbers.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={openMissingCostReport}
+                        className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 cursor-pointer"
+                      >
+                        View Missing Cost Report
+                      </button>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
                     {/* Left 2 cols: Pharmacy Registrations */}
@@ -3166,6 +3411,129 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
           await refreshAllData();
         }}
       />
+
+      {/* --- DEDICATED REPORT: PRODUCTS MISSING BUYING PRICE --- */}
+      {showMissingCostModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-4xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-amber-100 text-amber-800">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                    <span>Products Missing Buying Price</span>
+                    <span className="px-2 py-0.5 rounded-full text-xs font-black bg-rose-100 text-rose-800 border border-rose-200">
+                      Products Missing Buying Price: {missingBuyingPriceCount}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Internal financial audit report. These items currently have no purchase cost recorded.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowMissingCostModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-900 flex items-start gap-2.5">
+                <Lock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Zero-Assumption Profit Guarantee</p>
+                  <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                    MediChain never invents or hardcodes profit margins (e.g. 3% or MRP discount). Until a verified acquisition cost is entered, product profitability remains strictly marked as <strong>"Buying cost unavailable"</strong>.
+                  </p>
+                </div>
+              </div>
+
+              {loadingMissingReport ? (
+                <div className="py-12 flex flex-col items-center justify-center gap-3 text-slate-500">
+                  <RefreshCw className="w-6 h-6 animate-spin text-amber-600" />
+                  <p className="text-xs font-semibold">Generating confidential audit report...</p>
+                </div>
+              ) : missingCostProducts.length === 0 ? (
+                <div className="py-12 text-center text-slate-500 space-y-2">
+                  <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
+                  <p className="font-bold text-slate-800 text-sm">All products have recorded buying costs!</p>
+                  <p className="text-xs">No missing buying prices detected in platform catalog.</p>
+                </div>
+              ) : (
+                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-200">
+                      <tr>
+                        <th className="px-4 py-3">Product</th>
+                        <th className="px-4 py-3">Company</th>
+                        <th className="px-4 py-3 text-right">MRP (৳)</th>
+                        <th className="px-4 py-3 text-right">Selling Price (৳)</th>
+                        <th className="px-4 py-3 text-center">Stock</th>
+                        <th className="px-4 py-3 text-center">Buying Price Status</th>
+                        <th className="px-4 py-3 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {missingCostProducts.map((p, idx) => (
+                        <tr key={p.id || idx} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="px-4 py-3 font-semibold text-slate-900">
+                            <div>{p.name}</div>
+                            <div className="text-[10px] text-slate-500">{p.genericName}</div>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">{p.company}</td>
+                          <td className="px-4 py-3 text-right text-slate-500 font-mono">৳{Number(p.mrp).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right font-bold text-slate-900 font-mono">৳{Number(p.sellingPrice).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                              {p.availableStock ?? 0}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                              Buying cost unavailable
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <button
+                              onClick={() => {
+                                setShowMissingCostModal(false);
+                                const fullProd = products.find(prod => prod.id === p.id) || p;
+                                handleOpenEditProduct(fullProd);
+                              }}
+                              className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-[11px] font-bold cursor-pointer transition-colors shadow-2xs"
+                            >
+                              Set Cost
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-500">
+                Total Missing: <strong className="text-slate-900 font-bold">{missingBuyingPriceCount}</strong> of {totalProductsCount || products.length} catalog items
+              </span>
+              <button
+                onClick={() => setShowMissingCostModal(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Close Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

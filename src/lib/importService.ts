@@ -10,6 +10,7 @@ export interface RawImportRow {
   packSize: string;
   mrp: string;
   sellingPrice: string;
+  buyingPrice?: string;
   batchNumber?: string;
   expiryDate?: string;
   stockQuantity?: string;
@@ -156,6 +157,7 @@ export function mapRowToFields(row: Record<string, string>): RawImportRow {
   // Sensible default value fallbacks for blank cells in bulk import spreadsheet
   const rawMrp = findVal(["MRP", "mrp_price", "mrp"]);
   const rawSellingPrice = findVal(["Selling Price", "selling_price", "price"]);
+  const rawBuyingPrice = findVal(["Buying Price", "buying_price", "buying_cost", "purchase_price", "cost_price", "cost", "buying"]);
   const rawPackSize = findVal(["Pack Size", "pack_size", "pack", "size"]);
   const rawStock = findVal(["Stock", "Stock Quantity", "stock_quantity", "stock", "qty", "quantity"]);
   const rawBatch = findVal(["Batch Number", "batch_number", "batch", "batch_no"]);
@@ -184,6 +186,7 @@ export function mapRowToFields(row: Record<string, string>): RawImportRow {
     packSize,
     mrp,
     sellingPrice,
+    buyingPrice: rawBuyingPrice.trim() || undefined,
     batchNumber,
     expiryDate,
     stockQuantity,
@@ -200,19 +203,56 @@ export function validateImportRow(
   rowIndex: number,
   existingProducts: any[]
 ): string[] {
-  // Return empty array to indicate no validation errors
-  return [];
+  const errors: string[] = [];
+  if (!row.productName || !row.productName.trim()) {
+    errors.push("Missing Product Name");
+  }
+
+  if (row.buyingPrice !== undefined && row.buyingPrice !== "") {
+    const bp = parseFloat(row.buyingPrice);
+    if (isNaN(bp) || bp < 0) {
+      errors.push(`Invalid Buying Price "${row.buyingPrice}". Must be a non-negative number (≥ 0).`);
+    }
+  }
+
+  if (row.mrp) {
+    const mrp = parseFloat(row.mrp);
+    if (isNaN(mrp) || mrp <= 0) {
+      errors.push("MRP must be greater than 0.");
+    }
+  }
+
+  if (row.sellingPrice) {
+    const sp = parseFloat(row.sellingPrice);
+    if (isNaN(sp) || sp <= 0) {
+      errors.push("Selling Price must be greater than 0.");
+    }
+  }
+
+  return errors;
 }
 
 /**
  * 3. Product Mapping Utility
  * Converts a validated raw row into a production-ready Product record
+ * Blank buying_price in a CSV will NOT erase existing buying_price!
  */
-export function mapToProduct(row: RawImportRow, nextId: string): Product {
+export function mapToProduct(row: RawImportRow, nextId: string, existingProduct?: any): Product {
   const mrpValue = parseFloat(row.mrp);
   const sellingPriceValue = parseFloat(row.sellingPrice);
   const discountPercent = Math.max(0, Math.round(((mrpValue - sellingPriceValue) / mrpValue) * 100));
-  const qty = row.stockQuantity ? parseInt(row.stockQuantity, 10) : 1000; // Default high wholesale initial stock
+  const qty = row.stockQuantity ? parseInt(row.stockQuantity, 10) : 1000;
+
+  // Determine buyingPrice safely:
+  // If explicitly specified with a valid number: update to new buying price.
+  // If blank in CSV and existing product has a buying price: retain existing buying price.
+  // If brand new product or unknown: NULL (never convert to 0 or 3%).
+  let resolvedBuyingPrice: number | null = null;
+  if (row.buyingPrice !== undefined && row.buyingPrice !== "" && !isNaN(parseFloat(row.buyingPrice))) {
+    resolvedBuyingPrice = Math.round(parseFloat(row.buyingPrice) * 100) / 100;
+  } else if (existingProduct && existingProduct.buyingPrice !== undefined && existingProduct.buyingPrice !== null) {
+    resolvedBuyingPrice = existingProduct.buyingPrice;
+  }
 
   return {
     id: nextId,
@@ -224,20 +264,21 @@ export function mapToProduct(row: RawImportRow, nextId: string): Product {
     packSize: row.packSize,
     mrp: mrpValue,
     sellingPrice: sellingPriceValue,
+    buyingPrice: resolvedBuyingPrice,
     discountPercentage: discountPercent,
     availableStock: qty,
-    reservedStock: 0,
-    soldStock: 0,
-    batchNumber: row.batchNumber || `B-IMP${Math.floor(100 + Math.random() * 900)}`,
-    expiryDate: row.expiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // default 1 yr future
-    imageUrl: row.imageUrl || "",
-    image_url: row.imageUrl || ""
+    reservedStock: existingProduct?.reservedStock || 0,
+    soldStock: existingProduct?.soldStock || 0,
+    batchNumber: row.batchNumber || existingProduct?.batchNumber || `B-IMP${Math.floor(100 + Math.random() * 900)}`,
+    expiryDate: row.expiryDate || existingProduct?.expiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+    imageUrl: row.imageUrl || existingProduct?.imageUrl || "",
+    image_url: row.imageUrl || existingProduct?.image_url || ""
   };
 }
 
 /**
  * 4. Orchestrator Service
- * Runs validation, formats results, updates db, handles rollback/tracking
+ * Runs validation, matches against existing catalog, handles safe updates
  */
 export function importBulkCatalog(csvContent: string, currentCatalog: any[]): ImportResult {
   const { rows } = parseCSV(csvContent);
@@ -245,9 +286,25 @@ export function importBulkCatalog(csvContent: string, currentCatalog: any[]): Im
   const importedProducts: Product[] = [];
   
   let nextIdCounter = currentCatalog.reduce((max, p) => {
-    const idNum = parseInt(p.id.replace("prod_", ""), 10);
+    const idNum = parseInt(String(p.id || "").replace("prod_", ""), 10);
     return isNaN(idNum) ? max : Math.max(max, idNum);
   }, 0) + 1;
+
+  // Build lookup index for safe matching:
+  // Match priority: 1) ID, 2) Name + Company + Strength, 3) Name + Company
+  const catalogMapById = new Map<string, any>();
+  const catalogMapByKey = new Map<string, any>();
+  for (const p of currentCatalog) {
+    if (p.id) {
+      catalogMapById.set(String(p.id).trim().toLowerCase(), p);
+    }
+    const fullKey = `${(p.name || "").trim().toLowerCase()}_${(p.company || "").trim().toLowerCase()}_${(p.strength || "").trim().toLowerCase()}`;
+    catalogMapByKey.set(fullKey, p);
+    const shortKey = `${(p.name || "").trim().toLowerCase()}_${(p.company || "").trim().toLowerCase()}`;
+    if (!catalogMapByKey.has(shortKey)) {
+      catalogMapByKey.set(shortKey, p);
+    }
+  }
 
   rows.forEach((row, idx) => {
     const rowIndex = idx + 2; // +1 for 0-index offset, +1 for header line
@@ -263,8 +320,21 @@ export function importBulkCatalog(csvContent: string, currentCatalog: any[]): Im
         errors: rowErrors
       });
     } else {
-      const pId = `prod_${nextIdCounter++}`;
-      const product = mapToProduct(mappedRow, pId);
+      // Find matching existing product if any
+      const rowId = (row["id"] || row["ID"] || row["Product ID"] || row["product_id"] || "").trim().toLowerCase();
+      let matchedExisting = rowId ? catalogMapById.get(rowId) : null;
+
+      if (!matchedExisting && mappedRow.productName && mappedRow.companyName) {
+        const fullKey = `${mappedRow.productName.trim().toLowerCase()}_${mappedRow.companyName.trim().toLowerCase()}_${(mappedRow.strength || "").trim().toLowerCase()}`;
+        matchedExisting = catalogMapByKey.get(fullKey);
+        if (!matchedExisting) {
+          const shortKey = `${mappedRow.productName.trim().toLowerCase()}_${mappedRow.companyName.trim().toLowerCase()}`;
+          matchedExisting = catalogMapByKey.get(shortKey);
+        }
+      }
+
+      const pId = matchedExisting ? matchedExisting.id : `prod_${nextIdCounter++}`;
+      const product = mapToProduct(mappedRow, pId, matchedExisting);
       importedProducts.push(product);
     }
   });

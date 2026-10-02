@@ -1147,6 +1147,18 @@ const mapProduct = (p: any): Product => {
 
   const imgUrl = p.image_url || p.imageUrl || undefined;
 
+  let buyingVal: number | null = null;
+  if (p.buying_price !== undefined && p.buying_price !== null && p.buying_price !== "") {
+    const parsedBp = parseFloat(p.buying_price);
+    if (!isNaN(parsedBp)) buyingVal = parsedBp;
+  } else if (inv && inv.buying_price !== undefined && inv.buying_price !== null && inv.buying_price !== "") {
+    const parsedBp = parseFloat(inv.buying_price);
+    if (!isNaN(parsedBp)) buyingVal = parsedBp;
+  }
+
+  const unitGrossProfit = buyingVal !== null ? Math.round((sellingVal - buyingVal) * 100) / 100 : null;
+  const grossMarginPercent = (unitGrossProfit !== null && sellingVal > 0) ? Math.round(((unitGrossProfit / sellingVal) * 100) * 10) / 10 : null;
+
   return {
     id: String(p.id || "").trim(),
     name: p.name || "Pharmaceutical Item",
@@ -1157,6 +1169,9 @@ const mapProduct = (p: any): Product => {
     packSize: p.pack_size || p.packSize || "10x10 Box",
     mrp: mrpVal,
     sellingPrice: sellingVal,
+    buyingPrice: buyingVal,
+    unitGrossProfit,
+    grossMarginPercent,
     discountPercentage: p.discount_percentage ? parseFloat(p.discount_percentage) : (mrpVal > 0 ? Math.round(((mrpVal - sellingVal) / mrpVal) * 100) : 0),
     availableStock: stockVal,
     reservedStock: inv ? (inv.reserved_stock ?? 0) : 0,
@@ -1274,7 +1289,10 @@ export async function addOrUpdateProduct(prod: Partial<Product> & { name: string
     selling_price: sellingVal,
     stock_quantity: stockQty,
     image_url: prod.imageUrl || prod.image_url || "",
-    ...(prod.barcode ? { barcode: prod.barcode } : {})
+    ...(prod.barcode ? { barcode: prod.barcode } : {}),
+    ...(prod.buyingPrice !== undefined ? {
+      buying_price: prod.buyingPrice !== null && (prod.buyingPrice as any) !== "" ? parseFloat(String(prod.buyingPrice)) : null
+    } : {})
   };
 
   let finalProd: any = null;
@@ -1326,13 +1344,16 @@ export async function addOrUpdateProduct(prod: Partial<Product> & { name: string
       .eq("product_id", finalProd.id)
       .maybeSingle();
 
-    const invPayload = {
+    const invPayload: any = {
       product_id: finalProd.id,
       available_stock: stockQty,
       reserved_stock: prod.reservedStock !== undefined ? prod.reservedStock : 0,
       sold_stock: prod.soldStock !== undefined ? prod.soldStock : 0,
       batch_number: prod.batchNumber || `B-${Math.floor(10000 + Math.random() * 90000)}`,
-      expiry_date: prod.expiryDate || "2027-12-31"
+      expiry_date: prod.expiryDate || "2027-12-31",
+      ...(prod.buyingPrice !== undefined ? {
+        buying_price: prod.buyingPrice !== null && (prod.buyingPrice as any) !== "" ? parseFloat(String(prod.buyingPrice)) : null
+      } : {})
     };
 
     if (existingInv) {
@@ -1743,6 +1764,21 @@ export async function createOrderTransaction(
       totalAmount += itemSubtotal;
       totalMrp += product.mrp * actualQuantity;
 
+      // Determine unit acquisition cost: prefer batch-level cost from inventory row, fallback to product buying_price
+      let unitCost: number | null = null;
+      if (inv && inv.buying_price !== undefined && inv.buying_price !== null && inv.buying_price !== "") {
+        const parsed = parseFloat(inv.buying_price);
+        if (!isNaN(parsed) && parsed >= 0) unitCost = parsed;
+      }
+      if (unitCost === null && product.buyingPrice !== undefined && product.buyingPrice !== null) {
+        const parsed = parseFloat(product.buyingPrice as any);
+        if (!isNaN(parsed) && parsed >= 0) unitCost = parsed;
+      }
+
+      const lineSalesAmount = itemSubtotal;
+      const lineCostAmount = unitCost !== null ? Math.round((unitCost * actualQuantity) * 100) / 100 : null;
+      const lineProfitAmount = lineCostAmount !== null ? Math.round((lineSalesAmount - lineCostAmount) * 100) / 100 : null;
+
       orderItemsToInsert.push({
         product_id: product.id,
         name: product.name,
@@ -1751,7 +1787,11 @@ export async function createOrderTransaction(
         quantity: item.quantity,
         price: effectivePrice,
         mrp: product.mrp,
-        subtotal: itemSubtotal
+        subtotal: itemSubtotal,
+        buying_price: unitCost,
+        line_sales_amount: lineSalesAmount,
+        line_cost_amount: lineCostAmount,
+        line_profit_amount: lineProfitAmount
       });
 
       productsToUpdate.push({
@@ -1981,6 +2021,10 @@ export async function getOrders(pharmacyId?: string, page = 1, limit = 100): Pro
         quantity,
         price,
         subtotal,
+        buying_price,
+        line_sales_amount,
+        line_cost_amount,
+        line_profit_amount,
         products (
           name,
           generic_name,
@@ -1988,7 +2032,8 @@ export async function getOrders(pharmacyId?: string, page = 1, limit = 100): Pro
           category_name_fallback,
           strength,
           pack_size,
-          mrp
+          mrp,
+          buying_price
         )
       ),
       pharmacies (
@@ -2005,7 +2050,25 @@ export async function getOrders(pharmacyId?: string, page = 1, limit = 100): Pro
       query = query.eq("pharmacy_id", pharmacyId);
     }
 
-    const { data, error } = await query.order("created_at", { ascending: false }).range(offset, offset + limit - 1);
+    let { data, error } = await query.order("created_at", { ascending: false }).range(offset, offset + limit - 1);
+    if (error && (error.code === "42703" || error.message?.includes("buying_price"))) {
+      let fallbackQuery = supabaseAdmin.from("orders").select(`
+        id, order_number, pharmacy_id, total_amount, total_savings, total_mrp, status,
+        payment_method, payment_status, delivery_address, notes, created_at,
+        order_items (
+          id, order_id, product_id, quantity, price, subtotal,
+          products ( name, generic_name, company, category_name_fallback, strength, pack_size, mrp )
+        ),
+        pharmacies ( pharmacy_name, owner_name, phone, address, city, license_information )
+      `);
+      if (pharmacyId) {
+        fallbackQuery = fallbackQuery.eq("pharmacy_id", pharmacyId);
+      }
+      const res = await fallbackQuery.order("created_at", { ascending: false }).range(offset, offset + limit - 1);
+      data = res.data as any;
+      error = res.error;
+    }
+
     if (error || !data) {
       if (error) console.error("Error retrieving orders from database:", error);
       return [];
@@ -2032,11 +2095,50 @@ export async function getOrders(pharmacyId?: string, page = 1, limit = 100): Pro
       const pharm = Array.isArray(order.pharmacies) ? order.pharmacies[0] : (order.pharmacies || {});
       const lic = deserializeLicenseInfo(pharm?.license_information);
 
+      let totalOrderCogs: number = 0;
+      let totalOrderGrossProfit: number = 0;
+      let hasUnknownCosts = false;
+
       const items: OrderItem[] = (order.order_items || []).map((itm: any) => {
         const prod = itm.products || {};
         const sellingPrice = parseFloat(itm.price || itm.selling_price || 0);
         const mrp = parseFloat(prod.mrp || itm.mrp || 0) || (sellingPrice * 1.25);
         const discountPercentage = mrp > 0 ? Math.round(((mrp - sellingPrice) / mrp) * 100) : 0;
+
+        // Historical cost snapshot retrieval:
+        // Priority 1: Snapshotted buying_price on order_item (immutable historical record)
+        // Priority 2: Fallback to product.buying_price for older legacy orders
+        let itmBuyingPrice: number | null = null;
+        if (itm.buying_price !== undefined && itm.buying_price !== null && itm.buying_price !== "") {
+          const parsed = parseFloat(itm.buying_price);
+          if (!isNaN(parsed) && parsed >= 0) itmBuyingPrice = parsed;
+        } else if (prod.buying_price !== undefined && prod.buying_price !== null && prod.buying_price !== "") {
+          const parsed = parseFloat(prod.buying_price);
+          if (!isNaN(parsed) && parsed >= 0) itmBuyingPrice = parsed;
+        }
+
+        const lineSales = itm.line_sales_amount !== undefined && itm.line_sales_amount !== null
+          ? parseFloat(itm.line_sales_amount)
+          : parseFloat(itm.subtotal || (sellingPrice * itm.quantity));
+
+        const lineCost = itm.line_cost_amount !== undefined && itm.line_cost_amount !== null
+          ? parseFloat(itm.line_cost_amount)
+          : (itmBuyingPrice !== null ? Math.round((itmBuyingPrice * itm.quantity) * 100) / 100 : null);
+
+        const lineProfit = itm.line_profit_amount !== undefined && itm.line_profit_amount !== null
+          ? parseFloat(itm.line_profit_amount)
+          : (lineCost !== null ? Math.round((lineSales - lineCost) * 100) / 100 : null);
+
+        const unitGrossProfit = itmBuyingPrice !== null ? Math.round((sellingPrice - itmBuyingPrice) * 100) / 100 : null;
+        const grossMarginPercent = (unitGrossProfit !== null && sellingPrice > 0) ? Math.round(((unitGrossProfit / sellingPrice) * 100) * 10) / 10 : null;
+
+        if (lineCost !== null) {
+          totalOrderCogs += lineCost;
+          totalOrderGrossProfit += (lineProfit ?? 0);
+        } else {
+          hasUnknownCosts = true;
+        }
+
         return {
           productId: itm.product_id,
           name: prod.name || itm.name || "Medicine Item",
@@ -2049,9 +2151,24 @@ export async function getOrders(pharmacyId?: string, page = 1, limit = 100): Pro
           sellingPrice,
           mrp,
           discountPercentage,
-          subtotal: parseFloat(itm.subtotal || (sellingPrice * itm.quantity))
+          subtotal: lineSales,
+          buyingPrice: itmBuyingPrice,
+          lineSalesAmount: lineSales,
+          lineCostAmount: lineCost,
+          lineProfitAmount: lineProfit,
+          unitGrossProfit,
+          grossMarginPercent
         };
       });
+
+      const orderSales = parseFloat(order.total_amount) || 0;
+      const roundedCogs = Math.round(totalOrderCogs * 100) / 100;
+      const roundedGrossProfit = Math.round(totalOrderGrossProfit * 100) / 100;
+      const orderGrossMargin = (!hasUnknownCosts && orderSales > 0)
+        ? Math.round(((roundedGrossProfit / orderSales) * 100) * 10) / 10
+        : null;
+      const deliveryExpense = DEFAULT_DELIVERY_CHARGE || 40; // Internal BDT 40 delivery cost
+      const netProfit = !hasUnknownCosts ? Math.round((roundedGrossProfit - deliveryExpense) * 100) / 100 : null;
 
       return {
         id: order.id,
@@ -2072,6 +2189,12 @@ export async function getOrders(pharmacyId?: string, page = 1, limit = 100): Pro
         totalMrp: parseFloat(order.total_mrp || 0),
         deliveryCharge: DEFAULT_DELIVERY_CHARGE,
         items,
+        totalCogs: roundedCogs,
+        grossProfit: roundedGrossProfit,
+        grossMarginPercent: orderGrossMargin,
+        deliveryCost: deliveryExpense,
+        netProfit,
+        hasUnknownCostItems: hasUnknownCosts,
         notes: orderNotes,
         deliveryAddress: order.delivery_address,
         createdAt: order.created_at,
@@ -2207,11 +2330,47 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
 
   const lic = deserializeLicenseInfo(data.pharmacies?.license_information);
 
+  let totalOrderCogs: number = 0;
+  let totalOrderGrossProfit: number = 0;
+  let hasUnknownCosts = false;
+
   const items: OrderItem[] = (data.order_items || []).map((itm: any) => {
     const prod = itm.products || {};
     const sellingPrice = parseFloat(itm.price || itm.selling_price || 0);
     const mrp = parseFloat(prod.mrp || itm.mrp || 0) || (sellingPrice * 1.25);
     const discountPercentage = mrp > 0 ? Math.round(((mrp - sellingPrice) / mrp) * 100) : 0;
+
+    let itmBuyingPrice: number | null = null;
+    if (itm.buying_price !== undefined && itm.buying_price !== null && itm.buying_price !== "") {
+      const parsed = parseFloat(itm.buying_price);
+      if (!isNaN(parsed) && parsed >= 0) itmBuyingPrice = parsed;
+    } else if (prod.buying_price !== undefined && prod.buying_price !== null && prod.buying_price !== "") {
+      const parsed = parseFloat(prod.buying_price);
+      if (!isNaN(parsed) && parsed >= 0) itmBuyingPrice = parsed;
+    }
+
+    const lineSales = itm.line_sales_amount !== undefined && itm.line_sales_amount !== null
+      ? parseFloat(itm.line_sales_amount)
+      : parseFloat(itm.subtotal || (sellingPrice * itm.quantity));
+
+    const lineCost = itm.line_cost_amount !== undefined && itm.line_cost_amount !== null
+      ? parseFloat(itm.line_cost_amount)
+      : (itmBuyingPrice !== null ? Math.round((itmBuyingPrice * itm.quantity) * 100) / 100 : null);
+
+    const lineProfit = itm.line_profit_amount !== undefined && itm.line_profit_amount !== null
+      ? parseFloat(itm.line_profit_amount)
+      : (lineCost !== null ? Math.round((lineSales - lineCost) * 100) / 100 : null);
+
+    const unitGrossProfit = itmBuyingPrice !== null ? Math.round((sellingPrice - itmBuyingPrice) * 100) / 100 : null;
+    const grossMarginPercent = (unitGrossProfit !== null && sellingPrice > 0) ? Math.round(((unitGrossProfit / sellingPrice) * 100) * 10) / 10 : null;
+
+    if (lineCost !== null) {
+      totalOrderCogs += lineCost;
+      totalOrderGrossProfit += (lineProfit ?? 0);
+    } else {
+      hasUnknownCosts = true;
+    }
+
     return {
       productId: itm.product_id,
       name: prod.name || itm.name || "Medicine Item",
@@ -2224,9 +2383,24 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
       sellingPrice,
       mrp,
       discountPercentage,
-      subtotal: parseFloat(itm.subtotal || (sellingPrice * itm.quantity))
+      subtotal: lineSales,
+      buyingPrice: itmBuyingPrice,
+      lineSalesAmount: lineSales,
+      lineCostAmount: lineCost,
+      lineProfitAmount: lineProfit,
+      unitGrossProfit,
+      grossMarginPercent
     };
   });
+
+  const orderSales = parseFloat(data.total_amount) || 0;
+  const roundedCogs = Math.round(totalOrderCogs * 100) / 100;
+  const roundedGrossProfit = Math.round(totalOrderGrossProfit * 100) / 100;
+  const orderGrossMargin = (!hasUnknownCosts && orderSales > 0)
+    ? Math.round(((roundedGrossProfit / orderSales) * 100) * 10) / 10
+    : null;
+  const deliveryExpense = DEFAULT_DELIVERY_CHARGE || 40;
+  const netProfit = !hasUnknownCosts ? Math.round((roundedGrossProfit - deliveryExpense) * 100) / 100 : null;
 
   const amendments = await getOrderAmendments(orderId);
 
@@ -2249,6 +2423,12 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
     totalMrp: parseFloat(data.total_mrp || 0),
     deliveryCharge: DEFAULT_DELIVERY_CHARGE,
     items,
+    totalCogs: roundedCogs,
+    grossProfit: roundedGrossProfit,
+    grossMarginPercent: orderGrossMargin,
+    deliveryCost: deliveryExpense,
+    netProfit,
+    hasUnknownCostItems: hasUnknownCosts,
     notes: orderNotes,
     deliveryAddress: data.delivery_address,
     createdAt: data.created_at,

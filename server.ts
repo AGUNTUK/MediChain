@@ -60,7 +60,7 @@ async function runWithRetry(fn, maxAttempts = 3, timeoutMs = 15000) {
 }
 
 const app = express();
-app.use(compression());
+app.use(compression() as any);
 app.use(helmet({
   contentSecurityPolicy: process.env.NODE_ENV === "production" ? {
     directives: {
@@ -154,7 +154,7 @@ app.use(cookieSession({
   httpOnly: true,
   secure: isProduction,
   sameSite: isProduction ? "none" : "lax"
-}));
+}) as any);
 
 import { authLimiter, orderLimiter, publicLimiter, smartOrderLimiter, schemas, validateBody } from "./src/lib/security.js";
 
@@ -302,7 +302,15 @@ function requireRole(allowedRoles: string[]) {
       if (!user) {
         return res.status(401).json({ error: "Authentication required." });
       }
-      if (!allowedRoles.includes(user.role)) {
+      const userRoleNorm = (user.role || "").trim().toLowerCase();
+      const isAllowed = allowedRoles.some(r => {
+        const norm = r.trim().toLowerCase();
+        if (norm === userRoleNorm) return true;
+        if (norm === "admin" && (userRoleNorm === "admin" || userRoleNorm === "super admin" || userRoleNorm === "administrator")) return true;
+        return false;
+      });
+
+      if (!isAllowed) {
         return res.status(403).json({
           error: `Access Denied: This action is restricted to the following roles: ${allowedRoles.join(", ")}`
         });
@@ -779,6 +787,8 @@ export function updateCachedProductStock(items: Array<{ productId: string; quant
   }
 }
 
+export const globalBuyingPriceStore = new Map<string, number | null>();
+
 async function getAllProductsMaster(): Promise<any[]> {
   const now = Date.now();
   if (cachedAllProducts && now - lastAllProductsFetch < ALL_PRODUCTS_TTL) {
@@ -792,21 +802,24 @@ async function getAllProductsMaster(): Promise<any[]> {
 
   inFlightAllProductsPromise = (async () => {
     try {
+    const selectWithCost = "id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, image_url, buying_price, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date, buying_price)";
+    const selectWithoutCost = "id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, image_url, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date)";
+
     // Fetch products in 1000-row chunks in parallel to cover full catalog (2,202+ items)
-    const [c1, c2, c3] = await Promise.all([
-      supabaseAdmin
-        .from("products")
-        .select("id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, image_url, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date)")
-        .range(0, 999),
-      supabaseAdmin
-        .from("products")
-        .select("id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, image_url, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date)")
-        .range(1000, 1999),
-      supabaseAdmin
-        .from("products")
-        .select("id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, image_url, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date)")
-        .range(2000, 2999),
+    let [c1, c2, c3]: any[] = await Promise.all([
+      supabaseAdmin.from("products").select(selectWithCost).range(0, 999),
+      supabaseAdmin.from("products").select(selectWithCost).range(1000, 1999),
+      supabaseAdmin.from("products").select(selectWithCost).range(2000, 2999),
     ]);
+
+    // Resilient fallback if remote Supabase schema has not run migration 14 yet
+    if (c1.error && (c1.error.code === "42703" || c1.error.message?.includes("buying_price"))) {
+      [c1, c2, c3] = await Promise.all([
+        supabaseAdmin.from("products").select(selectWithoutCost).range(0, 999),
+        supabaseAdmin.from("products").select(selectWithoutCost).range(1000, 1999),
+        supabaseAdmin.from("products").select(selectWithoutCost).range(2000, 2999),
+      ]);
+    }
 
     const rawProducts = [...(c1.data || []), ...(c2.data || []), ...(c3.data || [])];
     if (rawProducts.length === 0 && cachedAllProducts) {
@@ -825,6 +838,27 @@ async function getAllProductsMaster(): Promise<any[]> {
       } else {
         sellingVal = mrpVal;
       }
+
+      let buyingVal: number | null = null;
+      if (p.buying_price !== undefined && p.buying_price !== null && p.buying_price !== "") {
+        const bp = parseFloat(p.buying_price);
+        if (!isNaN(bp) && bp >= 0) buyingVal = bp;
+      } else if (inv && inv.buying_price !== undefined && inv.buying_price !== null && inv.buying_price !== "") {
+        const bp = parseFloat(inv.buying_price);
+        if (!isNaN(bp) && bp >= 0) buyingVal = bp;
+      }
+
+      // Check in-memory store (for session persistence before remote migration)
+      const pIdStr = String(p.id || "").trim();
+      if (globalBuyingPriceStore.has(pIdStr)) {
+        buyingVal = globalBuyingPriceStore.get(pIdStr) ?? null;
+      }
+
+      const unitGrossProfit = buyingVal !== null ? Math.round((sellingVal - buyingVal) * 100) / 100 : null;
+      const grossMarginPercent = (unitGrossProfit !== null && sellingVal > 0)
+        ? Math.round(((unitGrossProfit / sellingVal) * 100) * 10) / 10
+        : null;
+
       const isSquare = (p.company || "").toLowerCase().includes("square");
       const stockVal = isSquare
         ? 0
@@ -844,6 +878,9 @@ async function getAllProductsMaster(): Promise<any[]> {
         packSize: p.pack_size || p.packSize || "10x10 Box",
         mrp: mrpVal,
         sellingPrice: sellingVal,
+        buyingPrice: buyingVal,
+        unitGrossProfit,
+        grossMarginPercent,
         discountPercentage: p.discount_percentage ? parseFloat(p.discount_percentage) : (mrpVal > 0 ? Math.round(((mrpVal - sellingVal) / mrpVal) * 100) : 0),
         availableStock: stockVal,
         reservedStock: inv ? (inv.reserved_stock ?? 0) : 0,
@@ -959,7 +996,14 @@ app.get("/api/products", publicLimiter, async (req, res) => {
       const pagedItems = filtered.slice(from, from + limitNum);
 
       responseData = {
-        products: pagedItems,
+        products: pagedItems.map(p => {
+          const sanitized = { ...p };
+          delete sanitized.buyingPrice;
+          delete sanitized.buying_price;
+          delete sanitized.unitGrossProfit;
+          delete sanitized.grossMarginPercent;
+          return sanitized;
+        }),
         total,
         page: pageNum,
         pageSize: limitNum,
@@ -969,7 +1013,14 @@ app.get("/api/products", publicLimiter, async (req, res) => {
         correctedQuery: undefined
       };
     } else {
-      responseData = filtered;
+      responseData = filtered.map(p => {
+        const sanitized = { ...p };
+        delete sanitized.buyingPrice;
+        delete sanitized.buying_price;
+        delete sanitized.unitGrossProfit;
+        delete sanitized.grossMarginPercent;
+        return sanitized;
+      });
     }
 
     if (!hasSearch) {
@@ -998,6 +1049,16 @@ app.get("/api/products/:id", async (req, res) => {
     } catch (tierErr) {
       // Non-blocking
     }
+
+    // Security check: Only authenticated Admins can see buyingPrice on direct product queries
+    const user = await authenticateRequest(req).catch(() => null);
+    if (!user || user.role !== "Admin") {
+      delete (product as any).buyingPrice;
+      delete (product as any).buying_price;
+      delete (product as any).unitGrossProfit;
+      delete (product as any).grossMarginPercent;
+    }
+
     res.json(product);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -1683,7 +1744,7 @@ app.post("/api/bulk-deals/campaigns/:id/products", requireRole(["Admin"]), async
 
 // --- SECURE VERIFICATION DOCUMENTS UPLOAD ENDPOINTS ---
 
-app.post("/api/upload/verification-document", requireAuth, uploadMiddleware.single("file"), async (req, res) => {
+app.post("/api/upload/verification-document", requireAuth, uploadMiddleware.single("file") as any, async (req, res) => {
   try {
     let fileBuffer: Buffer | null = null;
     let fileName = "";
@@ -1811,7 +1872,7 @@ app.get("/api/notifications/vapid-public-key", (req, res) => {
 app.post(
   "/api/physicians-product-request",
   requireAuth,
-  uploadMiddleware.array("files", 10),
+  uploadMiddleware.array("files", 10) as any,
   async (req, res) => {
     try {
       const user = (req as any).user;
@@ -2359,16 +2420,45 @@ app.get("/api/orders", requireAuth, async (req, res) => {
   try {
     let user = await dbService.getUserById(req.user.id).catch(() => null);
     if (!user) user = req.user;
+    const isAdmin = user?.role === "Admin";
+
+    const sanitizeOrderFinancials = (o: any) => {
+      const copy = { ...o };
+      if (!isAdmin) {
+        delete copy.totalCogs;
+        delete copy.grossProfit;
+        delete copy.grossMarginPercent;
+        delete copy.deliveryCost;
+        delete copy.netProfit;
+        delete copy.hasUnknownCostItems;
+        if (Array.isArray(copy.items)) {
+          copy.items = copy.items.map((itm: any) => {
+            const itmCopy = { ...itm };
+            delete itmCopy.buyingPrice;
+            delete itmCopy.buying_price;
+            delete itmCopy.lineCostAmount;
+            delete itmCopy.line_cost_amount;
+            delete itmCopy.lineProfitAmount;
+            delete itmCopy.line_profit_amount;
+            delete itmCopy.unitGrossProfit;
+            delete itmCopy.grossMarginPercent;
+            return itmCopy;
+          });
+        }
+      }
+      return copy;
+    };
+
     if (user?.role === "Pharmacy Owner") {
       const pharmacy = await dbService.getPharmacyProfile(req.user.id);
       if (!pharmacy) return res.json([]);
       const orders = await dbService.getOrders(pharmacy.id);
-      return res.json(orders);
+      return res.json(orders.map(sanitizeOrderFinancials));
     } else if (user?.role === "Admin" || user?.role === "Depot Staff" || user?.role === "Delivery Staff") {
       const orders = await dbService.getOrders();
-      // Ensure handover_otp is never returned in platform-wide/staff list views
+      // Ensure handover_otp is never returned in platform-wide/staff list views, and non-admins never get financials
       const sanitized = orders.map((o: any) => {
-        const copy = { ...o };
+        const copy = sanitizeOrderFinancials(o);
         delete copy.handoverOtp;
         delete copy.handover_otp;
         return copy;
@@ -2514,6 +2604,31 @@ app.get("/api/orders/:id", requireAuth, async (req, res) => {
       delete order.handoverOtp;
       delete order.handover_otp;
     }
+
+    // Confidential buying price & internal profitability must NEVER be returned to non-admins
+    if (req.user.role !== "Admin") {
+      delete order.totalCogs;
+      delete order.grossProfit;
+      delete order.grossMarginPercent;
+      delete order.deliveryCost;
+      delete order.netProfit;
+      delete order.hasUnknownCostItems;
+      if (Array.isArray(order.items)) {
+        order.items = order.items.map((itm: any) => {
+          const itmCopy = { ...itm };
+          delete itmCopy.buyingPrice;
+          delete itmCopy.buying_price;
+          delete itmCopy.lineCostAmount;
+          delete itmCopy.line_cost_amount;
+          delete itmCopy.lineProfitAmount;
+          delete itmCopy.line_profit_amount;
+          delete itmCopy.unitGrossProfit;
+          delete itmCopy.grossMarginPercent;
+          return itmCopy;
+        });
+      }
+    }
+
     res.json(order);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -3719,6 +3834,121 @@ app.post("/api/admin/pharmacies/:id/suspend", requireRole(["Admin"]), async (req
   }
 });
 
+// --- ADMIN SECURE PRODUCT CATALOG & FINANCIAL REPORTING ENDPOINTS ---
+app.get("/api/admin/products", requireRole(["Admin"]), async (req, res) => {
+  const { search, category, company, filter, page, limit, paginate } = req.query;
+
+  const pageNum = parseInt(page as string) || 1;
+  const limitNum = parseInt(limit as string) || 50;
+  const searchQuery = ((search as string) || "").trim();
+
+  try {
+    const allProducts = await getAllProductsMaster();
+    let filtered = allProducts;
+
+    if (searchQuery) {
+      const searchTerms = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+      filtered = filtered.filter(p => {
+        const n = (p.name || "").toLowerCase();
+        const g = (p.genericName || "").toLowerCase();
+        const c = (p.company || "").toLowerCase();
+        return searchTerms.every(term => n.includes(term) || g.includes(term) || c.includes(term));
+      });
+    }
+
+    if (category && category !== "All") {
+      filtered = filtered.filter(p => p.category === category);
+    }
+
+    if (company && company !== "All") {
+      const compStr = String(company).toLowerCase();
+      filtered = filtered.filter(p => (p.company || "").toLowerCase().includes(compStr));
+    }
+
+    if (filter === "missing_buying_price" || filter === "missing_cost") {
+      filtered = filtered.filter(p => p.buyingPrice === null || p.buyingPrice === undefined);
+    } else if (filter === "has_buying_price" || filter === "known_cost") {
+      filtered = filtered.filter(p => p.buyingPrice !== null && p.buyingPrice !== undefined);
+    } else if (filter === "low_stock") {
+      filtered = filtered.filter(p => (p.availableStock ?? 0) <= 150);
+    }
+
+    // Default sorting: in-stock first, then alphabetical
+    filtered = [...filtered].sort((a, b) => {
+      const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
+      const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
+      if (aInStock !== bInStock) return bInStock - aInStock;
+      return (a.name || "").localeCompare(b.name || "", "en", { sensitivity: "base" });
+    });
+
+    const totalCatalogCount = allProducts.length;
+    const missingBuyingPriceCount = allProducts.filter(p => p.buyingPrice === null || p.buyingPrice === undefined).length;
+    const knownBuyingPriceCount = totalCatalogCount - missingBuyingPriceCount;
+
+    const isPaginatedRequest = paginate === "true";
+    let responseData: any;
+    if (isPaginatedRequest || page || limit) {
+      const total = filtered.length;
+      const pages = Math.ceil(total / limitNum) || 1;
+      const from = (pageNum - 1) * limitNum;
+      const pagedItems = filtered.slice(from, from + limitNum);
+
+      responseData = {
+        products: pagedItems,
+        total,
+        page: pageNum,
+        pageSize: limitNum,
+        pages,
+        totalCatalogCount,
+        missingBuyingPriceCount,
+        knownBuyingPriceCount
+      };
+    } else {
+      responseData = {
+        products: filtered,
+        total: filtered.length,
+        totalCatalogCount,
+        missingBuyingPriceCount,
+        knownBuyingPriceCount
+      };
+    }
+
+    return res.json(responseData);
+  } catch (err: any) {
+    console.error("Admin Products Fetch Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Dedicated Admin Report: Products Missing Buying Price
+app.get("/api/admin/products/missing-buying-price", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const allProducts = await getAllProductsMaster();
+    const missing = allProducts
+      .filter(p => p.buyingPrice === null || p.buyingPrice === undefined)
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        genericName: p.genericName,
+        company: p.company,
+        category: p.category,
+        mrp: p.mrp,
+        sellingPrice: p.sellingPrice,
+        availableStock: p.availableStock,
+        status: "Missing Cost"
+      }));
+
+    res.json({
+      success: true,
+      totalCatalogCount: allProducts.length,
+      missingCount: missing.length,
+      products: missing
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/api/admin/products/:id/price-history", requireRole(["Admin"]), async (req, res) => {
   try {
     const list = await dbService.getPriceHistory(req.params.id);
@@ -4307,9 +4537,9 @@ app.get("/api/stock-alerts", requireAuth, async (req, res) => {
 // Canonical product import template handler
 const handleProductImportTemplate = (req: any, res: any) => {
   const csvTemplate = 
-    "Product Name,Generic Name,Company,Category,Strength,Pack Size,MRP,Selling Price,Stock,Batch Number,Expiry Date,Image URL\n" +
-    "Napa Extra,Paracetamol + Caffeine,Beximco Pharmaceuticals,Tablet,500mg + 65mg,240's Box,480.00,360.00,450,B-NPE92,2027-10-15,https://example.com/napa.png\n" +
-    "Seclo 20,Omeprazole,Square Pharmaceuticals,Capsule,20mg,120's Box,720.00,576.00,550,SQ-SEC20,2027-12-05,https://example.com/seclo.png\n";
+    "Product Name,Generic Name,Company,Category,Strength,Pack Size,MRP,Selling Price,Buying Price,Stock,Batch Number,Expiry Date,Image URL\n" +
+    "Napa Extra,Paracetamol + Caffeine,Beximco Pharmaceuticals,Tablet,500mg + 65mg,240's Box,480.00,360.00,330.00,450,B-NPE92,2027-10-15,https://example.com/napa.png\n" +
+    "Seclo 20,Omeprazole,Square Pharmaceuticals,Capsule,20mg,120's Box,720.00,576.00,530.00,550,SQ-SEC20,2027-12-05,https://example.com/seclo.png\n";
 
   res.setHeader("Content-Type", "text/csv");
   res.setHeader("Content-Disposition", "attachment; filename=medi_chain_bulk_import_template.csv");
@@ -4660,6 +4890,34 @@ app.get("/api/admin/finance/summary", requireRole(["Admin"]), async (req, res) =
       .filter(o => o.paymentStatus === "Pending")
       .reduce((sum, o) => sum + o.totalAmount, 0);
 
+    // Accurate COGS & Profitability Calculations based on actual buying prices
+    let totalCogs = 0;
+    let totalGrossProfit = 0;
+    let ordersWithMissingCosts = 0;
+    const DELIVERY_EXPENSE_PER_ORDER = 40; // Internal BDT 40 per invoice/order
+    const totalDeliveryExpense = activeOrders.length * DELIVERY_EXPENSE_PER_ORDER;
+
+    for (const o of activeOrders) {
+      if (o.hasUnknownCostItems) {
+        ordersWithMissingCosts++;
+      }
+      if (o.totalCogs !== null && o.totalCogs !== undefined) {
+        totalCogs += o.totalCogs;
+      }
+      if (o.grossProfit !== null && o.grossProfit !== undefined) {
+        totalGrossProfit += o.grossProfit;
+      }
+    }
+
+    const roundedCogs = Math.round(totalCogs * 100) / 100;
+    const roundedGrossProfit = Math.round(totalGrossProfit * 100) / 100;
+    const totalNetProfit = Math.round((roundedGrossProfit - totalDeliveryExpense) * 100) / 100;
+    const overallGrossMarginPercent = totalSales > 0 ? Math.round(((roundedGrossProfit / totalSales) * 100) * 10) / 10 : null;
+
+    const allMasterProducts = await getAllProductsMaster();
+    const productsMissingBuyingPriceCount = allMasterProducts.filter(p => p.buyingPrice === null || p.buyingPrice === undefined).length;
+    const productsTotalCount = allMasterProducts.length;
+
     const pharmacies = await dbService.getAllPharmacies();
     const totalOutstandingCredit = 0;
 
@@ -4685,6 +4943,14 @@ app.get("/api/admin/finance/summary", requireRole(["Admin"]), async (req, res) =
       monthlyRevenue,
       pendingPayments,
       totalOutstandingCredit,
+      totalCogs: roundedCogs,
+      totalGrossProfit: roundedGrossProfit,
+      totalDeliveryExpense,
+      totalNetProfit,
+      overallGrossMarginPercent,
+      ordersWithMissingCosts,
+      productsMissingBuyingPriceCount,
+      productsTotalCount,
       pharmacies,
       paymentHistory
     });
