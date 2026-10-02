@@ -11,6 +11,7 @@ import { pushManager } from "../pwa/pushManager";
 import EditProfileScreen from "./EditProfileScreen";
 import KYCVerificationHub from "./KYCVerificationHub";
 import MediChainLogo from "./MediChainLogo";
+import OrderHistory from "./OrderHistory";
 import type { LegalPolicyTab } from "./LegalPolicyModal";
 
 const LegalPolicyModal = lazy(() => import("./LegalPolicyModal"));
@@ -23,6 +24,9 @@ interface AccountProps {
   favouriteIds: string[];
   onRefreshProfile?: () => Promise<void>;
   onTriggerTab?: (tab: string) => void;
+  onTrackOrder?: (orderId: string) => void;
+  onRefreshCart?: () => void;
+  initialTab?: "profile" | "orders";
 }
 
 export default function Account({
@@ -32,15 +36,26 @@ export default function Account({
   onAddToCart,
   favouriteIds,
   onRefreshProfile,
-  onTriggerTab
+  onTriggerTab,
+  onTrackOrder,
+  onRefreshCart,
+  initialTab = "profile"
 }: AccountProps) {
   const { isStandalone, canInstall, isIOS, install, openInstallBanner } = usePWAInstall();
+  const [activeSection, setActiveSection] = useState<"profile" | "orders">(initialTab);
+  const [ordersCount, setOrdersCount] = useState<number>(0);
   const [analytics, setAnalytics] = useState<any>(null);
   const [favProducts, setFavProducts] = useState<Product[]>([]);
   const [myRestockRequests, setMyRestockRequests] = useState<RestockRequest[]>([]);
   const [successId, setSuccessId] = useState<string | null>(null);
   const [selectedLegalTab, setSelectedLegalTab] = useState<LegalPolicyTab | null>(null);
   const [totalPurchased, setTotalPurchased] = useState(0);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveSection(initialTab);
+    }
+  }, [initialTab]);
 
   // Overlay state triggers
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -99,6 +114,7 @@ export default function Account({
 
       // Fetch completed orders to calculate eligibility
       const orders = await orderService.getOrders();
+      setOrdersCount(orders?.length || 0);
       const completedTotal = orders
         .filter(o => o.status === 'Delivered' || o.status === 'Completed' || o.paymentStatus === 'Paid')
         .reduce((sum, order) => sum + order.totalAmount, 0);
@@ -178,6 +194,57 @@ export default function Account({
           </button>
         </div>
       </div>
+
+      {/* Profile & Orders Segment Switcher */}
+      <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200/80 gap-1.5 shadow-2xs">
+        <button
+          type="button"
+          onClick={() => setActiveSection("profile")}
+          className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
+            activeSection === "profile"
+              ? "bg-white text-slate-900 shadow-sm"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <UserIcon className="w-4 h-4 text-brand-purple" />
+          <span>প্রোফাইল বিবরণ</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSection("orders")}
+          className={`flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-2 transition-all cursor-pointer relative ${
+            activeSection === "orders"
+              ? "bg-white text-brand-purple shadow-sm"
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <ShoppingCart className="w-4 h-4 text-emerald-600" />
+          <span>আমার অর্ডারসমূহ</span>
+          {ordersCount > 0 && (
+            <span className="bg-brand-lime text-slate-950 font-black text-[10px] min-w-5 h-5 px-1.5 rounded-full flex items-center justify-center shadow-2xs">
+              {ordersCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {activeSection === "orders" ? (
+        <div className="pt-1">
+          <OrderHistory
+            onTrackOrder={onTrackOrder || (() => {})}
+            onRefreshCart={onRefreshCart || (() => {})}
+            onTriggerTab={(tab) => {
+              if (tab === "account" || tab === "profile") {
+                setActiveSection("profile");
+              } else if (onTriggerTab) {
+                onTriggerTab(tab);
+              }
+            }}
+          />
+        </div>
+      ) : (
+        <>
 
       {/* Compliance Check / KYC Status prominent Card */}
       {(() => {
@@ -357,8 +424,8 @@ export default function Account({
 
       {/* B2B Operational Quick-Action Grid */}
       <div className="grid grid-cols-2 gap-3">
-        <button onClick={() => onTriggerTab && onTriggerTab("history")} className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-2 hover:border-brand-purple/30 transition-all cursor-pointer items-start text-left">
-          <div className="p-2.5 bg-brand-purple/10 rounded-2xl text-brand-purple">
+        <button onClick={() => setActiveSection("orders")} className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-2 hover:border-brand-purple/30 transition-all cursor-pointer items-start text-left group">
+          <div className="p-2.5 bg-brand-purple/10 rounded-2xl text-brand-purple group-hover:scale-110 transition-transform">
             <ShoppingCart className="w-5 h-5" />
           </div>
           <div>
@@ -600,6 +667,8 @@ export default function Account({
           </button>
         </div>
       </div>
+      </>
+      )}
 
       {/* Overlays */}
       {showEditProfile && (

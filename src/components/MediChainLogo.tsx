@@ -1,5 +1,8 @@
 import React, { useState } from "react";
 
+const OFFICIAL_LOGO_PATH = "/logo.png";
+const FALLBACK_LOGO_URL = "https://raw.githubusercontent.com/AGUNTUK/MediChain/main/public/logo.png";
+
 export function MediChainOfficialLogo({ 
   className = "", 
   style, 
@@ -9,9 +12,19 @@ export function MediChainOfficialLogo({
   style?: React.CSSProperties; 
   size?: number | string 
 }) {
+  const [imgSrc, setImgSrc] = useState(OFFICIAL_LOGO_PATH);
   const [imgError, setImgError] = useState(false);
   const widthHeight = typeof size === 'number' ? { width: size, height: size } : {};
   const presetClass = typeof size === 'string' ? size : "";
+
+  const handleImgError = () => {
+    if (imgSrc !== FALLBACK_LOGO_URL) {
+      // If local /logo.png fails (e.g. daily sandbox session restart), fall back directly to GitHub raw asset
+      setImgSrc(FALLBACK_LOGO_URL);
+    } else {
+      setImgError(true);
+    }
+  };
 
   if (imgError) {
     return <InlineSVGLogo className={className} style={{ ...style, ...widthHeight }} />;
@@ -20,10 +33,10 @@ export function MediChainOfficialLogo({
   return (
     <div className={`${className} ${presetClass}`} style={{ ...style, ...widthHeight }}>
       <img 
-        src={"/logo.png"} 
+        src={imgSrc} 
         alt="MediChain Logo" 
         className="app-logo"
-        onError={() => setImgError(true)}
+        onError={handleImgError}
       />
     </div>
   );
@@ -34,23 +47,31 @@ export function MediChainFullLogo({ className = "", size = 120 }: { className?: 
 }
 
 export function MediChainIconOnly({ className = "", size }: { className?: string; size?: number | string }) {
+  const [imgSrc, setImgSrc] = useState(OFFICIAL_LOGO_PATH);
   const [imgError, setImgError] = useState(false);
   const presetClass = typeof size === 'string' ? size : "";
   const widthHeight = typeof size === 'number' ? { width: size, height: size } : {};
+
+  const handleImgError = () => {
+    if (imgSrc !== FALLBACK_LOGO_URL) {
+      setImgSrc(FALLBACK_LOGO_URL);
+    } else {
+      setImgError(true);
+    }
+  };
+
   return (
     <div className={`relative inline-flex items-center justify-center shrink-0 ${className} ${presetClass}`} style={widthHeight}>
       {imgError ? (
         <InlineSVGLogo 
           className="app-logo" 
-          
         />
       ) : (
         <img 
-          src={"/logo.png"} 
+          src={imgSrc} 
           alt="MediChain Logo" 
           className="app-logo" 
-          
-          onError={() => setImgError(true)}
+          onError={handleImgError}
         />
       )}
     </div>

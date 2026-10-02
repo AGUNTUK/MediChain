@@ -2042,6 +2042,35 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `compile_applet` passed cleanly.
   - Port 3000 tested and verified.
 
+### Task 88: Resilient Multi-Layer Brand Asset Auto-Recovery (Logo & Favicon)
+- **Status:** Completed
+- **User Instruction:**
+  - "Logo fetch korte parchona keno everytime jokhon ami studio open korchi daily"
+- **Implementation:**
+  1. **Server Startup Bootstrapper & Static Interceptor (`server.ts`)**:
+     - Added `ensureBrandAsset()` to automatically detect missing `public/logo.png` / `public/favicon.png` on daily container resets and fetch them from the official GitHub repository.
+     - Added Express route handler on `/logo.png` and `/favicon.png` with automatic on-demand streaming and disk caching.
+  2. **Dual-Layer Frontend Fallback (`src/components/MediChainLogo.tsx`)**:
+     - Configured `onError` handler to seamlessly switch to raw GitHub logo URL instead of falling back to placeholder vector blocks.
+- **VERIFICATION:**
+  - Tested missing file recovery; server instantly restored `logo.png` with HTTP 200 (385 KB).
+
+### Task 89: 5-Item Bottom Navigation Bar & Embedded Orders in Profile Tab
+- **Status:** Completed
+- **User Instruction:**
+  - "Bottom nav theke orders tab shoriye profile tab er vitore implement kore dao, Bottom navbar a 5 ta option thakbe shudhu, Middle a floating rx button thakbe"
+- **Implementation:**
+  1. **Symmetrical 5-Option Bottom Navbar (`src/App.tsx`)**:
+     - Removed standalone "অর্ডারসমূহ" (Orders) button from bottom navbar.
+     - Symmetrically balanced layout: [Home, Search] (Left) + [Floating Rx Button] (Center) + [Cart, Profile] (Right). Total 5 items.
+  2. **Embedded Orders Tab in Profile (`src/components/Account.tsx`)**:
+     - Added segmented tab control at top of Profile: `[ 👤 ফার্মেসি প্রোফাইল ]` | `[ 📦 আমার অর্ডারসমূহ ]` with dynamic order counter badge.
+     - Integrated `OrderHistory` with live tracking, OTP, invoice modal, and reorder capability directly inside the Profile tab.
+     - Linked "অর্ডার ইতিহাস" quick-action card in Profile to switch to the embedded Orders view.
+- **VERIFICATION:**
+  - `compile_applet` passed cleanly.
+  - Port 3000 live and verified.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

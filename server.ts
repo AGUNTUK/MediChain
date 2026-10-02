@@ -4760,6 +4760,53 @@ async function startServer() {
     res.status(404).json({ error: "API route not found." });
   });
 
+  // Resilient Asset Bootstrapper & Static Fallback Route for Brand Assets (logo.png, favicon.png)
+  // Ensures brand assets NEVER fail or return 404 even after daily container sandbox resets
+  const ensureBrandAsset = async (filename: string, githubRawUrl: string) => {
+    const publicDir = path.join(process.cwd(), "public");
+    const targetPath = path.join(publicDir, filename);
+    if (!fs.existsSync(targetPath) || fs.statSync(targetPath).size === 0) {
+      try {
+        if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir, { recursive: true });
+        const resp = await fetch(githubRawUrl);
+        if (resp.ok) {
+          const buffer = Buffer.from(await resp.arrayBuffer());
+          fs.writeFileSync(targetPath, buffer);
+          log.info(`[AssetBootstrapper] Auto-restored /public/${filename} from GitHub repository.`);
+        }
+      } catch (err: any) {
+        log.warn(`[AssetBootstrapper] Failed auto-fetching ${filename}: ${err.message}`);
+      }
+    }
+  };
+
+  // Run in background at server start
+  ensureBrandAsset("logo.png", "https://raw.githubusercontent.com/AGUNTUK/MediChain/main/public/logo.png");
+  ensureBrandAsset("favicon.png", "https://raw.githubusercontent.com/AGUNTUK/MediChain/main/public/favicon.png");
+
+  // Route interception for logo.png and favicon.png
+  app.get(["/logo.png", "/favicon.png"], async (req, res, next) => {
+    const filename = req.path.replace(/^\//, "");
+    const localPath = path.join(process.cwd(), "public", filename);
+    if (fs.existsSync(localPath) && fs.statSync(localPath).size > 0) {
+      res.setHeader("Content-Type", filename.endsWith(".png") ? "image/png" : "image/x-icon");
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      return res.sendFile(localPath);
+    }
+    try {
+      const resp = await fetch(`https://raw.githubusercontent.com/AGUNTUK/MediChain/main/public/${filename}`);
+      if (resp.ok) {
+        const buffer = Buffer.from(await resp.arrayBuffer());
+        fs.mkdirSync(path.join(process.cwd(), "public"), { recursive: true });
+        fs.writeFileSync(localPath, buffer);
+        res.setHeader("Content-Type", "image/png");
+        res.setHeader("Cache-Control", "public, max-age=86400");
+        return res.send(buffer);
+      }
+    } catch (err) {}
+    next();
+  });
+
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({

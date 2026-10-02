@@ -575,7 +575,7 @@ export default function App() {
               userRole={currentUser?.role as any}
               onBack={() => {
                 setAppStep("main");
-                setActiveTab("history");
+                setActiveTab("account");
               }}
               onRefreshStats={() => {
                 
@@ -609,25 +609,6 @@ export default function App() {
               </Suspense>
             );
           case "history":
-            return (
-              <Suspense fallback={<LoadingScreen />}>
-                <OrderHistory
-                  onTrackOrder={(orderId) => {
-                    setTrackingOrderId(orderId);
-                    setAppStep("tracking");
-                  }}
-                  onRefreshCart={refreshCartCounter}
-                  onTriggerTab={(tab) => {
-                    if (tab === "cart") {
-                      refreshCartCounter();
-                      setIsCartDrawerOpen(true);
-                    } else {
-                      setActiveTab(tab as any);
-                    }
-                  }}
-                />
-              </Suspense>
-            );
           case "account":
             return (
               <Suspense fallback={<LoadingScreen />}>
@@ -638,7 +619,22 @@ export default function App() {
                   onAddToCart={handleAddToCart}
                   favouriteIds={favouriteIds}
                   onRefreshProfile={refreshPharmacyProfile}
-                  onTriggerTab={(tab) => setActiveTab(tab as any)}
+                  onTrackOrder={(orderId) => {
+                    setTrackingOrderId(orderId);
+                    setAppStep("tracking");
+                  }}
+                  onRefreshCart={refreshCartCounter}
+                  onTriggerTab={(tab) => {
+                    if (tab === "cart") {
+                      refreshCartCounter();
+                      setIsCartDrawerOpen(true);
+                    } else if (tab === "history") {
+                      setActiveTab("account");
+                    } else {
+                      setActiveTab(tab as any);
+                    }
+                  }}
+                  initialTab={activeTab === "history" ? "orders" : "profile"}
                 />
               </Suspense>
             );
@@ -905,22 +901,11 @@ export default function App() {
                 <span className="text-[10px] sm:text-xs font-black text-slate-600 group-hover:text-brand-purple">কার্ট</span>
               </button>
 
-              {/* Orders */}
-              <button
-                onClick={() => setActiveTab("history")}
-                className={`flex flex-col items-center gap-1 cursor-pointer transition-all flex-1 ${
-                  activeTab === "history" ? "text-brand-purple scale-105" : "text-slate-400 hover:text-slate-600"
-                }`}
-              >
-                <ListIcon className="w-5.5 h-5.5" />
-                <span className="text-[10px] sm:text-xs font-black">অর্ডারসমূহ</span>
-              </button>
-
               {/* Account */}
               <button
                 onClick={() => setActiveTab("account")}
                 className={`flex flex-col items-center gap-1 cursor-pointer transition-all flex-1 ${
-                  activeTab === "account" ? "text-brand-purple scale-105" : "text-slate-400 hover:text-slate-600"
+                  activeTab === "account" || activeTab === "history" ? "text-brand-purple scale-105" : "text-slate-400 hover:text-slate-600"
                 }`}
               >
                 <UserIcon className="w-5.5 h-5.5" />
