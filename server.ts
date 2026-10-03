@@ -805,23 +805,25 @@ async function getAllProductsMaster(): Promise<any[]> {
     const selectWithCost = "id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, image_url, buying_price, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date, buying_price)";
     const selectWithoutCost = "id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, image_url, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date)";
 
-    // Fetch products in 1000-row chunks in parallel to cover full catalog (2,202+ items)
-    let [c1, c2, c3]: any[] = await Promise.all([
+    // Fetch products in 1000-row chunks in parallel to cover full catalog (2,338+ items)
+    let [c1, c2, c3, c4]: any[] = await Promise.all([
       supabaseAdmin.from("products").select(selectWithCost).range(0, 999),
       supabaseAdmin.from("products").select(selectWithCost).range(1000, 1999),
       supabaseAdmin.from("products").select(selectWithCost).range(2000, 2999),
+      supabaseAdmin.from("products").select(selectWithCost).range(3000, 3999),
     ]);
 
     // Resilient fallback if remote Supabase schema has not run migration 14 yet
     if (c1.error && (c1.error.code === "42703" || c1.error.message?.includes("buying_price"))) {
-      [c1, c2, c3] = await Promise.all([
+      [c1, c2, c3, c4] = await Promise.all([
         supabaseAdmin.from("products").select(selectWithoutCost).range(0, 999),
         supabaseAdmin.from("products").select(selectWithoutCost).range(1000, 1999),
         supabaseAdmin.from("products").select(selectWithoutCost).range(2000, 2999),
+        supabaseAdmin.from("products").select(selectWithoutCost).range(3000, 3999),
       ]);
     }
 
-    const rawProducts = [...(c1.data || []), ...(c2.data || []), ...(c3.data || [])];
+    const rawProducts = [...(c1.data || []), ...(c2.data || []), ...(c3.data || []), ...(c4.data || [])];
     if (rawProducts.length === 0 && cachedAllProducts) {
       return cachedAllProducts;
     }

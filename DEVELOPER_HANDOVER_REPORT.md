@@ -2071,6 +2071,45 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `compile_applet` passed cleanly.
   - Port 3000 live and verified.
 
+### Task 90: Bulk Catalog Addition & Live MRP Crawling for Somatec Pharmaceuticals Ltd.
+- **Status:** Completed
+- **User Instruction:**
+  - "ei products gulo add korte hobe,missing mrp crawl kore add kore dio"
+- **Implementation:**
+  1. **Automated Market Price & Pack Crawling (`scripts/crawl_somatec.js`)**:
+     - Processed user input list of 137 product entries (134 distinct product+strength combinations).
+     - Crawled authoritative pharmaceutical market database (MedEx) for Somatec Pharmaceuticals Ltd.
+     - Extracted 85 missing MRPs, accurate pack sizes (e.g. `3 x 10`, `6 x 10`, `100 ml bottle`), units per pack, unit types (`tablet`, `capsule`, `bottle`), and high-resolution packaging image URLs.
+     - Normalized wholesale trade price (`selling_price` with 15% pharmacy procurement discount off MRP).
+  2. **Database Ingestion & Inventory Provisioning (`scripts/import_somatec_all.ts`)**:
+     - Imported all 134 unique medicines into PostgreSQL `products` and `inventory` tables via `addOrUpdateProduct()`.
+     - Initialized in-stock wholesale inventory with 500 units per product.
+     - Exported verified master spreadsheet to `somatec_products_enriched.csv`.
+  3. **Backend Catalog Expansion (`server.ts`)**:
+     - Expanded parallel chunk fetching in `getAllProductsMaster()` to 4,000 items (`range(3000, 3999)`), comfortably serving the 2,338+ live product catalog.
+     - Cleared in-memory product cache and verified live search/browsing via `/api/products?search=Somatec`.
+- **VERIFICATION:**
+  - Verified 134 Somatec medicines live in PostgreSQL and returned by API with accurate MRPs, trade prices, and images.
+  - Zero missing MRPs remaining.
+
+### Task 91: Somatec Pharmaceuticals Ltd. Catalog Wholesale Discount Adjustment to 34%
+- **Status:** Completed
+- **User Instruction:**
+  - "somatec er shob product er discount 34% kore dao"
+- **Implementation:**
+  1. **PostgreSQL Database Pricing Update**:
+     - Updated all 134 Somatec Pharmaceuticals products in Supabase `products` table.
+     - Adjusted `selling_price` to reflect exact 34% discount off MRP (`Math.round(mrp * (1 - 0.34) * 100) / 100`).
+     - PostgreSQL's generated column `discount_percentage` automatically updated to 34% across the entire Somatec catalog.
+  2. **Data Export & Import Script Synchronization**:
+     - Updated `somatec_products_enriched.csv` with wholesale trade prices computed at 34% discount.
+     - Updated `scripts/import_somatec_all.ts` discount multiplier to 34% (`0.66`).
+  3. **Backend Cache & API Refresh**:
+     - In-memory master catalog cache invalidated so `/api/products` immediately serves the updated 34% discount to all pharmacies.
+- **VERIFICATION:**
+  - Queried Supabase PostgreSQL: all 134 Somatec products confirmed with 34% discount and updated wholesale selling prices.
+  - Checked `/api/products?search=Somatec`: returns products with 34% discount and corresponding trade pricing.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).
