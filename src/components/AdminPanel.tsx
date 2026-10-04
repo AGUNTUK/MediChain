@@ -58,6 +58,14 @@ import AdminNotificationCenter from "./AdminNotificationCenter";
 import AuditLogPanel from "./AuditLogPanel";
 import AdminRestockRequests from "./AdminRestockRequests";
 import CustomInvoiceGenerator from "./CustomInvoiceGenerator";
+import {
+  getDeliveryWindow,
+  groupOrdersByDeliverySchedule,
+  ConsolidatedInvoiceGroup,
+  DEFAULT_DELIVERY_CHARGE,
+  isOrderEligibleForConsolidation,
+  isOrderLocked
+} from "../lib/deliverySchedule";
 
 interface AdminPanelProps {
   currentUser: User;
@@ -1047,6 +1055,33 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
       setErrorMsg(err.message || "An error occurred downloading the invoice PDF.");
     } finally {
       setDownloadingInvoiceId(null);
+    }
+  };
+
+  // Consolidated Delivery Schedule Invoices
+  const [orderViewMode, setOrderViewMode] = useState<"consolidated" | "individual">("consolidated");
+  const [downloadingCombinedKey, setDownloadingCombinedKey] = useState<string | null>(null);
+
+  const consolidatedGroups = useMemo(() => {
+    const pharmMap: Record<string, Pharmacy> = {};
+    for (const p of pharmacies) {
+      if (p.id) pharmMap[p.id] = p;
+    }
+    return groupOrdersByDeliverySchedule(orders, pharmMap);
+  }, [orders, pharmacies]);
+
+  const handleDownloadCombinedInvoice = async (windowKey: string, pharmacyId: string, invoiceNum?: string) => {
+    const key = `${pharmacyId}__${windowKey}`;
+    try {
+      setDownloadingCombinedKey(key);
+      const filename = `Combined-Invoice-${invoiceNum || windowKey}.pdf`;
+      await orderService.downloadCombinedInvoice(windowKey, pharmacyId, filename);
+      setSuccessMsg(`Consolidated Delivery Schedule Invoice PDF downloaded successfully.`);
+    } catch (err: any) {
+      console.error("Combined invoice download error:", err);
+      setErrorMsg(err.message || "Failed to download combined invoice PDF.");
+    } finally {
+      setDownloadingCombinedKey(null);
     }
   };
 
@@ -2629,9 +2664,12 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                       </div>
 
                       {/* List */}
-                      <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-3 shadow-xs">
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">Wholesale Orders</h3>
+                      <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100">
+                          <div>
+                            <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">Wholesale Orders & Invoicing</h3>
+                            <p className="text-[11px] text-slate-500 mt-0.5">Automated Sunday, Tuesday & Friday delivery schedule consolidation</p>
+                          </div>
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => navigateTo("/admin/invoice-generator")}
@@ -2641,77 +2679,264 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                               <FileText className="w-3.5 h-3.5" />
                               <span>Custom Invoice Generator</span>
                             </button>
-                            <span className="text-[11px] font-semibold text-slate-500">
-                              {orders.length} {orders.length === 1 ? "order" : "orders"}
-                            </span>
                           </div>
                         </div>
+
+                        {/* View Mode Toggle: Consolidated vs Individual */}
+                        <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl w-full sm:w-max">
+                          <button
+                            type="button"
+                            onClick={() => setOrderViewMode("consolidated")}
+                            className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                              orderViewMode === "consolidated"
+                                ? "bg-white text-indigo-700 shadow-xs"
+                                : "text-slate-600 hover:text-slate-900"
+                            }`}
+                          >
+                            <Boxes className="w-3.5 h-3.5" />
+                            <span>Combined Delivery Invoices</span>
+                            <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-50 text-indigo-700 font-extrabold border border-indigo-200">
+                              {consolidatedGroups.length}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setOrderViewMode("individual")}
+                            className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                              orderViewMode === "individual"
+                                ? "bg-white text-indigo-700 shadow-xs"
+                                : "text-slate-600 hover:text-slate-900"
+                            }`}
+                          >
+                            <ShoppingCart className="w-3.5 h-3.5" />
+                            <span>All Individual Orders</span>
+                            <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 text-slate-700 font-extrabold">
+                              {orders.length}
+                            </span>
+                          </button>
+                        </div>
                         
-                        {orders.length === 0 ? (
-                          <p className="text-xs text-slate-500 py-4 text-center">No matching wholesale orders found.</p>
-                        ) : (
-                          <div className="space-y-2.5 max-h-[520px] overflow-y-auto pr-1">
-                            {orders
-                              .filter(o => {
-                                const s = orderSearch.toLowerCase();
-                                const orderPharmacy = pharmacies.find(ph => ph.id === o.pharmacyId);
-                                return (
-                                  (o.id?.toLowerCase() || "").includes(s) ||
-                                  (o.readableId?.toLowerCase() || "").includes(s) ||
-                                  (o.pharmacyId?.toLowerCase() || "").includes(s) ||
-                                  (orderPharmacy?.pharmacyName?.toLowerCase() || "").includes(s) ||
-                                  (o.pharmacyName?.toLowerCase() || "").includes(s)
-                                );
-                              })
-                              .map((o, idx) => {
-                                const isSelected = selectedOrderDetails?.id === o.id;
-                                const orderPharmacy = pharmacies.find(ph => ph.id === o.pharmacyId);
-                                const displayName = orderPharmacy?.pharmacyName || o.pharmacyName || "Wholesale Partner";
-                                const displayId = o.readableId || o.id;
+                        {/* CONSOLIDATED INVOICES VIEW */}
+                        {orderViewMode === "consolidated" && (
+                          <div className="space-y-3">
+                            {consolidatedGroups.length === 0 ? (
+                              <p className="text-xs text-slate-500 py-6 text-center">No active delivery invoice groups found.</p>
+                            ) : (
+                              <div className="space-y-3 max-h-[560px] overflow-y-auto pr-1">
+                                {consolidatedGroups
+                                  .filter(g => {
+                                    const s = orderSearch.toLowerCase();
+                                    return (
+                                      g.pharmacyName.toLowerCase().includes(s) ||
+                                      g.invoiceNumber.toLowerCase().includes(s) ||
+                                      g.deliverySchedule.toLowerCase().includes(s) ||
+                                      g.readableOrderIds.some(id => id.toLowerCase().includes(s))
+                                    );
+                                  })
+                                  .map((group, gIdx) => {
+                                    const isSelected = selectedOrderDetails && group.orders.some(o => o.id === selectedOrderDetails.id);
+                                    const isDownloading = downloadingCombinedKey === group.groupKey;
+                                    const scheduleColor = 
+                                      group.deliverySchedule === "FRIDAY" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                                      group.deliverySchedule === "SUNDAY" ? "bg-purple-50 text-purple-700 border-purple-200" :
+                                      "bg-blue-50 text-blue-700 border-blue-200";
 
-                                return (
-                                  <div
-                                    key={o.id || `order-${idx}`}
-                                    onClick={() => setSelectedOrderDetails(o)}
-                                    className={`p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${
-                                      isSelected
-                                        ? "border-indigo-600 bg-indigo-50/50 shadow-xs"
-                                        : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60"
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-3">
-                                      <div className={`p-2.5 rounded-xl ${
-                                        o.status === "Pending" ? "bg-amber-100 text-amber-700" :
-                                        o.status === "Delivered" || o.status === "Completed" ? "bg-emerald-100 text-emerald-700" :
-                                        o.status === "Cancelled" ? "bg-rose-100 text-rose-700" :
-                                        "bg-slate-100 text-slate-600"
-                                      }`}>
-                                        <ShoppingCart className="w-4 h-4" />
-                                      </div>
-                                      <div>
-                                        <div className="flex items-center gap-2">
-                                          <p className="font-extrabold text-slate-900 text-xs font-mono">{displayId}</p>
-                                          <span className="text-[10px] text-slate-300 font-bold">•</span>
-                                          <p className="text-[10px] text-slate-500 font-medium">{new Date(o.createdAt).toLocaleDateString()}</p>
+                                    return (
+                                      <div
+                                        key={group.groupKey || `group-${gIdx}`}
+                                        className={`p-4 rounded-2xl border transition-all text-xs space-y-3 ${
+                                          isSelected
+                                            ? "border-indigo-600 bg-indigo-50/40 shadow-xs"
+                                            : "border-slate-200 bg-white hover:border-slate-300"
+                                        }`}
+                                      >
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                          <div>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md border tracking-wider ${scheduleColor}`}>
+                                                🗓️ {group.deliverySchedule} DELIVERY
+                                              </span>
+                                              <span className="text-[10px] text-slate-500 font-medium">
+                                                {group.deliveryDate} (Cutoff: 5:00 PM BST)
+                                              </span>
+                                              {group.isLocked ? (
+                                                <span className="text-[9px] font-extrabold bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200">
+                                                  🔒 Locked (In Packing/Transit)
+                                                </span>
+                                              ) : (
+                                                <span className="text-[9px] font-extrabold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200">
+                                                  🟢 Open for Consolidation
+                                                </span>
+                                              )}
+                                            </div>
+                                            <h4 className="font-extrabold text-slate-900 text-sm mt-1 flex items-center gap-1.5">
+                                              <Building className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                                              <span>{group.pharmacyName}</span>
+                                            </h4>
+                                            <p className="text-[10px] font-mono text-indigo-600 font-semibold mt-0.5">
+                                              {group.invoiceNumber} • {group.orders.length} {group.orders.length === 1 ? "Order" : "Orders Consolidated"}
+                                            </p>
+                                          </div>
+
+                                          <div className="text-right sm:self-center">
+                                            <p className="text-[10px] text-slate-500 font-medium">
+                                              Subtotal: ৳{group.subtotal.toLocaleString()} + ৳40 Del.
+                                            </p>
+                                            <p className="font-black text-slate-900 text-sm">
+                                              ৳{group.grandTotal.toLocaleString()}
+                                            </p>
+                                          </div>
                                         </div>
-                                        <p className="text-[11px] text-slate-700 font-semibold mt-0.5">{displayName}</p>
-                                      </div>
-                                    </div>
 
-                                    <div className="text-right">
-                                      <p className="font-black text-slate-900 text-xs">৳{o.totalAmount.toLocaleString()}</p>
-                                      <span className={`text-[8px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-full block mt-1 w-max ml-auto border ${
-                                        o.status === "Pending" ? "bg-amber-50 text-amber-700 border-amber-200" :
-                                        o.status === "Delivered" || o.status === "Completed" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                                        o.status === "Cancelled" ? "bg-rose-50 text-rose-700 border-rose-200" :
-                                        "bg-slate-100 text-slate-600 border-slate-200"
-                                      }`}>
-                                        {o.status}
-                                      </span>
-                                    </div>
-                                  </div>
-                                );
-                              })}
+                                        {/* Included Orders Pills */}
+                                        <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/80 space-y-1.5">
+                                          <span className="text-[9.5px] uppercase font-bold text-slate-500 tracking-wider block">
+                                            Included Orders ({group.orders.length}):
+                                          </span>
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            {group.orders.map((ord, oIdx) => {
+                                              const isOrdSelected = selectedOrderDetails?.id === ord.id;
+                                              return (
+                                                <button
+                                                  key={ord.id || oIdx}
+                                                  type="button"
+                                                  onClick={() => setSelectedOrderDetails(ord)}
+                                                  className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 border transition-all cursor-pointer ${
+                                                    isOrdSelected
+                                                      ? "bg-indigo-600 text-white border-indigo-700 shadow-xs"
+                                                      : "bg-white text-slate-800 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50"
+                                                  }`}
+                                                >
+                                                  <span>{ord.readableId || ord.id}</span>
+                                                  <span className="text-[10px] opacity-80">৳{ord.totalAmount.toLocaleString()}</span>
+                                                  <span className={`text-[8px] uppercase px-1 rounded ${
+                                                    ord.status === "Pending" ? "bg-amber-100 text-amber-800" :
+                                                    ord.status === "Delivered" ? "bg-emerald-100 text-emerald-800" :
+                                                    "bg-slate-100 text-slate-700"
+                                                  }`}>
+                                                    {ord.status}
+                                                  </span>
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+
+                                        {/* Action Buttons */}
+                                        <div className="flex items-center justify-between pt-1">
+                                          <span className="text-[10px] text-slate-500">
+                                            {group.orders.reduce((sum, o) => sum + (o.items?.length || 0), 0)} Total line items
+                                          </span>
+                                          <div className="flex items-center gap-2">
+                                            <button
+                                              type="button"
+                                              onClick={() => setSelectedOrderDetails(group.orders[0])}
+                                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+                                            >
+                                              View Items
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDownloadCombinedInvoice(group.windowKey, group.pharmacyId, group.invoiceNumber)}
+                                              disabled={isDownloading}
+                                              className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                                            >
+                                              {isDownloading ? (
+                                                <>
+                                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                                  <span>Generating PDF...</span>
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <FileText className="w-3.5 h-3.5" />
+                                                  <span>Download Combined PDF</span>
+                                                </>
+                                              )}
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* INDIVIDUAL ORDERS VIEW */}
+                        {orderViewMode === "individual" && (
+                          <div>
+                            {orders.length === 0 ? (
+                              <p className="text-xs text-slate-500 py-4 text-center">No matching wholesale orders found.</p>
+                            ) : (
+                              <div className="space-y-2.5 max-h-[520px] overflow-y-auto pr-1">
+                                {orders
+                                  .filter(o => {
+                                    const s = orderSearch.toLowerCase();
+                                    const orderPharmacy = pharmacies.find(ph => ph.id === o.pharmacyId);
+                                    return (
+                                      (o.id?.toLowerCase() || "").includes(s) ||
+                                      (o.readableId?.toLowerCase() || "").includes(s) ||
+                                      (o.pharmacyId?.toLowerCase() || "").includes(s) ||
+                                      (orderPharmacy?.pharmacyName?.toLowerCase() || "").includes(s) ||
+                                      (o.pharmacyName?.toLowerCase() || "").includes(s)
+                                    );
+                                  })
+                                  .map((o, idx) => {
+                                    const isSelected = selectedOrderDetails?.id === o.id;
+                                    const orderPharmacy = pharmacies.find(ph => ph.id === o.pharmacyId);
+                                    const displayName = orderPharmacy?.pharmacyName || o.pharmacyName || "Wholesale Partner";
+                                    const displayId = o.readableId || o.id;
+                                    const deliveryWindow = getDeliveryWindow(o.createdAt || new Date().toISOString());
+
+                                    return (
+                                      <div
+                                        key={o.id || `order-${idx}`}
+                                        onClick={() => setSelectedOrderDetails(o)}
+                                        className={`p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${
+                                          isSelected
+                                            ? "border-indigo-600 bg-indigo-50/50 shadow-xs"
+                                            : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60"
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          <div className={`p-2.5 rounded-xl ${
+                                            o.status === "Pending" ? "bg-amber-100 text-amber-700" :
+                                            o.status === "Delivered" || o.status === "Completed" ? "bg-emerald-100 text-emerald-700" :
+                                            o.status === "Cancelled" ? "bg-rose-100 text-rose-700" :
+                                            "bg-slate-100 text-slate-600"
+                                          }`}>
+                                            <ShoppingCart className="w-4 h-4" />
+                                          </div>
+                                          <div>
+                                            <div className="flex items-center gap-2">
+                                              <p className="font-extrabold text-slate-900 text-xs font-mono">{displayId}</p>
+                                              <span className="text-[10px] text-slate-300 font-bold">•</span>
+                                              <p className="text-[10px] text-slate-500 font-medium">{new Date(o.createdAt).toLocaleDateString()}</p>
+                                              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                                🗓️ {deliveryWindow.deliveryDay}
+                                              </span>
+                                            </div>
+                                            <p className="text-[11px] text-slate-700 font-semibold mt-0.5">{displayName}</p>
+                                          </div>
+                                        </div>
+
+                                        <div className="text-right">
+                                          <p className="font-black text-slate-900 text-xs">৳{o.totalAmount.toLocaleString()}</p>
+                                          <span className={`text-[8px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-full block mt-1 w-max ml-auto border ${
+                                            o.status === "Pending" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                                            o.status === "Delivered" || o.status === "Completed" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                                            o.status === "Cancelled" ? "bg-rose-50 text-rose-700 border-rose-200" :
+                                            "bg-slate-100 text-slate-600 border-slate-200"
+                                          }`}>
+                                            {o.status}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -2752,35 +2977,81 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                             const license = orderPh?.licenseNo || orderPh?.tradeLicenseNo || selectedOrderDetails.pharmacyLicense || "N/A";
                             const status = orderPh?.verificationStatus;
 
+                            const orderWindow = getDeliveryWindow(selectedOrderDetails.createdAt || new Date().toISOString());
+                            const siblingOrders = orders.filter(o => 
+                              o.pharmacyId === selectedOrderDetails.pharmacyId &&
+                              o.id !== selectedOrderDetails.id &&
+                              o.status !== "Cancelled" &&
+                              getDeliveryWindow(o.createdAt || new Date().toISOString()).windowKey === orderWindow.windowKey
+                            );
+                            const isConsolidated = siblingOrders.length > 0;
+                            const combinedSubtotal = [selectedOrderDetails, ...siblingOrders].reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+                            const combinedGrandTotal = combinedSubtotal + 40; // 1 delivery charge
+
                             return (
-                              <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">Pharmacy Information</span>
-                                  {status && (
-                                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
-                                      status === "Verified"
-                                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                        : status === "Pending"
-                                        ? "bg-amber-50 text-amber-700 border-amber-200"
-                                        : "bg-slate-100 text-slate-600 border-slate-200"
-                                    }`}>
-                                      {status}
+                              <div className="space-y-3">
+                                {/* Delivery Schedule Window Card */}
+                                <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-xl p-3 text-xs space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[9.5px] font-black uppercase text-indigo-900 tracking-wider flex items-center gap-1">
+                                      🗓️ {orderWindow.deliveryScheduleLabel}
                                     </span>
+                                    <span className="text-[9px] bg-indigo-200 text-indigo-900 font-extrabold px-1.5 py-0.2 rounded">
+                                      Cutoff: 5:00 PM BST
+                                    </span>
+                                  </div>
+
+                                  {isConsolidated ? (
+                                    <div className="bg-white/80 p-2 rounded-lg border border-indigo-200 text-[11px] space-y-1">
+                                      <p className="font-bold text-indigo-950 flex items-center gap-1">
+                                        <Boxes className="w-3.5 h-3.5 text-indigo-600" />
+                                        <span>Consolidated with {siblingOrders.length} sibling {siblingOrders.length === 1 ? "order" : "orders"}</span>
+                                      </p>
+                                      <p className="text-[10px] text-slate-600">
+                                        Orders: <span className="font-mono font-bold text-slate-900">{selectedOrderDetails.readableId || selectedOrderDetails.id}</span>
+                                        {siblingOrders.map(s => `, ${s.readableId || s.id}`)}
+                                      </p>
+                                      <div className="pt-1 border-t border-indigo-100 flex justify-between items-center text-[10.5px]">
+                                        <span className="text-slate-600">Combined Invoice Total (1x ৳40 Del):</span>
+                                        <span className="font-black text-indigo-700 font-mono">৳{combinedGrandTotal.toLocaleString()}</span>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <p className="text-[10.5px] text-indigo-800">
+                                      Sole order in this delivery window. Next orders placed before 5:00 PM cutoff will merge with 1x ৳40 delivery charge.
+                                    </p>
                                   )}
                                 </div>
-                                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-1.5">
-                                  <p className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
-                                    <Building className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                                    <span>{phName}</span>
-                                  </p>
-                                  <div className="space-y-1 text-[11px] text-slate-600">
-                                    <p><span className="text-slate-400 font-medium">Owner:</span> <span className="font-semibold text-slate-800">{ownerName}</span></p>
-                                    <p><span className="text-slate-400 font-medium">Phone:</span> <span className="font-semibold text-slate-800">{phone}</span></p>
-                                    <p><span className="text-slate-400 font-medium">Address:</span> <span className="text-slate-700">{address}</span></p>
-                                    <p><span className="text-slate-400 font-medium">License No:</span> <span className="font-mono text-slate-800">{license}</span></p>
-                                    {selectedOrderDetails.deliveryAddress && selectedOrderDetails.deliveryAddress !== address && (
-                                      <p><span className="text-slate-400 font-medium">Shipping Address:</span> <span className="text-slate-700">{selectedOrderDetails.deliveryAddress}</span></p>
+
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">Pharmacy Information</span>
+                                    {status && (
+                                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                                        status === "Verified"
+                                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                          : status === "Pending"
+                                          ? "bg-amber-50 text-amber-700 border-amber-200"
+                                          : "bg-slate-100 text-slate-600 border-slate-200"
+                                      }`}>
+                                        {status}
+                                      </span>
                                     )}
+                                  </div>
+                                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-1.5">
+                                    <p className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
+                                      <Building className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                                      <span>{phName}</span>
+                                    </p>
+                                    <div className="space-y-1 text-[11px] text-slate-600">
+                                      <p><span className="text-slate-400 font-medium">Owner:</span> <span className="font-semibold text-slate-800">{ownerName}</span></p>
+                                      <p><span className="text-slate-400 font-medium">Phone:</span> <span className="font-semibold text-slate-800">{phone}</span></p>
+                                      <p><span className="text-slate-400 font-medium">Address:</span> <span className="text-slate-700">{address}</span></p>
+                                      <p><span className="text-slate-400 font-medium">License No:</span> <span className="font-mono text-slate-800">{license}</span></p>
+                                      {selectedOrderDetails.deliveryAddress && selectedOrderDetails.deliveryAddress !== address && (
+                                        <p><span className="text-slate-400 font-medium">Shipping Address:</span> <span className="text-slate-700">{selectedOrderDetails.deliveryAddress}</span></p>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
@@ -2954,21 +3225,60 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
 
                           {/* Order actions */}
                           <div className="space-y-2 border-t border-slate-100 pt-3">
-                            <button
-                              onClick={() => handleDownloadInvoice(selectedOrderDetails.id)}
-                              disabled={downloadingInvoiceId === selectedOrderDetails.id}
-                              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-xs"
-                            >
-                              {downloadingInvoiceId === selectedOrderDetails.id ? (
+                            {(() => {
+                              const orderWindow = getDeliveryWindow(selectedOrderDetails.createdAt || new Date().toISOString());
+                              const siblingOrders = orders.filter(o => 
+                                o.pharmacyId === selectedOrderDetails.pharmacyId &&
+                                o.id !== selectedOrderDetails.id &&
+                                o.status !== "Cancelled" &&
+                                getDeliveryWindow(o.createdAt || new Date().toISOString()).windowKey === orderWindow.windowKey
+                              );
+                              const hasSiblings = siblingOrders.length > 0;
+                              const isDownloadingCombined = downloadingCombinedKey === `${selectedOrderDetails.pharmacyId}__${orderWindow.windowKey}`;
+
+                              return (
                                 <>
-                                  <RefreshCw className="w-4 h-4 animate-spin" /> Generating & Downloading PDF...
+                                  {hasSiblings && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDownloadCombinedInvoice(orderWindow.windowKey, selectedOrderDetails.pharmacyId)}
+                                      disabled={isDownloadingCombined}
+                                      className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-xs"
+                                    >
+                                      {isDownloadingCombined ? (
+                                        <>
+                                          <RefreshCw className="w-4 h-4 animate-spin" /> Generating Combined PDF...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Boxes className="w-4 h-4" /> Download Combined Invoice ({siblingOrders.length + 1} Orders)
+                                        </>
+                                      )}
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDownloadInvoice(selectedOrderDetails.id)}
+                                    disabled={downloadingInvoiceId === selectedOrderDetails.id}
+                                    className={`w-full text-xs font-bold py-2.5 px-4 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                                      hasSiblings
+                                        ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
+                                        : "bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white shadow-xs"
+                                    }`}
+                                  >
+                                    {downloadingInvoiceId === selectedOrderDetails.id ? (
+                                      <>
+                                        <RefreshCw className="w-4 h-4 animate-spin" /> Generating & Downloading PDF...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <FileText className="w-4 h-4" /> Download Single Order PDF ({selectedOrderDetails.readableId || selectedOrderDetails.id})
+                                      </>
+                                    )}
+                                  </button>
                                 </>
-                              ) : (
-                                <>
-                                  <FileText className="w-4 h-4" /> Download Invoice (PDF)
-                                </>
-                              )}
-                            </button>
+                              );
+                            })()}
                           </div>
                         </div>
                       ) : (
@@ -3174,6 +3484,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                   <CustomInvoiceGenerator
                     products={products}
                     pharmacies={pharmacies}
+                    orders={orders}
                     onBackToOrders={() => navigateTo("/admin/orders")}
                   />
                 </div>

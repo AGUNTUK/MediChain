@@ -2,6 +2,16 @@ import crypto from "crypto";
 import { supabaseAdmin } from "./supabaseAdmin.js";
 export { supabaseAdmin };
 import { Product, Pharmacy, Order, OrderItem, OrderAmendment, StaffPerformanceMetric } from "../types";
+import {
+  getDeliveryWindow,
+  isOrderEligibleForConsolidation,
+  isOrderLocked,
+  groupOrdersByDeliverySchedule,
+  getConsolidatedLineItems,
+  DeliveryScheduleDay,
+  DeliveryWindowInfo,
+  ConsolidatedInvoiceGroup
+} from "./deliverySchedule.js";
 
 import { DEFAULT_DELIVERY_CHARGE } from "../constants/delivery.js";
 export { DEFAULT_DELIVERY_CHARGE };
@@ -1872,6 +1882,19 @@ export async function createOrderTransaction(
     // Preserve clean customer notes without multiplexing MCH- prefix (G4)
     const cleanNotes = (orderPayload.notes || "").trim();
 
+    // Authoritative Delivery Window Calculation (Asia/Dhaka)
+    const orderTimestamp = new Date();
+    const deliveryWindow = getDeliveryWindow(orderTimestamp);
+
+    const wmsMeta = {
+      deliverySchedule: deliveryWindow.deliveryDay,
+      deliveryDate: deliveryWindow.deliveryDate,
+      deliveryWindowKey: deliveryWindow.windowKey,
+      deliveryWindowStart: deliveryWindow.windowStart,
+      deliveryWindowEnd: deliveryWindow.windowEnd,
+      deliveryScheduleLabel: deliveryWindow.deliveryScheduleLabel
+    };
+
     const { data: insertedOrder, error: orderErr } = await supabaseAdmin
       .from("orders")
       .insert({
@@ -1885,8 +1908,9 @@ export async function createOrderTransaction(
         notes: cleanNotes,
         order_number: uniqueOrderId,
         delivery_address: orderPayload.deliveryAddress || pharmacy.address,
-        estimated_delivery: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
-        handover_otp: handoverOtp
+        estimated_delivery: `${deliveryWindow.deliveryScheduleLabel} (Cutoff: 5:00 PM BST)`,
+        handover_otp: handoverOtp,
+        wms_attributes: wmsMeta
       })
       .select()
       .single();
@@ -1951,7 +1975,14 @@ export async function createOrderTransaction(
         deliveryCharge: DEFAULT_DELIVERY_CHARGE,
         notes: insertedOrder.notes,
         createdAt: insertedOrder.created_at,
-        estimatedDelivery: `Depot shipping in 24 hours. Estimated delivery: Tomorrow`,
+        estimatedDelivery: `${deliveryWindow.deliveryScheduleLabel} (Cutoff: 5:00 PM BST)`,
+        deliverySchedule: deliveryWindow.deliveryDay,
+        deliveryDate: deliveryWindow.deliveryDate,
+        deliveryWindowKey: deliveryWindow.windowKey,
+        deliveryWindowStart: deliveryWindow.windowStart,
+        deliveryWindowEnd: deliveryWindow.windowEnd,
+        deliveryScheduleLabel: deliveryWindow.deliveryScheduleLabel,
+        isInvoiceLocked: false,
         items: orderItemsToInsert.map(itm => ({
           productId: itm.product_id,
           name: itm.name,
@@ -2170,6 +2201,9 @@ export async function getOrders(pharmacyId?: string, page = 1, limit = 100): Pro
       const deliveryExpense = DEFAULT_DELIVERY_CHARGE || 40; // Internal BDT 40 delivery cost
       const netProfit = !hasUnknownCosts ? Math.round((roundedGrossProfit - deliveryExpense) * 100) / 100 : null;
 
+      const deliveryWindow = getDeliveryWindow(order.created_at || new Date().toISOString());
+      const isLocked = isOrderLocked(order);
+
       return {
         id: order.id,
         readableId, // Custom field
@@ -2198,7 +2232,14 @@ export async function getOrders(pharmacyId?: string, page = 1, limit = 100): Pro
         notes: orderNotes,
         deliveryAddress: order.delivery_address,
         createdAt: order.created_at,
-        estimatedDelivery: order.status === "Delivered" ? "Delivered" : "Estimated delivery in 24 hours",
+        estimatedDelivery: `${deliveryWindow.deliveryScheduleLabel} (Cutoff: 5:00 PM BST)`,
+        deliverySchedule: deliveryWindow.deliveryDay,
+        deliveryDate: deliveryWindow.deliveryDate,
+        deliveryWindowKey: deliveryWindow.windowKey,
+        deliveryWindowStart: deliveryWindow.windowStart,
+        deliveryWindowEnd: deliveryWindow.windowEnd,
+        deliveryScheduleLabel: deliveryWindow.deliveryScheduleLabel,
+        isInvoiceLocked: isLocked,
         hasReturnRequested: order.has_return_requested,
         returnReason: order.return_reason,
         returnStatus: order.return_status as any,
@@ -2403,6 +2444,8 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
   const netProfit = !hasUnknownCosts ? Math.round((roundedGrossProfit - deliveryExpense) * 100) / 100 : null;
 
   const amendments = await getOrderAmendments(orderId);
+  const deliveryWindow = getDeliveryWindow(data.created_at || new Date().toISOString());
+  const isLocked = isOrderLocked(data);
 
   return {
     id: data.id,
@@ -2432,7 +2475,14 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
     notes: orderNotes,
     deliveryAddress: data.delivery_address,
     createdAt: data.created_at,
-    estimatedDelivery: data.status === "Delivered" ? "Delivered" : "Estimated delivery in 24 hours",
+    estimatedDelivery: `${deliveryWindow.deliveryScheduleLabel} (Cutoff: 5:00 PM BST)`,
+    deliverySchedule: deliveryWindow.deliveryDay,
+    deliveryDate: deliveryWindow.deliveryDate,
+    deliveryWindowKey: deliveryWindow.windowKey,
+    deliveryWindowStart: deliveryWindow.windowStart,
+    deliveryWindowEnd: deliveryWindow.windowEnd,
+    deliveryScheduleLabel: deliveryWindow.deliveryScheduleLabel,
+    isInvoiceLocked: isLocked,
     hasReturnRequested: data.has_return_requested,
     returnReason: data.return_reason,
     returnStatus: data.return_status as any,
@@ -2450,6 +2500,19 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
     unverifiedPicksCount: data.unverified_picks_count ?? wmsMeta.unverifiedPicksCount ?? 0,
     amendments
   };
+}
+
+/**
+ * Retrieves consolidated invoices grouped by Pharmacy + Delivery Schedule Window.
+ */
+export async function getConsolidatedInvoices(pharmacyId?: string): Promise<ConsolidatedInvoiceGroup[]> {
+  const orders = await getOrders(pharmacyId, 1, 500);
+  const pharmacies = await getAllPharmacies(1, 500);
+  const pharmaciesMap: Record<string, Pharmacy> = {};
+  for (const ph of pharmacies) {
+    if (ph.id) pharmaciesMap[ph.id] = ph;
+  }
+  return groupOrdersByDeliverySchedule(orders, pharmaciesMap);
 }
 
 export async function amendOrderLineItem(

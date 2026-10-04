@@ -183,6 +183,16 @@ export interface Order {
   deliveryExpense?: number; // Internal delivery expense alias
   netProfit?: number | null; // grossProfit - deliveryCost (null if COGS incomplete)
   hasUnknownCostItems?: boolean; // Flag indicating if any item has unknown buying price
+  // Delivery Schedule & Consolidated Invoice Attributes
+  deliverySchedule?: "SUNDAY" | "TUESDAY" | "FRIDAY";
+  deliveryDate?: string; // YYYY-MM-DD
+  deliveryWindowKey?: string; // e.g. "FRIDAY_2026-10-02"
+  deliveryWindowStart?: string;
+  deliveryWindowEnd?: string;
+  deliveryScheduleLabel?: string;
+  combinedInvoiceId?: string;
+  isInvoiceLocked?: boolean;
+  consolidatedOrderIds?: string[];
 }
 
 export interface OrderAmendment {

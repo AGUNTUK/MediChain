@@ -2148,6 +2148,55 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - Full Database Audit: **2,337 / 2,337 products (100.00%)** now possess valid, high-resolution packaging images.
   - Zero missing images remaining across the entire database.
 
+### Task 94: Delivery Schedule Based Order Consolidation & Combined Invoice Engine
+- **Status:** Completed
+- **User Instruction:**
+  - "Implement a production-ready 'Delivery Schedule Based Order Consolidation & Combined Invoice' system in the existing MediChain codebase."
+- **Business Rules Implemented:**
+  1. **Delivery Days & Cut-Off Schedule**:
+     - MediChain delivers to pharmacies strictly on **Sunday**, **Tuesday**, and **Friday**.
+     - Daily cut-off is **5:00 PM Bangladesh Time (Asia/Dhaka, UTC+6:00)**.
+     - Orders placed at or after 5:00 PM BST deterministically transition to the next delivery window:
+       - **Friday Window**: Tuesday 5:00 PM -> Friday 5:00 PM (Delivered: Friday)
+       - **Sunday Window**: Friday 5:00 PM -> Sunday 5:00 PM (Delivered: Sunday)
+       - **Tuesday Window**: Sunday 5:00 PM -> Tuesday 5:00 PM (Delivered: Tuesday)
+  2. **Consolidation & Grouping Key**:
+     - Combined invoice grouping key: `pharmacy_id + delivery_window + delivery_schedule`.
+     - Orders from different delivery windows are NEVER merged, even for the same pharmacy.
+     - Single ৳40 delivery charge applied per combined invoice group (not multiplied by number of orders).
+  3. **Order Lifecycle & Packing Boundary**:
+     - Orders with status `Pending`, `Confirmed`, or `Processing` are eligible for consolidation.
+     - Once an order or invoice group is `Packed`, `Out for Delivery`, or `Delivered`, it is locked and will not accept new orders.
+     - `Cancelled` orders are strictly excluded from consolidation.
+  4. **Core Architecture & Components Created/Updated**:
+     - `src/lib/deliverySchedule.ts`: Central, timezone-safe calculation engine (`getDeliveryWindow`, `groupOrdersByDeliverySchedule`, `getConsolidatedLineItems`, `isOrderEligibleForConsolidation`).
+     - `tests/deliverySchedule.test.ts`: Comprehensive test suite verifying millisecond cut-offs, date/month/year boundary handling, order consolidation math, and single delivery fee enforcement.
+     - `src/lib/dbService.ts`: Integration with `createOrderTransaction`, `getOrders`, `getOrderById`, and new `getConsolidatedInvoices()`.
+     - `server.ts`: REST API routes (`GET /api/invoices/consolidated`, `GET /api/invoices/consolidated/:groupKey/pdf`) with PDFKit combined invoice generation.
+     - `src/components/AdminPanel.tsx`: Updated Wholesale Orders interface with delivery schedule tabs (All, Sunday, Tuesday, Friday), consolidated invoice cards, order references badge (`MCH-XXX`), and combined invoice PDF downloads.
+     - `src/components/CustomInvoiceGenerator.tsx`: Direct integration allowing admins to preview and generate consolidated invoices grouped by delivery window with traceable line items and audit logs.
+- **VERIFICATION:**
+  - `npx tsx tests/deliverySchedule.test.ts`: All tests passed with 100% precision.
+  - `npm run lint` (`tsc --noEmit`): Zero TypeScript compilation or type errors.
+  - `npm run build`: Production build succeeded.
+
+### Task 95: Clean White Minimalist Invoice PDF Header Update
+- **Status:** Completed
+- **User Instruction:**
+  - "Update the existing MediChain invoice PDF design: Change the entire invoice header background to WHITE (#FFFFFF). Remove dark background completely. Keep MediChain branding, layout, logo, and data unchanged. Use dark charcoal/black text."
+- **Implementation:**
+  1. **PDFKit Invoice Engine Update (`server.ts`)**:
+     - `generateInvoicePdf`: Replaced dark diagonal gradient with pure `#FFFFFF` background band and subtle `#E2E8F0` divider line. Set title, invoice number, and metadata text colors to high-contrast dark charcoal (`#0F172A`, `#475569`) with teal tagline accent (`#0D9488`).
+     - `generateCombinedInvoicePdf`: Replaced multi-stop dark gradient with clean `#FFFFFF` background, `#E2E8F0` divider line, `#0F172A` headline text, and amber delivery schedule indicator (`#B45309`).
+  2. **Custom Invoice Generator Frontend Preview (`src/components/CustomInvoiceGenerator.tsx`)**:
+     - Synchronized canvas preview header to pure white `#FFFFFF` background with crisp `border-b border-slate-200` and dark slate typography (`text-slate-900`, `text-slate-500`).
+  3. **Verification**:
+     - Executed test PDF generation script `scripts/test_invoice_pdf.ts`.
+     - Inspected decompressed PDF vector stream confirming `/DeviceRGB cs 1 1 1 scn f` (pure white fill) and zero legacy dark gradient fills.
+- **VERIFICATION:**
+  - `npm run lint` (`tsc --noEmit`): 0 errors.
+  - `npm run build`: Production build succeeded.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

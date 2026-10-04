@@ -26,6 +26,14 @@ import { performSearch } from "./src/lib/searchService.js";
 import { validateProduct, checkDuplicate } from "./src/lib/productValidator.js";
 import { supabaseAdmin } from "./src/lib/supabaseAdmin.js";
 import * as dbService from "./src/lib/dbService.js";
+import {
+  getDeliveryWindow,
+  groupOrdersByDeliverySchedule,
+  getConsolidatedLineItems,
+  isOrderEligibleForConsolidation,
+  isOrderLocked,
+  ConsolidatedInvoiceGroup
+} from "./src/lib/deliverySchedule.js";
 import { initDailyBannerScheduler, getDailyBannerData, analyzeDailyWholesaleDiscounts } from "./src/lib/geminiBannerService.js";
 import { pushNotificationService } from "./src/lib/pushNotificationService.js";
 import { LRUCache } from "./src/lib/lruCache.js";
@@ -2682,23 +2690,19 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
 
   renderWatermark();
 
-  // 1. Header Band: Diagonal Dark Gradient (#14161B -> #1E1024 -> #2B1338)
-  const headerGrad = doc.linearGradient(0, 0, doc.page.width, 95);
-  headerGrad.stop(0, "#14161B").stop(0.5, "#1E1024").stop(1, "#2B1338");
-  doc.rect(0, 0, doc.page.width, 95).fill(headerGrad);
+  // 1. Header Band: Clean, minimal white background (#FFFFFF) for crisp printing
+  doc.rect(0, 0, doc.page.width, 95).fill("#FFFFFF");
 
-  // 3px Accent Line along bottom edge of band (Orchid Purple to Lime Green)
-  const accentGrad = doc.linearGradient(0, 95, doc.page.width, 95);
-  accentGrad.stop(0, "#A855F7").stop(1, "#A3E635");
-  doc.rect(0, 95, doc.page.width, 3).fill(accentGrad);
+  // Subtle clean divider line along bottom edge of header
+  doc.moveTo(30, 95).lineTo(doc.page.width - 30, 95).strokeColor("#E2E8F0").lineWidth(1).stroke();
 
   // Header Content - Left: Logo, MediChain, Tagline, Contact Info
   if (fs.existsSync(logoPath)) {
     doc.image(logoPath, 30, 22, { width: 52 });
   }
-  doc.font("Helvetica-Bold").fontSize(18).fillColor("#F4F4F5").text("MediChain", 92, 22);
-  doc.font("Helvetica-Bold").fontSize(7).fillColor("#A3E635").text("SMART PARTNER FOR PHARMACIES", 92, 44, { characterSpacing: 1.5 });
-  doc.font("Helvetica").fontSize(7.5).fillColor("#9CA3AF").text("Shorear Tol, Rangpur Sadar, Rangpur, Bangladesh • Mob: 01940-681989", 92, 57);
+  doc.font("Helvetica-Bold").fontSize(18).fillColor("#0F172A").text("MediChain", 92, 22);
+  doc.font("Helvetica-Bold").fontSize(7).fillColor("#0D9488").text("SMART PARTNER FOR PHARMACIES", 92, 44, { characterSpacing: 1.5 });
+  doc.font("Helvetica").fontSize(7.5).fillColor("#475569").text("Shorear Tol, Rangpur Sadar, Rangpur, Bangladesh • Mob: 01940-681989", 92, 57);
   doc.text("Email: support@medichainbd.com", 92, 69);
 
   // Header Content - Right: INVOICE, Number, Date, Order Ref
@@ -2710,9 +2714,9 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
   const now = new Date(order.createdAt || Date.now());
   const invoiceDate = `${String(now.getDate()).padStart(2, "0")}-${now.toLocaleString("en-US", { month: "short" }).toUpperCase()}-${now.getFullYear()}`;
 
-  doc.font("Helvetica-Bold").fontSize(9).fillColor("#C084FC").text("INVOICE", 380, 22, { align: "right", width: doc.page.width - 410 });
-  doc.font("Helvetica-Bold").fontSize(17).fillColor("#F4F4F5").text(displayInvoiceNum, 380, 35, { align: "right", width: doc.page.width - 410 });
-  doc.font("Helvetica").fontSize(7.5).fillColor("#9CA3AF").text(`Date: ${invoiceDate}`, 380, 57, { align: "right", width: doc.page.width - 410 });
+  doc.font("Helvetica-Bold").fontSize(10).fillColor("#0F172A").text("INVOICE", 380, 22, { align: "right", width: doc.page.width - 410, characterSpacing: 1 });
+  doc.font("Helvetica-Bold").fontSize(16).fillColor("#0F172A").text(displayInvoiceNum, 380, 35, { align: "right", width: doc.page.width - 410 });
+  doc.font("Helvetica").fontSize(7.5).fillColor("#475569").text(`Date: ${invoiceDate}`, 380, 57, { align: "right", width: doc.page.width - 410 });
   doc.text(`Order Ref: #${orderRef}`, 380, 69, { align: "right", width: doc.page.width - 410 });
 
   // 2. Billed To / Payment Info Strip
@@ -2910,6 +2914,218 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
   doc.end();
 }
 
+/**
+ * Generates a high-precision Consolidated Delivery Schedule Invoice PDF combining multiple orders.
+ */
+function generateCombinedInvoicePdf(res: any, group: ConsolidatedInvoiceGroup, pharmacy: any) {
+  const doc = new PDFDocument({
+    margin: 30,
+    size: "A4",
+    bufferPages: true,
+    info: {
+      Title: `Combined Invoice ${group.invoiceNumber} - MediChain`,
+      Author: "MediChain Procurement OS",
+      Subject: `Consolidated Delivery Schedule Invoice for ${group.pharmacyName}`
+    }
+  });
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `inline; filename="MediChain-Combined-Invoice-${group.invoiceNumber}.pdf"`
+  );
+
+  doc.pipe(res);
+
+  const logoPath = path.resolve("./public/logo.png");
+
+  const renderWatermark = () => {
+    try {
+      doc.save();
+      doc.font("Helvetica-Bold").fontSize(46).fillColor("#000000").fillOpacity(0.02);
+      doc.rotate(-28, { origin: [doc.page.width / 2, doc.page.height / 2] });
+      doc.text("MEDICHAIN COMBINED", 40, doc.page.height / 2 - 30, {
+        align: "center",
+        width: doc.page.width
+      });
+      doc.restore();
+    } catch (e) {}
+  };
+
+  renderWatermark();
+
+  // 1. Header Band: Clean, minimal white background (#FFFFFF) for crisp printing
+  doc.rect(0, 0, doc.page.width, 105).fill("#FFFFFF");
+
+  // Clean subtle divider line along bottom edge of header
+  doc.moveTo(30, 105).lineTo(doc.page.width - 30, 105).strokeColor("#E2E8F0").lineWidth(1).stroke();
+
+  // Header Content - Left
+  if (fs.existsSync(logoPath)) {
+    doc.image(logoPath, 30, 22, { width: 52 });
+  }
+  doc.font("Helvetica-Bold").fontSize(18).fillColor("#0F172A").text("MediChain", 92, 22);
+  doc.font("Helvetica-Bold").fontSize(7).fillColor("#0D9488").text("SMART PARTNER FOR PHARMACIES • WHOLESALE DELIVERY", 92, 44, { characterSpacing: 1.2 });
+  doc.font("Helvetica").fontSize(7.5).fillColor("#475569").text("Shorear Tol, Rangpur Sadar, Rangpur, Bangladesh • Helpline: 01940-681989", 92, 57);
+  doc.text("Automated Delivery Schedule Order Consolidation System", 92, 69);
+
+  // Header Content - Right: COMBINED INVOICE
+  doc.font("Helvetica-Bold").fontSize(9).fillColor("#0F172A").text("COMBINED DELIVERY INVOICE", 330, 22, { align: "right", width: doc.page.width - 360, characterSpacing: 0.8 });
+  doc.font("Helvetica-Bold").fontSize(15).fillColor("#0F172A").text(group.invoiceNumber, 330, 35, { align: "right", width: doc.page.width - 360 });
+  doc.font("Helvetica-Bold").fontSize(8).fillColor("#B45309").text(`Schedule: ${group.deliverySchedule} DELIVERY`, 330, 54, { align: "right", width: doc.page.width - 360 });
+  doc.font("Helvetica").fontSize(7.5).fillColor("#475569").text(`Target Date: ${group.deliveryDate}`, 330, 68, { align: "right", width: doc.page.width - 360 });
+  doc.text(`Orders Consolidated: ${group.orders.length} orders`, 330, 80, { align: "right", width: doc.page.width - 360 });
+
+  // 2. Info Strip
+  const stripY = 120;
+  const pharmacyName = pharmacy?.pharmacyName || group.pharmacyName || "Registered Pharmacy Partner";
+  const proprietorName = pharmacy?.ownerName || (pharmacy as any)?.owner_name || group.pharmacyOwner || "Licensed Pharmacist";
+  const pharmacyPhone = pharmacy?.phone || group.pharmacyPhone || "01940-681989";
+  const pharmacyAddress = pharmacy?.address || group.pharmacyAddress || "Rangpur Division, Bangladesh";
+  const drugLicense = pharmacy?.licenseNo || group.pharmacyLicense || "DGDA-VERIFIED";
+
+  // Left Column: Billed To
+  doc.font("Helvetica-Bold").fontSize(8).fillColor("#7C3AED").text("BILLED TO PHARMACY", 30, stripY);
+  doc.font("Helvetica-Bold").fontSize(10).fillColor("#0F172A").text(pharmacyName, 30, stripY + 12);
+  doc.font("Helvetica").fontSize(7.5).fillColor("#64748B").text(`Proprietor: ${proprietorName} • Phone: ${pharmacyPhone}`, 30, stripY + 25);
+  doc.text(`Drug License: ${drugLicense}`, 30, stripY + 36);
+  doc.text(pharmacyAddress, 30, stripY + 47, { width: 280, lineBreak: false });
+
+  // Middle/Right: Delivery Window & Order References Box
+  const refBoxX = 320;
+  const refBoxWidth = doc.page.width - refBoxX - 30;
+  doc.roundedRect(refBoxX, stripY - 4, refBoxWidth, 68, 6).fill("#F8FAFC");
+  doc.roundedRect(refBoxX, stripY - 4, refBoxWidth, 68, 6).strokeColor("#E2E8F0").lineWidth(0.6).stroke();
+
+  doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#4338CA").text("DELIVERY WINDOW & INCLUDED ORDERS", refBoxX + 8, stripY + 3);
+  doc.font("Helvetica").fontSize(7).fillColor("#475569").text(`Window: ${group.deliveryScheduleLabel}`, refBoxX + 8, stripY + 15);
+  doc.text(`Daily Cutoff: 5:00 PM BST (Asia/Dhaka)`, refBoxX + 8, stripY + 26);
+  
+  const orderListStr = group.readableOrderIds.join(", ");
+  doc.font("Helvetica-Bold").fontSize(7).fillColor("#0F172A").text("Orders: ", refBoxX + 8, stripY + 38, { continued: true });
+  doc.font("Helvetica").fontSize(7).fillColor("#2563EB").text(orderListStr, { width: refBoxWidth - 16 });
+
+  // 3. Consolidated Table
+  const consolidated = getConsolidatedLineItems(group.orders);
+  const tableTop = stripY + 76;
+  const tableWidth = doc.page.width - 60;
+
+  const drawTableHeader = (y: number) => {
+    doc.roundedRect(30, y, tableWidth, 20, 4).fill("#0F172A");
+    doc.font("Helvetica-Bold").fontSize(7).fillColor("#F8FAFC");
+    doc.text("SL", 32, y + 6, { width: 20, align: "center" });
+    doc.text("ITEM & SPECIFICATION", 56, y + 6, { width: 170 });
+    doc.text("ORDERS REF", 230, y + 6, { width: 60 });
+    doc.text("MRP", 294, y + 6, { width: 44, align: "right" });
+    doc.text("TRADE RATE", 342, y + 6, { width: 44, align: "right" });
+    doc.text("QTY", 390, y + 6, { width: 22, align: "right" });
+    doc.text("SAVINGS", 416, y + 6, { width: 50, align: "right" });
+    doc.text("TOTAL", 470, y + 6, { width: 64, align: "right" });
+  };
+
+  drawTableHeader(tableTop);
+
+  let position = tableTop + 20;
+
+  consolidated.items.forEach((item, idx) => {
+    if (position > doc.page.height - 190) {
+      doc.addPage();
+      renderWatermark();
+      position = 40;
+      drawTableHeader(position);
+      position += 20;
+    }
+
+    const qty = item.quantity || 1;
+    const rate = item.sellingPrice || (item.subtotal ? item.subtotal / qty : 0);
+    const mrp = item.mrp && item.mrp >= rate ? item.mrp : Math.round(rate * 1.25 * 100) / 100;
+    const netDiscount = Math.max(0, (mrp - rate) * qty);
+    const itemTotal = item.subtotal || Math.round(rate * qty * 100) / 100;
+
+    const isEven = idx % 2 === 1;
+    doc.rect(30, position, tableWidth, 18).fill(isEven ? "#F8FAFC" : "#ffffff");
+    doc.moveTo(30, position + 18).lineTo(30 + tableWidth, position + 18).strokeColor("#F1F5F9").lineWidth(0.5).stroke();
+
+    let displayName = item.name || "Medicine Item";
+    if (item.strength) displayName += ` (${item.strength})`;
+
+    const refsStr = (item.orderReferences || []).map(r => r.replace("MCH-", "")).join(",");
+
+    doc.font("Helvetica").fontSize(7).fillColor("#64748B").text((idx + 1).toString(), 32, position + 5, { width: 20, align: "center" });
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#0F172A").text(displayName, 56, position + 5, { width: 170, lineBreak: false });
+    doc.font("Helvetica").fontSize(6.5).fillColor("#6366F1").text(refsStr, 230, position + 5, { width: 60, lineBreak: false });
+    doc.font("Helvetica").fontSize(7.5).fillColor("#64748B").text(`Tk ${mrp.toFixed(2)}`, 294, position + 5, { width: 44, align: "right" });
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#0F172A").text(`Tk ${rate.toFixed(2)}`, 342, position + 5, { width: 44, align: "right" });
+    doc.font("Helvetica").fontSize(7.5).fillColor("#0F172A").text(qty.toString(), 390, position + 5, { width: 22, align: "right" });
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#16A34A").text(`Tk ${netDiscount.toFixed(2)}`, 416, position + 5, { width: 50, align: "right" });
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#0F172A").text(`Tk ${itemTotal.toFixed(2)}`, 470, position + 5, { width: 64, align: "right" });
+
+    position += 18;
+  });
+
+  if (position > doc.page.height - 230) {
+    doc.addPage();
+    renderWatermark();
+    position = 40;
+  }
+
+  // 4. Summary Box (Single Delivery Charge ৳40)
+  const summaryX = 330;
+  const summaryWidth = doc.page.width - summaryX - 30;
+  const deliveryCharge = group.deliveryCharge || DEFAULT_DELIVERY_CHARGE || 40;
+  const netPayable = consolidated.subtotal + deliveryCharge;
+
+  let sY = position + 14;
+
+  doc.font("Helvetica").fontSize(8).fillColor("#64748B").text("Combined Subtotal (Medicines)", summaryX, sY);
+  doc.font("Helvetica-Bold").fontSize(8).fillColor("#0F172A").text(`Tk ${consolidated.subtotal.toFixed(2)}`, summaryX, sY, { width: summaryWidth, align: "right" });
+
+  doc.font("Helvetica").fontSize(8).fillColor("#64748B").text("Total Wholesale Savings", summaryX, sY + 14);
+  doc.font("Helvetica-Bold").fontSize(8).fillColor("#16A34A").text(`-Tk ${consolidated.totalSavings.toFixed(2)}`, summaryX, sY + 14, { width: summaryWidth, align: "right" });
+
+  doc.font("Helvetica").fontSize(8).fillColor("#64748B").text("Delivery Charge (1 per window)", summaryX, sY + 28);
+  doc.font("Helvetica-Bold").fontSize(8).fillColor("#0F172A").text(`Tk ${deliveryCharge.toFixed(2)}`, summaryX, sY + 28, { width: summaryWidth, align: "right" });
+
+  const netGrad = doc.linearGradient(summaryX, sY + 44, summaryX + summaryWidth, sY + 44);
+  netGrad.stop(0, "#4F46E5").stop(1, "#7C3AED");
+  doc.roundedRect(summaryX, sY + 44, summaryWidth, 24, 6).fill(netGrad);
+  doc.font("Helvetica-Bold").fontSize(8.5).fillColor("#FFFFFF").text("CONSOLIDATED PAYABLE", summaryX + 8, sY + 51);
+  doc.font("Helvetica-Bold").fontSize(11).fillColor("#FFFFFF").text(`Tk ${netPayable.toFixed(2)}`, summaryX, sY + 49.5, { width: summaryWidth - 8, align: "right" });
+
+  doc.roundedRect(summaryX, sY + 74, summaryWidth, 20, 6).fill("#F8FAFC");
+  doc.roundedRect(summaryX, sY + 74, summaryWidth, 20, 6).strokeColor("#E2E8F0").lineWidth(0.5).stroke();
+  doc.font("Helvetica").fontSize(7.5).fillColor("#334155").text("Payment Collection (COD)", summaryX + 8, sY + 79.5);
+  doc.font("Helvetica-Bold").fontSize(9).fillColor("#0F172A").text(`Tk ${netPayable.toFixed(2)}`, summaryX, sY + 78.5, { width: summaryWidth - 8, align: "right" });
+
+  // 5. Footer Terms & Signatures
+  const footerY = Math.max(sY + 104, position + 15);
+  doc.dash(3, { space: 3 }).moveTo(30, footerY).lineTo(doc.page.width - 30, footerY).strokeColor("#CBD5E1").lineWidth(0.6).stroke().undash();
+  doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#7C3AED").text("DELIVERY TERMS & CONDITIONS", 30, footerY + 8);
+  doc.font("Helvetica").fontSize(6.5).fillColor("#64748B");
+  doc.text("1. Window Consolidation: All orders placed within the same delivery cycle are consolidated with a single delivery charge of Tk 40.", 30, footerY + 18, { width: doc.page.width - 60 });
+  doc.text("2. Physical Verification: Please inspect seal integrity and product batch numbers upon courier handover.", 30, footerY + 28, { width: doc.page.width - 60 });
+  doc.text("3. Computer-Generated: This digital consolidated invoice is legally verified under DGDA wholesale licensing standards.", 30, footerY + 38, { width: doc.page.width - 60 });
+
+  const sigY = footerY + 76;
+  doc.moveTo(30, sigY).lineTo(150, sigY).strokeColor("#94A3B8").lineWidth(0.5).stroke();
+  doc.font("Helvetica").fontSize(7).fillColor("#64748B").text("Depot / Packing Staff", 30, sigY + 5, { width: 120, align: "center" });
+
+  const centerX = (doc.page.width - 120) / 2;
+  doc.moveTo(centerX, sigY).lineTo(centerX + 120, sigY).strokeColor("#94A3B8").lineWidth(0.5).stroke();
+  doc.text("Assigned Rider", centerX, sigY + 5, { width: 120, align: "center" });
+
+  const rightX = doc.page.width - 150;
+  doc.moveTo(rightX, sigY).lineTo(rightX + 120, sigY).strokeColor("#94A3B8").lineWidth(0.5).stroke();
+  doc.text("Pharmacist Signature", rightX, sigY + 5, { width: 120, align: "center" });
+
+  const bottomRowY = doc.page.height - 22;
+  doc.moveTo(30, bottomRowY - 6).lineTo(doc.page.width - 30, bottomRowY - 6).strokeColor("#F1F5F9").lineWidth(0.5).stroke();
+  doc.font("Courier").fontSize(6.5).fillColor("#94A3B8").text(`Consolidated Hash: ${group.windowKey}-${group.orders.length}O`, 30, bottomRowY);
+  doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#16A34A").text("✓ Verified by MediChain Delivery Core", 350, bottomRowY, { align: "right", width: doc.page.width - 380 });
+
+  doc.end();
+}
+
 app.get("/api/orders/:id/invoice", requireAuth, async (req, res) => {
   try {
     const order = await assertOrderAccess(req.user, req.params.id);
@@ -2937,6 +3153,121 @@ app.get("/api/orders/:id/invoice", requireAuth, async (req, res) => {
     }
 
     generateInvoicePdf(res, order, pharmacy, invoiceNumber);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/invoices/consolidated
+ * Retrieves all delivery-schedule-based consolidated invoice groups.
+ */
+app.get("/api/invoices/consolidated", requireAuth, async (req, res) => {
+  try {
+    const pharmacyId = req.query.pharmacyId as string | undefined;
+    if (req.user.role === "Pharmacy Owner" && req.user.pharmacyId) {
+      const groups = await dbService.getConsolidatedInvoices(req.user.pharmacyId);
+      return res.json({ success: true, groups });
+    }
+    const groups = await dbService.getConsolidatedInvoices(pharmacyId);
+    res.json({ success: true, groups });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/invoices/consolidated/:windowKey/:pharmacyId
+ * Retrieves detailed consolidated invoice group for a specific pharmacy and delivery window.
+ */
+app.get("/api/invoices/consolidated/:windowKey/:pharmacyId", requireAuth, async (req, res) => {
+  try {
+    const { windowKey, pharmacyId } = req.params;
+    if (req.user.role === "Pharmacy Owner" && req.user.pharmacyId !== pharmacyId) {
+      return res.status(403).json({ error: "Unauthorized access to pharmacy invoice." });
+    }
+    const groups = await dbService.getConsolidatedInvoices(pharmacyId);
+    const target = groups.find(g => g.windowKey === windowKey && g.pharmacyId === pharmacyId);
+    if (!target) {
+      return res.status(404).json({ error: "Consolidated invoice group not found." });
+    }
+    res.json({ success: true, group: target });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/invoices/consolidated/:windowKey/:pharmacyId/pdf
+ * Streams high-precision combined invoice PDF for the delivery window.
+ */
+app.get("/api/invoices/consolidated/:windowKey/:pharmacyId/pdf", requireAuth, async (req, res) => {
+  try {
+    const { windowKey, pharmacyId } = req.params;
+    if (req.user.role === "Pharmacy Owner" && req.user.pharmacyId !== pharmacyId) {
+      return res.status(403).json({ error: "Unauthorized access to pharmacy invoice." });
+    }
+
+    const groups = await dbService.getConsolidatedInvoices(pharmacyId);
+    const target = groups.find(g => g.windowKey === windowKey && g.pharmacyId === pharmacyId);
+    if (!target) {
+      return res.status(404).json({ error: "Consolidated invoice group not found." });
+    }
+
+    const pharmacy = await dbService.getPharmacyById(pharmacyId);
+    generateCombinedInvoicePdf(res, target, pharmacy);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/invoices/custom/generate-combined
+ * Validates and creates a combined invoice from a selection of orders.
+ * Strictly enforces that all selected orders belong to the SAME PHARMACY and SAME DELIVERY WINDOW.
+ */
+app.post("/api/invoices/custom/generate-combined", requireAuth, async (req, res) => {
+  try {
+    const { orderIds, pharmacyId } = req.body;
+    if (!Array.isArray(orderIds) || orderIds.length === 0) {
+      return res.status(400).json({ error: "Please provide a non-empty list of order IDs." });
+    }
+
+    const orders: any[] = [];
+    for (const id of orderIds) {
+      const ord = await dbService.getOrderById(id);
+      if (!ord) {
+        return res.status(404).json({ error: `Order ${id} not found.` });
+      }
+      if (pharmacyId && ord.pharmacyId !== pharmacyId) {
+        return res.status(400).json({ error: `Order ${ord.readableId || ord.id} does not belong to pharmacy ${pharmacyId}.` });
+      }
+      if (ord.status === "Cancelled") {
+        return res.status(400).json({ error: `Order ${ord.readableId || ord.id} is cancelled and cannot be included in an invoice.` });
+      }
+      orders.push(ord);
+    }
+
+    // Verify all orders share the same delivery window
+    const firstWindow = getDeliveryWindow(orders[0].createdAt);
+    for (let i = 1; i < orders.length; i++) {
+      const win = getDeliveryWindow(orders[i].createdAt);
+      if (win.windowKey !== firstWindow.windowKey) {
+        return res.status(400).json({
+          error: `Delivery Window Mismatch: Order ${orders[i].readableId || orders[i].id} belongs to ${win.deliveryScheduleLabel}, but other orders belong to ${firstWindow.deliveryScheduleLabel}. Orders from different delivery windows cannot be merged into one invoice.`
+        });
+      }
+    }
+
+    const pharmacy = pharmacyId ? await dbService.getPharmacyById(pharmacyId) : await dbService.getPharmacyById(orders[0].pharmacyId);
+    const groups = groupOrdersByDeliverySchedule(orders, pharmacy ? { [pharmacy.id]: pharmacy } : {});
+    const combinedGroup = groups[0];
+
+    res.json({
+      success: true,
+      group: combinedGroup,
+      message: `Successfully consolidated ${orders.length} orders for ${firstWindow.deliveryScheduleLabel}.`
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

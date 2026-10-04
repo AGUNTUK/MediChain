@@ -194,6 +194,39 @@ export const orderService = {
   },
 
   /**
+   * Downloads the consolidated delivery schedule invoice PDF combining multiple orders.
+   */
+  async downloadCombinedInvoice(windowKey: string, pharmacyId: string, filename?: string): Promise<{ success: boolean; blob: Blob }> {
+    const res = await apiFetch(`/api/invoices/consolidated/${encodeURIComponent(windowKey)}/${encodeURIComponent(pharmacyId)}/pdf`);
+
+    if (!res.ok) {
+      let errorMessage = "Failed to download combined invoice.";
+      try {
+        const err = await res.json();
+        if (err?.error) errorMessage = err.error;
+      } catch {
+        try {
+          const text = await res.text();
+          if (text) errorMessage = text;
+        } catch {}
+      }
+      throw new Error(errorMessage);
+    }
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename || `Combined-Invoice-${windowKey}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+
+    return { success: true, blob };
+  },
+
+  /**
    * Cancels a pending or confirmed order before it is processed.
    */
   async cancelOrder(orderId: string): Promise<{ success: boolean }> {
@@ -292,5 +325,39 @@ export const orderService = {
       console.warn("Failed to fetch order amendments:", e);
       return [];
     }
+  },
+
+  /**
+   * Retrieves all delivery-schedule-based consolidated invoice groups.
+   */
+  async getConsolidatedInvoices(pharmacyId?: string): Promise<any[]> {
+    try {
+      const url = pharmacyId ? `/api/invoices/consolidated?pharmacyId=${pharmacyId}` : "/api/invoices/consolidated";
+      const res = await apiFetch(url);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.groups || [];
+    } catch (e) {
+      console.warn("Failed to fetch consolidated invoices:", e);
+      return [];
+    }
+  },
+
+  /**
+   * Validates and creates a combined invoice from a selection of orders.
+   */
+  async generateCombinedCustomInvoice(orderIds: string[], pharmacyId?: string): Promise<{ success: boolean; group: any; message?: string }> {
+    const res = await apiFetch("/api/invoices/custom/generate-combined", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderIds, pharmacyId }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to generate combined invoice.");
+    }
+
+    return res.json();
   },
 };

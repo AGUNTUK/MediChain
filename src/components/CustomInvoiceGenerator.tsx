@@ -1,8 +1,17 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Product, Pharmacy, CustomInvoiceData, CustomInvoiceItem } from "../types";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import { Product, Pharmacy, Order, CustomInvoiceData, CustomInvoiceItem } from "../types";
 import { resolveItemType } from "./ModernInvoiceModal";
 import { apiFetch } from "../lib/apiFetch";
-import { productService } from "../services";
+import { productService, orderService } from "../services";
+import {
+  getDeliveryWindow,
+  groupOrdersByDeliverySchedule,
+  getConsolidatedLineItems,
+  isOrderEligibleForConsolidation,
+  isOrderLocked,
+  ConsolidatedInvoiceGroup,
+  DEFAULT_DELIVERY_CHARGE
+} from "../lib/deliverySchedule";
 import {
   FileText,
   Plus,
@@ -31,12 +40,15 @@ import {
   Edit3,
   Check,
   X,
-  Loader2
+  Loader2,
+  Boxes,
+  Clock
 } from "lucide-react";
 
 interface CustomInvoiceGeneratorProps {
   products: Product[];
   pharmacies: Pharmacy[];
+  orders?: Order[];
   onBackToOrders?: () => void;
 }
 
@@ -44,10 +56,25 @@ const STORAGE_KEY = "medichain_custom_invoices_ledger";
 
 export default function CustomInvoiceGenerator({
   products,
-  pharmacies
+  pharmacies,
+  orders: initialOrders,
+  onBackToOrders
 }: CustomInvoiceGeneratorProps) {
   // Tab state: "editor" or "history"
   const [activeTab, setActiveTab] = useState<"editor" | "history">("editor");
+
+  // Orders state for delivery consolidation
+  const [ordersList, setOrdersList] = useState<Order[]>(initialOrders || []);
+
+  useEffect(() => {
+    if (initialOrders && initialOrders.length > 0) {
+      setOrdersList(initialOrders);
+    } else {
+      orderService.getOrders().then(ords => {
+        if (ords && ords.length > 0) setOrdersList(ords);
+      }).catch(() => {});
+    }
+  }, [initialOrders]);
 
   // Notifications / feedback
   const [successMsg, setSuccessMsg] = useState("");
@@ -83,6 +110,73 @@ export default function CustomInvoiceGenerator({
   const [orderRef, setOrderRef] = useState<string>(`INST-DIRECT-${Date.now().toString().slice(-4)}`);
   const [invoiceDate, setInvoiceDate] = useState<string>(getTodayDateStr());
   const [dueDate, setDueDate] = useState<string>(getTodayDateStr());
+
+  // Delivery Window Grouping
+  const deliveryGroups = useMemo(() => {
+    const pharmMap: Record<string, Pharmacy> = {};
+    for (const p of pharmacies) {
+      if (p.id) pharmMap[p.id] = p;
+    }
+    const eligibleOrders = (ordersList || []).filter(o => o.status !== "Cancelled");
+    return groupOrdersByDeliverySchedule(eligibleOrders, pharmMap);
+  }, [ordersList, pharmacies]);
+
+  // Handle 1-Click Delivery Schedule Consolidation
+  const handleConsolidateDeliveryGroup = (group: ConsolidatedInvoiceGroup) => {
+    if (!group || group.orders.length === 0) return;
+
+    // 1. Recipient info
+    setSelectedExistingPharmacyId(group.pharmacyId);
+    setRecipientName(group.pharmacyName);
+    setRecipientType("pharmacy");
+    setContactPerson(group.pharmacyOwner || "Licensed Pharmacist");
+    setPhone(group.pharmacyPhone || "");
+    setAddress(group.pharmacyAddress || "");
+    setLicenseOrRegNo(group.pharmacyLicense || "DGDA-VERIFIED");
+
+    // 2. Aggregate line items
+    const consolidated = getConsolidatedLineItems(group.orders);
+    const customItems: CustomInvoiceItem[] = consolidated.items.map((it, idx) => {
+      const price = it.sellingPrice || 0;
+      const mrp = it.mrp && it.mrp >= price ? it.mrp : Math.round(price * 1.25 * 100) / 100;
+      const discPct = mrp > 0 ? Math.round(((mrp - price) / mrp) * 100) : 0;
+      const total = it.subtotal || price * it.quantity;
+
+      return {
+        id: `item-${Date.now()}-${idx}`,
+        productId: it.productId,
+        name: it.name,
+        category: it.category || "Tablet",
+        strength: it.strength || "",
+        packSize: it.packSize || "",
+        mrp,
+        rate: price,
+        quantity: it.quantity,
+        discountPercentage: discPct,
+        netDiscount: Math.max(0, (mrp - price) * it.quantity),
+        total
+      };
+    });
+
+    setItems(customItems);
+
+    // 3. Financials (Single ৳40 delivery charge)
+    setDeliveryCharge(DEFAULT_DELIVERY_CHARGE);
+    setSpecialAdjustment(0);
+    setPaymentMethod("Cash on Delivery");
+    setPaymentStatus("Pending");
+
+    // 4. Metadata & traceability
+    setOrderRef(group.readableOrderIds.join(" + "));
+    setInvoiceNumber(group.invoiceNumber);
+    setInvoiceDate(getTodayDateStr());
+    setDueDate(group.deliveryDate);
+    setNotes(
+      `Consolidated Delivery Schedule Invoice (${group.deliverySchedule} Delivery, ${group.deliveryDate}). Cutoff: 5:00 PM BST. Included Orders: ${group.readableOrderIds.join(", ")}.`
+    );
+
+    showToast(`Successfully consolidated ${group.orders.length} orders for ${group.deliveryScheduleLabel} with single ৳40 delivery charge.`);
+  };
 
   // Recipient info
   const [recipientType, setRecipientType] = useState<"institute" | "hospital" | "clinic" | "pharmacy" | "ngo" | "other">("institute");
@@ -773,6 +867,76 @@ export default function CustomInvoiceGenerator({
           {/* LEFT SIDE: FORM BUILDER & PRICING CONFIGURATOR             */}
           {/* ========================================================= */}
           <div className="no-print w-full lg:w-[50%] xl:w-[48%] h-full overflow-y-auto p-4 sm:p-5 border-r border-slate-200 bg-white space-y-6">
+            {/* Delivery Schedule Order Consolidation Panel */}
+            {deliveryGroups && deliveryGroups.length > 0 && (
+              <div className="bg-gradient-to-br from-indigo-50/80 via-purple-50/50 to-emerald-50/50 border border-indigo-200/80 rounded-2xl p-4 sm:p-5 space-y-3 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-indigo-950 font-black text-xs uppercase tracking-wider">
+                    <Boxes className="w-4 h-4 text-indigo-600" />
+                    <span>Consolidate by Delivery Schedule Window</span>
+                  </div>
+                  <span className="text-[10px] font-extrabold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full border border-indigo-200">
+                    {deliveryGroups.length} Active {deliveryGroups.length === 1 ? "Window" : "Windows"}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Automatically consolidate all pending wholesale orders for a pharmacy into ONE invoice with a single ৳40 delivery charge for Sunday, Tuesday, or Friday delivery.
+                </p>
+
+                <div className="space-y-2 max-h-[190px] overflow-y-auto pr-1">
+                  {deliveryGroups.map((grp, idx) => {
+                    const isCurrentGroup = grp.pharmacyId === selectedExistingPharmacyId && grp.readableOrderIds.join(" + ") === orderRef;
+                    const schedBadge = 
+                      grp.deliverySchedule === "FRIDAY" ? "bg-emerald-100 text-emerald-800 border-emerald-200" :
+                      grp.deliverySchedule === "SUNDAY" ? "bg-purple-100 text-purple-800 border-purple-200" :
+                      "bg-blue-100 text-blue-800 border-blue-200";
+
+                    return (
+                      <div
+                        key={grp.groupKey || idx}
+                        className={`p-3 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+                          isCurrentGroup
+                            ? "bg-white border-indigo-600 shadow-xs"
+                            : "bg-white/80 border-slate-200 hover:border-indigo-300"
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className={`text-[8.5px] font-black uppercase px-1.5 py-0.2 rounded border ${schedBadge}`}>
+                              🗓️ {grp.deliverySchedule} DELIVERY
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-medium">
+                              {grp.deliveryDate} (Cutoff: 5:00 PM BST)
+                            </span>
+                          </div>
+                          <p className="font-extrabold text-slate-900 text-xs mt-1 truncate">
+                            {grp.pharmacyName}
+                          </p>
+                          <p className="text-[10px] text-slate-500 font-mono">
+                            {grp.orders.length} {grp.orders.length === 1 ? "Order" : "Orders"}: {grp.readableOrderIds.join(", ")}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                          <div className="text-right">
+                            <p className="text-[11px] font-black text-slate-900">৳{grp.grandTotal.toLocaleString()}</p>
+                            <p className="text-[9px] text-slate-500 font-medium">(1x ৳40 Del)</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleConsolidateDeliveryGroup(grp)}
+                            className="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                          >
+                            {isCurrentGroup ? "Loaded ✓" : "Consolidate Window"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* 1. Recipient & Institute Information */}
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xs">
               <div className="flex items-center justify-between">
@@ -1437,28 +1601,23 @@ export default function CustomInvoiceGenerator({
                   </div>
 
                   {/* ==================== 1. HEADER BAND ==================== */}
-                  <div className="relative z-10">
-                    <div
-                      className="px-6 py-5 text-white flex flex-row justify-between items-center"
-                      style={{
-                        background: "linear-gradient(135deg, #14161B 0%, #1E1024 50%, #2B1338 100%)"
-                      }}
-                    >
+                  <div className="relative z-10 border-b border-slate-200">
+                    <div className="px-6 py-5 bg-white text-slate-900 flex flex-row justify-between items-center">
                       {/* Left Side: Brand info */}
                       <div className="flex items-center gap-3.5">
                         <img
                           src="/logo.png"
                           alt="MediChain"
-                          className="w-[52px] h-[52px] object-contain rounded-xl shrink-0 p-0.5 bg-white/5 border border-white/10"
+                          className="w-[52px] h-[52px] object-contain rounded-xl shrink-0 p-0.5"
                         />
                         <div>
-                          <h1 className="text-[22px] font-bold text-[#F4F4F5] tracking-tight leading-none mb-1">
+                          <h1 className="text-[22px] font-bold text-slate-900 tracking-tight leading-none mb-1">
                             MediChain
                           </h1>
-                          <div className="text-[9px] font-bold tracking-[0.2em] text-[#A3E635] uppercase leading-none mb-1.5">
+                          <div className="text-[9px] font-bold tracking-[0.2em] text-teal-700 uppercase leading-none mb-1.5">
                             SMART PARTNER FOR PHARMACIES & INSTITUTES
                           </div>
-                          <p className="text-[9.5px] text-[#9CA3AF] leading-tight">
+                          <p className="text-[9.5px] text-slate-500 leading-tight">
                             Shorear Tol, Rangpur Sadar, Rangpur, Bangladesh • Mob: 01940-681989 • support@medichainbd.com
                           </p>
                         </div>
@@ -1466,30 +1625,22 @@ export default function CustomInvoiceGenerator({
 
                       {/* Right Side: Invoice Meta */}
                       <div className="text-right shrink-0">
-                        <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#C084FC] mb-0.5">
+                        <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-900 mb-0.5">
                           SALES INVOICE
                         </div>
-                        <div className="text-[20px] font-black tracking-tight text-[#F4F4F5] leading-none mb-1 font-mono">
+                        <div className="text-[20px] font-black tracking-tight text-slate-900 leading-none mb-1 font-mono">
                           {invoiceNumber || "INV-INST-000000"}
                         </div>
-                        <div className="text-[10px] text-[#9CA3AF] space-y-0.5">
+                        <div className="text-[10px] text-slate-500 space-y-0.5">
                           <div>
-                            Date: <span className="text-[#F4F4F5] font-medium">{displayDate}</span>
+                            Date: <span className="text-slate-800 font-medium">{displayDate}</span>
                           </div>
                           <div>
-                            Order Ref: <span className="font-mono text-[#F4F4F5]">#{orderRef}</span>
+                            Order Ref: <span className="font-mono text-slate-800">#{orderRef}</span>
                           </div>
                         </div>
                       </div>
                     </div>
-
-                    {/* Gradient accent line */}
-                    <div
-                      className="h-[3px] w-full"
-                      style={{
-                        background: "linear-gradient(to right, #A855F7, #A3E635)"
-                      }}
-                    />
                   </div>
 
                   {/* Document Body Padding */}
