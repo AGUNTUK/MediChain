@@ -10,6 +10,7 @@ import { Product, Pharmacy, Order, Notification, User } from "./types";
 import { Home as HomeIcon, Search as SearchIcon, Package as PackageIcon, FileText as FileIcon, ClipboardList as ListIcon, User as UserIcon, Shield, Smartphone, ShoppingBag, Camera, X } from "lucide-react";
 import { authService, productService, orderService, profileService, notificationService } from "./services";
 import { apiFetch } from "./lib/apiFetch";
+import { isSupabaseConfigured, supabase } from "./lib/supabaseClient";
 
 const ProfileSetup = lazy(() => import("./components/ProfileSetup"));
 const SearchSystem = lazy(() => import("./components/SearchSystem"));
@@ -264,9 +265,50 @@ export default function App() {
 
   useEffect(() => {
     // Initial fetch of static assets and verify existing session
-    
     if (currentUser) {
       refreshPharmacyProfile();
+    }
+
+    if (isSupabaseConfigured) {
+      // 1. Check active session on mount (handles OAuth redirect callback)
+      supabase.auth.getSession().then(async ({ data: { session }, error }: any) => {
+        if (!error && session?.user) {
+          const token = session.access_token;
+          if (token) {
+            localStorage.setItem("medichain_token", token);
+          }
+          try {
+            const syncData = await authService.syncActiveSession(token, session.user.user_metadata?.full_name || session.user.email);
+            if (syncData && syncData.user) {
+              handleLoginSuccess(syncData.user, syncData.needsSetup, syncData.pharmacy);
+            }
+          } catch (syncErr) {
+            console.warn("OAuth initial session sync notice:", syncErr);
+          }
+        }
+      }).catch((e: any) => console.warn("Supabase getSession notice:", e));
+
+      // 2. Listen to real-time auth state events (e.g. SIGNED_IN from OAuth redirect)
+      const { data: authListener } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
+        if (event === "SIGNED_IN" && session?.user) {
+          const token = session.access_token;
+          if (token) {
+            localStorage.setItem("medichain_token", token);
+          }
+          try {
+            const syncData = await authService.syncActiveSession(token, session.user.user_metadata?.full_name || session.user.email);
+            if (syncData && syncData.user) {
+              handleLoginSuccess(syncData.user, syncData.needsSetup, syncData.pharmacy);
+            }
+          } catch (syncErr) {
+            console.warn("OAuth onAuthStateChange sync notice:", syncErr);
+          }
+        }
+      });
+
+      return () => {
+        authListener?.subscription?.unsubscribe?.();
+      };
     }
   }, []);
 

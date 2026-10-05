@@ -2197,6 +2197,30 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `npm run lint` (`tsc --noEmit`): 0 errors.
   - `npm run build`: Production build succeeded.
 
+### Task 96: Google Sign-In Supabase OAuth Integration
+- **Status:** Completed
+- **User Instruction:**
+  - "MEDICHAIN — ADD GOOGLE SIGN-IN BUTTON. Implement Google Sign-In in the existing MediChain authentication system. Place '───────── OR ─────────' and '[ Google icon ] Continue with Google' directly below the Sign In button. Reuse existing Supabase Auth integration without bypassing pharmacy verification or RBAC."
+- **Implementation:**
+  1. **Supabase OAuth Service (`src/services/auth.ts`)**:
+     - Added `authService.signInWithGoogle()` calling `supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin, queryParams: { access_type: 'offline', prompt: 'select_account' } } })`.
+     - Added `authService.syncActiveSession(token, name)` for token verification and pharmacy profile retrieval via `/api/auth/sync-session`.
+  2. **Login UI Enhancement (`src/components/Login.tsx`)**:
+     - Added official Google multicolor SVG icon.
+     - Inserted clean `───────── OR ─────────` separator and `Continue with Google` button directly below the Sign In button.
+     - Styled with pure white background, subtle slate border, rounded-xl corners, loading spinner, and graceful error handling.
+  3. **Session & Auth Callback Handling (`src/App.tsx`)**:
+     - Wired `supabase.auth.onAuthStateChange` and `supabase.auth.getSession()` on app initialization.
+     - Detects authenticated Google accounts and restores/syncs the session:
+       - Approved pharmacy account -> direct to wholesale dashboard (`main`).
+       - New Google account without pharmacy profile -> routed to pharmacy registration/onboarding (`setup`).
+       - Pending/suspended/rejected accounts -> strictly guarded by `PharmacyPendingScreen` without verification bypass.
+  4. **Backend Local Fallback (`server.ts`)**:
+     - Added `/api/auth/local-google-login` for offline sandbox testing.
+- **VERIFICATION:**
+  - `npm run lint` (`tsc --noEmit`): Zero errors.
+  - `npm run build`: Production build succeeded.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

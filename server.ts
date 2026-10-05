@@ -511,6 +511,53 @@ app.post("/api/auth/local-login", loginLimiter, validateBody(schemas.login), asy
   }
 });
 
+app.post("/api/auth/local-google-login", loginLimiter, async (req, res) => {
+  try {
+    const demoEmail = "google.partner@medichain.app";
+    let user = localUsersStore.get(demoEmail);
+
+    if (!user) {
+      const passwordHash = await bcrypt.hash("DemoPassword123!", 10);
+      user = {
+        id: "d0000000-0000-4000-a000-000000000001",
+        email: demoEmail,
+        passwordHash,
+        name: "Google Demo Partner",
+        role: "Pharmacy Owner",
+        phone: "+8801940681989",
+        createdAt: new Date().toISOString()
+      };
+      localUsersStore.set(demoEmail, user);
+    }
+
+    const pharmacy = await dbService.getPharmacyProfile(user.id).catch(() => null);
+    const pharmacyId = pharmacy ? pharmacy.id : null;
+
+    req.session = {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      name: user.name,
+      pharmacy_id: pharmacyId
+    };
+
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        pharmacy_id: pharmacyId
+      },
+      needsSetup: !pharmacyId,
+      pharmacy
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post("/api/auth/sync-session", loginLimiter, async (req, res) => {
   let verifiedId: string | null = null;
   let verifiedEmail: string | null = null;

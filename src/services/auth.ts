@@ -175,6 +175,73 @@ export const authService = {
   },
 
   /**
+   * Initiates Google Sign-In via Supabase OAuth.
+   */
+  async signInWithGoogle(): Promise<{ url?: string; user?: any; needsSetup?: boolean; pharmacy?: any }> {
+    if (isSupabaseConfigured) {
+      const redirectUrl = typeof window !== "undefined" ? window.location.origin : undefined;
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: redirectUrl,
+          queryParams: {
+            access_type: "offline",
+            prompt: "select_account"
+          }
+        }
+      });
+
+      if (error) {
+        throw new Error(error.message || "Failed to initialize Google Sign-In.");
+      }
+
+      return data;
+    } else {
+      // Local offline fallback login
+      const response = await fetch("/api/auth/local-google-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed local Google login demo.");
+      }
+
+      const result = await response.json();
+      if (result.token && typeof window !== "undefined") {
+        localStorage.setItem("medichain_token", result.token);
+      }
+      return result;
+    }
+  },
+
+  /**
+   * Synchronizes an active Supabase session with the server and loads the pharmacy profile.
+   */
+  async syncActiveSession(token?: string, name?: string): Promise<{ success: boolean; user: any; needsSetup: boolean; pharmacy?: any }> {
+    const syncHeaders: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) {
+      syncHeaders["Authorization"] = `Bearer ${token}`;
+    }
+
+    const response = await apiFetch("/api/auth/sync-session", {
+      method: "POST",
+      headers: syncHeaders,
+      body: JSON.stringify({
+        name: name || ""
+      })
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || "Failed to synchronize session with server.");
+    }
+
+    return response.json();
+  },
+
+  /**
    * Logs out the user from Supabase and clears the local session.
    */
   async logout(): Promise<void> {
