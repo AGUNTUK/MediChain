@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Product, Pharmacy, Order, CustomInvoiceData, CustomInvoiceItem } from "../types";
 import { resolveItemType } from "./ModernInvoiceModal";
 import { apiFetch } from "../lib/apiFetch";
-import { productService, orderService } from "../services";
+import { productService, orderService, accountsClient } from "../services";
 import {
   getDeliveryWindow,
   groupOrdersByDeliverySchedule,
@@ -638,6 +638,9 @@ export default function CustomInvoiceGenerator({
     }
 
     persistSavedInvoices(updatedList);
+    accountsClient.syncCustomInvoiceToLedger(compiled).catch(err => {
+      console.warn("[CustomInvoice] Failed to sync to accounts ledger:", err);
+    });
   };
 
   // Load from ledger

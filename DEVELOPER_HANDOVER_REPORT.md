@@ -2221,6 +2221,75 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `npm run lint` (`tsc --noEmit`): Zero errors.
   - `npm run build`: Production build succeeded.
 
+### Task 97: Unified Accounts & Business Ledger System
+- **Status:** Completed
+- **User Instruction:**
+  - "Build a FULLY FUNCTIONAL internal Accounts / Business Ledger system on top of the EXISTING architecture. Follow strict double-entry and operational accounting principles: Purchase != COGS, Sales != Collection, Capital != Revenue. Provide Daily Ledger, Sales & Delivery, Purchases, Collections, Operating & Delivery Expenses, Profit & Loss, Cash Flow, Inventory Value, and Reconciliation."
+- **Accounting Architecture Implemented:**
+  1. **Core Accounting Separation**:
+     - **Purchases**: Recorded as Inventory Asset & Supplier Payables. Never subtracted directly as COGS or expense.
+     - **Sales**: Recognized revenue from active wholesale orders and saved institutional custom invoices.
+     - **Collections**: Cash inflows reducing Customer Receivables. Never alters recognized sales revenue.
+     - **COGS**: True historical acquisition cost (`snapshotted order_items.buying_price` * quantity).
+     - **Gross Profit**: `Sales Revenue - COGS`. Missing buying prices trigger incomplete cost alert rather than fabricated estimates.
+     - **Delivery Expense**: Authoritative ৳40 per combined delivery invoice group (not per source order) + manual delivery expenses.
+     - **Other Operating Expenses**: Overheads (Transport, Packaging, Office, Communication, Software, Marketing, Salary/Wages, Rent, Bank Fees, Misc).
+     - **Net Profit**: `Gross Profit - Delivery Expense - Other Operating Expenses`.
+     - **Cash Flow**: `Opening Cash + Collections + Capital Contributions - Purchase Cash Out - Delivery - Expenses - Capital Withdrawals = Closing Net Cash Flow`.
+     - **Capital**: Equity contributions/withdrawals segregated strictly from sales and operating profit.
+  2. **Database Migrations (`supabase-migrations/15_accounts_ledger_system.sql`)**:
+     - `purchases`: Supplier procurement records with `total_amount`, `paid_amount`, `due_amount`, and payment methods.
+     - `collections`: Customer collection records linked to pharmacy or institutional invoice references.
+     - `expenses`: Category-segmented business expenses with audit reasons.
+     - `capital_transactions`: Partner equity contributions and withdrawals.
+     - `custom_invoices_ledger`: Saved institutional invoices with calculated COGS, gross profits, and status.
+     - `daily_closings`: Daily accounting lock and audit trail.
+     - Row Level Security (RLS) ensuring 100% internal admin-only security (zero exposure to pharmacy users).
+  3. **Backend Service & REST Endpoints (`src/lib/accountsService.ts`, `server.ts`)**:
+     - `GET /api/admin/accounts/overview`: High-level business health summary (Revenue, GP, NP, Cash Flow, Receivables, Payables, Inventory).
+     - `GET /api/admin/accounts/daily-ledger`: Single date and date range ledger calculations (Asia/Dhaka timezone-safe).
+     - `GET / POST / VOID`: Complete CRUD for `/purchases`, `/collections`, `/expenses`, `/capital`, `/custom-invoices`.
+     - `GET /api/admin/accounts/inventory-value`: Stock valuation based on acquisition cost.
+     - `GET /api/admin/accounts/receivables` & `/payables`: Comprehensive credit tracking.
+     - `GET /api/admin/accounts/reconciliation`: Real-time cross-validation audit.
+     - `GET /api/admin/accounts/export`: One-click CSV export for Daily Ledger, Purchases, Collections, and Expenses.
+  4. **Frontend UI Suite (`src/components/AccountsLedger.tsx`, `src/components/AdminPanel.tsx`)**:
+     - Primary Daily Ledger screen with calendar picker, today/yesterday/weekly/monthly presets, daily summary cards, and ledger tables.
+     - Modal dialogues for "+ Add Purchase", "+ Add Collection", "+ Add Expense", and "Capital In/Out".
+     - Non-destructive voiding workflow with mandatory audit reason logging.
+     - Integrated into `/admin/finance` ("Accounts & Ledger" sidebar tab).
+     - Idempotent synchronization on "Save Ledger" in Custom Invoice Generator.
+- **VERIFICATION:**
+  - `npx tsx tests/accountsLedger.test.ts`: Passed 100% covering Asia/Dhaka midnight transitions, Section 55 financial math, capital equity isolation, custom invoice idempotency, and automated reconciliation.
+  - `npx tsx tests/deliverySchedule.test.ts`: 24/24 tests passed (100%).
+  - `npm run lint` (`tsc --noEmit`): 0 errors.
+  - `npm run build`: Production build succeeded.
+
+### Task 98: Free WhatsApp Business Marketing Module (Manual Send Workflow)
+- **Status:** Completed
+- **User Instruction:**
+  - "MEDICHAIN — FREE WHATSAPP BUSINESS MARKETING MODULE. Admin -> WhatsApp Business App -> Manual Send Workflow. Zero Meta API dependency, zero subscription cost, no auto-sending/scraping bots. Admin panel module with Campaigns, Create Campaign, Audience, Templates, and History. Generates recipient-specific wa.me links with prefilled templates and attachments for manual sending in WhatsApp Business."
+- **Implementation:**
+  - **Zero-Cost Architecture**: Uses standard `https://wa.me/880...` deep links with URI-encoded personalized text and opt-in validation. Admin manually taps send from their own phone/desktop app.
+  - **Database & Schemas (`supabase-migrations/16_whatsapp_marketing.sql`)**:
+    - `whatsapp_campaigns`: Campaigns record with category, message template, poster URL, audience criteria, and dispatch counts.
+    - `whatsapp_campaign_recipients`: Recipient list with phone validation, personalized message snapshot, `wa.me` link, status (`pending`, `opened_chat`, `sent`, `skipped`, `failed`), and timestamps.
+    - `whatsapp_templates`: Reusable marketing message templates with category tags.
+    - Added `whatsapp_marketing_opt_in`, `whatsapp_marketing_opt_in_at`, and `whatsapp_marketing_opt_out_at` columns on pharmacies.
+  - **Backend & Logic (`src/lib/whatsappMarketingService.ts`, `server.ts`)**:
+    - `validateAndFormatBDWhatsAppNumber()`: Strict Bangladesh mobile validation (`013-019`, `8801...`).
+    - `personalizeMessage()`: Dynamic placeholder injection (`{{pharmacy_name}}`, `{{owner_name}}`, `{{phone}}`, `{{city}}`).
+    - `generateWaMeLink()`: Deep link constructor.
+    - Endpoints at `/api/admin/whatsapp/*` for stats, audience preview, campaigns, queue updates, templates, and history.
+  - **Frontend UI (`src/components/WhatsAppMarketing.tsx`, `src/components/AdminPanel.tsx`)**:
+    - Admin navigation item "WhatsApp Marketing" with `MessageSquare` icon.
+    - Tabbed interface: **Campaigns**, **Create Campaign**, **Queue / Dispatcher**, **Audience Breakdown**, **Templates**, and **History**.
+    - Live simulated WhatsApp preview, audience segment filters, copy message button, and direct `Open WhatsApp` action.
+- **VERIFICATION:**
+  - `npx tsx tests/whatsappMarketing.test.ts`: Passed 100% (phone formatting, placeholders, links, provider abstraction).
+  - `npm run lint` (`tsc --noEmit`): Clean (0 errors).
+  - `npm run build`: Production build succeeded.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

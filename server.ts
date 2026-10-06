@@ -26,6 +26,8 @@ import { performSearch } from "./src/lib/searchService.js";
 import { validateProduct, checkDuplicate } from "./src/lib/productValidator.js";
 import { supabaseAdmin } from "./src/lib/supabaseAdmin.js";
 import * as dbService from "./src/lib/dbService.js";
+import * as accountsService from "./src/lib/accountsService.js";
+import * as waMarketingService from "./src/lib/whatsappMarketingService.js";
 import {
   getDeliveryWindow,
   groupOrdersByDeliverySchedule,
@@ -34,6 +36,7 @@ import {
   isOrderLocked,
   ConsolidatedInvoiceGroup
 } from "./src/lib/deliverySchedule.js";
+import { AccountsOverviewData } from "./src/types.js";
 import { initDailyBannerScheduler, getDailyBannerData, analyzeDailyWholesaleDiscounts } from "./src/lib/geminiBannerService.js";
 import { pushNotificationService } from "./src/lib/pushNotificationService.js";
 import { LRUCache } from "./src/lib/lruCache.js";
@@ -5338,6 +5341,585 @@ app.get("/api/admin/finance/summary", requireRole(["Admin"]), async (req, res) =
     res.status(500).json({ error: err.message });
   }
 });
+
+// ==========================================
+// UNIFIED ACCOUNTS & BUSINESS LEDGER APIS
+// ==========================================
+
+// 1. Accounts Overview & KPIs
+app.get("/api/admin/accounts/overview", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const todayBdStr = accountsService.toBDDateString(new Date());
+    const startDate = (req.query.startDate as string) || todayBdStr;
+    const endDate = (req.query.endDate as string) || todayBdStr;
+
+    const todaySummary = await accountsService.getDailyLedgerSummary(todayBdStr);
+    const rangeRes = await accountsService.getDateRangeLedgerSummary(startDate, endDate);
+    const inventoryVal = await accountsService.getInventoryValuation();
+    const receivables = await accountsService.getCustomerReceivables();
+    const payables = await accountsService.getSupplierPayables();
+    const capitalList = await accountsService.getCapitalTransactions({ status: "Active" });
+
+    const totalCapital = capitalList.reduce((sum, c) => c.type === "Contribution" ? sum + c.amount : sum - c.amount, 0);
+    const totalReceivables = receivables.reduce((sum, r) => sum + r.dueAmount, 0);
+    const totalPayables = payables.reduce((sum, p) => sum + p.dueAmount, 0);
+
+    const orders = await dbService.getOrders(undefined, 1, 1000);
+    const deliveredOrdersCount = orders.filter(o => o.status === "Delivered").length;
+    const activeInvoicesCount = rangeRes.summary.invoicesCount;
+
+    const overview: AccountsOverviewData = {
+      todaySummary,
+      dateRangeSummary: rangeRes.summary,
+      totalReceivables: Math.round(totalReceivables * 100) / 100,
+      totalPayables: Math.round(totalPayables * 100) / 100,
+      totalCapital: Math.round(totalCapital * 100) / 100,
+      currentInventoryValue: inventoryVal.totalInventoryValue,
+      missingCostCount: inventoryVal.unknownCostProductsCount,
+      totalDeliveredOrders: deliveredOrdersCount,
+      totalActiveInvoices: activeInvoicesCount
+    };
+
+    res.json({ success: true, ...overview });
+  } catch (err: any) {
+    console.error("[Accounts API] Error in /overview:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. Daily Ledger (Single Date or Date Range)
+app.get("/api/admin/accounts/daily-ledger", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const singleDate = req.query.date as string;
+    const startDate = req.query.startDate as string;
+    const endDate = req.query.endDate as string;
+
+    if (singleDate) {
+      const summary = await accountsService.getDailyLedgerSummary(singleDate);
+      return res.json({ success: true, summary, dailyRows: [summary] });
+    }
+
+    const todayBdStr = accountsService.toBDDateString(new Date());
+    const start = startDate || todayBdStr;
+    const end = endDate || todayBdStr;
+
+    const result = await accountsService.getDateRangeLedgerSummary(start, end);
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    console.error("[Accounts API] Error in /daily-ledger:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. Purchases List & Create & Void
+app.get("/api/admin/accounts/purchases", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const startDate = req.query.startDate as string;
+    const endDate = req.query.endDate as string;
+    const supplier = req.query.supplier as string;
+    const status = req.query.status as string;
+
+    const purchases = await accountsService.getPurchases({ startDate, endDate, supplier, status });
+    res.json({ success: true, purchases });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/accounts/purchases", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { supplierName, invoiceReference, purchaseDate, totalAmount, paidAmount, paymentMethod, notes, items } = req.body;
+    if (!supplierName || typeof supplierName !== "string" || !supplierName.trim()) {
+      return res.status(400).json({ error: "Supplier name is required" });
+    }
+    if (totalAmount === undefined || isNaN(Number(totalAmount)) || Number(totalAmount) < 0) {
+      return res.status(400).json({ error: "Valid total purchase amount is required" });
+    }
+
+    const purchase = await accountsService.createPurchase({
+      supplierName,
+      invoiceReference,
+      purchaseDate,
+      totalAmount: Number(totalAmount),
+      paidAmount: Number(paidAmount || 0),
+      paymentMethod,
+      notes,
+      items,
+      createdBy: req.user?.name || "Admin"
+    });
+
+    res.json({ success: true, purchase });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/accounts/purchases/:id/void", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ error: "Void reason is required" });
+    }
+    const success = await accountsService.voidPurchase(id, reason, req.user?.name || "Admin");
+    res.json({ success });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. Collections List & Create & Void
+app.get("/api/admin/accounts/collections", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const startDate = req.query.startDate as string;
+    const endDate = req.query.endDate as string;
+    const pharmacyId = req.query.pharmacyId as string;
+    const status = req.query.status as string;
+
+    const collections = await accountsService.getCollections({ startDate, endDate, pharmacyId, status });
+    res.json({ success: true, collections });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/accounts/collections", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { customerName, pharmacyId, collectionDate, amount, paymentMethod, referenceInvoiceId, notes } = req.body;
+    if (!customerName || typeof customerName !== "string" || !customerName.trim()) {
+      return res.status(400).json({ error: "Customer or Pharmacy name is required" });
+    }
+    if (amount === undefined || isNaN(Number(amount)) || Number(amount) <= 0) {
+      return res.status(400).json({ error: "Valid collection amount greater than 0 is required" });
+    }
+
+    const collection = await accountsService.createCollection({
+      customerName,
+      pharmacyId,
+      collectionDate,
+      amount: Number(amount),
+      paymentMethod,
+      referenceInvoiceId,
+      notes,
+      createdBy: req.user?.name || "Admin"
+    });
+
+    res.json({ success: true, collection });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/accounts/collections/:id/void", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ error: "Void reason is required" });
+    }
+    const success = await accountsService.voidCollection(id, reason);
+    res.json({ success });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. Operating & Delivery Expenses List & Create & Void
+app.get("/api/admin/accounts/expenses", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const startDate = req.query.startDate as string;
+    const endDate = req.query.endDate as string;
+    const category = req.query.category as string;
+    const status = req.query.status as string;
+
+    const expenses = await accountsService.getExpenses({ startDate, endDate, category, status });
+    res.json({ success: true, expenses });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/accounts/expenses", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { category, amount, paymentMethod, description, expenseDate, reference, attachmentUrl } = req.body;
+    if (!category) return res.status(400).json({ error: "Expense category is required" });
+    if (!description || !description.trim()) return res.status(400).json({ error: "Expense description is required" });
+    if (amount === undefined || isNaN(Number(amount)) || Number(amount) <= 0) {
+      return res.status(400).json({ error: "Valid expense amount greater than 0 is required" });
+    }
+
+    const expense = await accountsService.createExpense({
+      category,
+      amount: Number(amount),
+      paymentMethod,
+      description,
+      expenseDate,
+      reference,
+      attachmentUrl,
+      createdBy: req.user?.name || "Admin"
+    });
+
+    res.json({ success: true, expense });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/accounts/expenses/:id/void", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ error: "Void reason is required" });
+    }
+    const success = await accountsService.voidExpense(id, reason);
+    res.json({ success });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 6. Capital Contributions & Withdrawals
+app.get("/api/admin/accounts/capital", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const startDate = req.query.startDate as string;
+    const endDate = req.query.endDate as string;
+    const status = req.query.status as string;
+
+    const transactions = await accountsService.getCapitalTransactions({ startDate, endDate, status });
+    res.json({ success: true, transactions });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/accounts/capital", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { type, partnerName, amount, paymentMethod, transactionDate, reference, notes } = req.body;
+    if (!type || (type !== "Contribution" && type !== "Withdrawal")) {
+      return res.status(400).json({ error: "Valid transaction type (Contribution or Withdrawal) is required" });
+    }
+    if (!partnerName || !partnerName.trim()) {
+      return res.status(400).json({ error: "Partner name is required" });
+    }
+    if (amount === undefined || isNaN(Number(amount)) || Number(amount) <= 0) {
+      return res.status(400).json({ error: "Valid amount greater than 0 is required" });
+    }
+
+    const transaction = await accountsService.createCapitalTransaction({
+      type,
+      partnerName,
+      amount: Number(amount),
+      paymentMethod,
+      transactionDate,
+      reference,
+      notes,
+      createdBy: req.user?.name || "Admin"
+    });
+
+    res.json({ success: true, transaction });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/accounts/capital/:id/void", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ error: "Void reason is required" });
+    }
+    const success = await accountsService.voidCapitalTransaction(id, reason);
+    res.json({ success });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 7. Saved Custom Invoices / Institutional Ledger Sync
+app.get("/api/admin/accounts/custom-invoices", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const startDate = req.query.startDate as string;
+    const endDate = req.query.endDate as string;
+    const status = req.query.status as string;
+
+    const invoices = await accountsService.getSavedCustomInvoices({ startDate, endDate, status });
+    res.json({ success: true, invoices });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/accounts/custom-invoices", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const invData = req.body;
+    if (!invData || !invData.invoiceNumber || !invData.recipientName) {
+      return res.status(400).json({ error: "Invoice number and recipient name are required" });
+    }
+
+    const saved = await accountsService.saveCustomInvoiceToLedger(invData);
+    res.json({ success: true, invoice: saved });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/accounts/custom-invoices/:id/void", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ error: "Void reason is required" });
+    }
+    const success = await accountsService.voidCustomInvoice(id, reason);
+    res.json({ success });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 8. Inventory Valuation Breakdown
+app.get("/api/admin/accounts/inventory-value", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const valuation = await accountsService.getInventoryValuation();
+    res.json({ success: true, ...valuation });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 9. Receivables & Payables
+app.get("/api/admin/accounts/receivables", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const receivables = await accountsService.getCustomerReceivables();
+    res.json({ success: true, receivables });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/admin/accounts/payables", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const payables = await accountsService.getSupplierPayables();
+    res.json({ success: true, payables });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 10. Reconciliation Audit Report
+app.get("/api/admin/accounts/reconciliation", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const report = await accountsService.generateReconciliationReport();
+    res.json({ success: true, report });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 11. CSV Export for Accounts Reports
+app.get("/api/admin/accounts/export", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const type = (req.query.type as string) || "daily-ledger";
+    const startDate = (req.query.startDate as string) || accountsService.toBDDateString(new Date());
+    const endDate = (req.query.endDate as string) || accountsService.toBDDateString(new Date());
+
+    if (type === "daily-ledger") {
+      const { dailyRows } = await accountsService.getDateRangeLedgerSummary(startDate, endDate);
+      const csvHeader = "Date,Purchases (BDT),Delivered Sales (BDT),Customer Collections (BDT),Customer Outstanding (BDT),COGS (BDT),Gross Profit (BDT),Delivery Expenses (BDT),Other Expenses (BDT),Net Profit (BDT),Cash In (BDT),Cash Out (BDT),Net Cash Flow (BDT)\n";
+      const csvRows = dailyRows.map(r => 
+        `"${r.date}",${r.purchases},${r.deliveredSales},${r.customerCollections},${r.customerOutstanding},${r.cogs},${r.grossProfit},${r.deliveryExpenses},${r.otherExpenses},${r.netProfit},${r.cashIn},${r.cashOut},${r.netCashFlow}`
+      ).join("\n");
+      
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="medichain_daily_ledger_${startDate}_to_${endDate}.csv"`);
+      return res.send(csvHeader + csvRows);
+    }
+
+    if (type === "purchases") {
+      const purchases = await accountsService.getPurchases({ startDate, endDate });
+      const csvHeader = "Purchase Number,Date,Supplier,Reference,Total Amount (BDT),Paid Amount (BDT),Due Amount (BDT),Payment Status,Payment Method,Status\n";
+      const csvRows = purchases.map(p => 
+        `"${p.purchaseNumber}","${p.purchaseDate}","${p.supplierName.replace(/"/g, '""')}","${(p.invoiceReference || "").replace(/"/g, '""')}",${p.totalAmount},${p.paidAmount},${p.dueAmount},"${p.paymentStatus}","${p.paymentMethod}","${p.status}"`
+      ).join("\n");
+
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="medichain_purchases_${startDate}_to_${endDate}.csv"`);
+      return res.send(csvHeader + csvRows);
+    }
+
+    if (type === "collections") {
+      const collections = await accountsService.getCollections({ startDate, endDate });
+      const csvHeader = "Collection Number,Date,Customer,Amount (BDT),Payment Method,Reference Invoice,Status\n";
+      const csvRows = collections.map(c => 
+        `"${c.collectionNumber}","${c.collectionDate}","${c.customerName.replace(/"/g, '""')}",${c.amount},"${c.paymentMethod}","${(c.referenceInvoiceId || "").replace(/"/g, '""')}","${c.status}"`
+      ).join("\n");
+
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="medichain_collections_${startDate}_to_${endDate}.csv"`);
+      return res.send(csvHeader + csvRows);
+    }
+
+    if (type === "expenses") {
+      const expenses = await accountsService.getExpenses({ startDate, endDate });
+      const csvHeader = "Expense Number,Date,Category,Amount (BDT),Payment Method,Description,Reference,Status\n";
+      const csvRows = expenses.map(e => 
+        `"${e.expenseNumber}","${e.expenseDate}","${e.category}",${e.amount},"${e.paymentMethod}","${e.description.replace(/"/g, '""')}","${(e.reference || "").replace(/"/g, '""')}","${e.status}"`
+      ).join("\n");
+
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="medichain_expenses_${startDate}_to_${endDate}.csv"`);
+      return res.send(csvHeader + csvRows);
+    }
+
+    res.status(400).json({ error: "Invalid export type requested" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// WHATSAPP BUSINESS MARKETING MODULE APIS (MANUAL SEND WORKFLOW)
+// ==========================================
+
+// 1. Audience Stats & Health
+app.get("/api/admin/whatsapp/stats", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const stats = await waMarketingService.getAudienceStats();
+    res.json({ success: true, stats });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. Audience Segmentation & Preview
+app.post("/api/admin/whatsapp/audience-preview", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const filter = req.body || { segment: "all_opted_in" };
+    const result = await waMarketingService.getSegmentedAudience(filter);
+    res.json({
+      success: true,
+      eligibleCount: result.eligiblePharmacies.length,
+      excludedCount: result.excludedPharmacies.length,
+      eligiblePharmacies: result.eligiblePharmacies,
+      excludedPharmacies: result.excludedPharmacies
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. Update Pharmacy Marketing Consent
+app.post("/api/admin/whatsapp/consent", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { pharmacyId, optIn, source } = req.body;
+    if (!pharmacyId) return res.status(400).json({ error: "Pharmacy ID is required" });
+    const success = await waMarketingService.updatePharmacyConsent(pharmacyId, Boolean(optIn), source || "Admin Manual Update");
+    res.json({ success });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. WhatsApp Campaigns List & Create
+app.get("/api/admin/whatsapp/campaigns", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const status = req.query.status as string;
+    const campaigns = await waMarketingService.getWhatsAppCampaigns({ status });
+    res.json({ success: true, campaigns });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/whatsapp/campaigns", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { name, messageTemplate, imageUrl, audienceFilter } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: "Campaign name is required" });
+    if (!messageTemplate || !messageTemplate.trim()) return res.status(400).json({ error: "Message template is required" });
+
+    const campaign = await waMarketingService.createWhatsAppCampaign({
+      name,
+      messageTemplate,
+      imageUrl,
+      audienceFilter: audienceFilter || { segment: "all_opted_in" },
+      createdBy: req.user?.name || "Admin"
+    });
+
+    res.json({ success: true, campaign });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. Get Campaign Detail with Recipients Queue
+app.get("/api/admin/whatsapp/campaigns/:id", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const campaign = await waMarketingService.getWhatsAppCampaignById(id);
+    if (!campaign) return res.status(404).json({ error: "Campaign not found" });
+    res.json({ success: true, campaign });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 6. Update Recipient Manual Send Status
+app.post("/api/admin/whatsapp/recipients/:id/status", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, failureReason } = req.body;
+    if (!status) return res.status(400).json({ error: "Status is required" });
+
+    const success = await waMarketingService.updateRecipientStatus(id, status, failureReason);
+    res.json({ success });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 7. Message Templates CRUD
+app.get("/api/admin/whatsapp/templates", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const templates = await waMarketingService.getWhatsAppTemplates();
+    res.json({ success: true, templates });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/whatsapp/templates", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { name, category, message, imageUrl } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: "Template name is required" });
+    if (!message || !message.trim()) return res.status(400).json({ error: "Template message is required" });
+
+    const template = await waMarketingService.createWhatsAppTemplate({
+      name,
+      category,
+      message,
+      imageUrl,
+      createdBy: req.user?.name || "Admin"
+    });
+
+    res.json({ success: true, template });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/admin/whatsapp/templates/:id", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const success = await waMarketingService.deleteWhatsAppTemplate(id);
+    res.json({ success });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 
 // --- BULK CAMPAIGN AUTO-EXPIRY (IDEMPOTENT WORKER & CRON ENDPOINT) ---
 

@@ -44,7 +44,8 @@ import {
   Menu,
   BellRing,
   Ban,
-  Lock
+  Lock,
+  MessageSquare
 } from "lucide-react";
 
 import * as XLSX from "xlsx";
@@ -58,6 +59,8 @@ import AdminNotificationCenter from "./AdminNotificationCenter";
 import AuditLogPanel from "./AuditLogPanel";
 import AdminRestockRequests from "./AdminRestockRequests";
 import CustomInvoiceGenerator from "./CustomInvoiceGenerator";
+import AccountsLedger from "./AccountsLedger";
+import WhatsAppMarketing from "./WhatsAppMarketing";
 import {
   getDeliveryWindow,
   groupOrdersByDeliverySchedule,
@@ -83,7 +86,8 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
     "/admin/restock-requests" |
     "/admin/notifications" | 
     "/admin/settings" | "/admin/bulk-deals" | "/admin/audit-logs" | "/admin/finance" |
-    "/admin/invoice-generator"
+    "/admin/invoice-generator" |
+    "/admin/whatsapp-marketing"
   >("/admin/dashboard");
 
   const [pendingRestockCount, setPendingRestockCount] = useState(0);
@@ -105,7 +109,8 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
         "/admin/bulk-deals",
         "/admin/audit-logs",
         "/admin/finance",
-        "/admin/invoice-generator"
+        "/admin/invoice-generator",
+        "/admin/whatsapp-marketing"
       ];
       if (validRoutes.includes(matched)) {
         setActiveRoute(matched);
@@ -1502,7 +1507,22 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
               }`}
             >
               <CircleDollarSign className="w-4 h-4" />
-              <span>Finance Panel</span>
+              <span>Accounts & Ledger</span>
+            </button>
+
+            <button
+              onClick={() => navigateTo("/admin/whatsapp-marketing")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all ${
+                activeRoute === "/admin/whatsapp-marketing" ? "bg-indigo-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <MessageSquare className="w-4 h-4 text-emerald-500" />
+              <div className="flex items-center justify-between flex-1">
+                <span>WhatsApp Marketing</span>
+                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-700 border border-emerald-200">
+                  FREE
+                </span>
+              </div>
             </button>
 
             <button
@@ -1796,6 +1816,16 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                               <Sparkles className="w-4 h-4" /> Publish Flash Offer
                             </span>
                             <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            onClick={() => navigateTo("/admin/whatsapp-marketing")}
+                            className="w-full bg-emerald-50 hover:bg-emerald-100/80 text-emerald-800 border border-emerald-200/80 p-3.5 rounded-xl text-xs font-semibold tracking-wide transition-all flex items-center justify-between cursor-pointer"
+                          >
+                            <span className="flex items-center gap-2">
+                              <MessageSquare className="w-4 h-4 text-emerald-600" /> WhatsApp Marketing (Free)
+                            </span>
+                            <ArrowRight className="w-3.5 h-3.5 text-emerald-600" />
                           </button>
                         </div>
 
@@ -3344,8 +3374,11 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                 />
               )}
 
-              {/* SCREEN: FINANCE ACCOUNTING */}
+              {/* SCREEN: ACCOUNTS & BUSINESS LEDGER */}
               {activeRoute === "/admin/finance" && (
+                <AccountsLedger pharmacies={pharmacies} products={products} />
+              )}
+              {false && activeRoute === "/admin/finance" && (
                 <div className="space-y-6 animate-fade-in text-slate-700">
                   <div className="flex items-center justify-between">
                     <div>
@@ -3513,6 +3546,16 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
 
 
               
+              {/* SCREEN: WHATSAPP MARKETING (FREE BUSINESS WORKFLOW) */}
+              {activeRoute === "/admin/whatsapp-marketing" && (
+                <div className="-m-4 sm:-m-6 lg:-m-8 h-[calc(100%+2rem)] sm:h-[calc(100%+3rem)] lg:h-[calc(100%+4rem)] min-h-[720px] flex flex-col">
+                  <WhatsAppMarketing
+                    pharmacies={pharmacies}
+                    onRefreshPharmacies={refreshAllData}
+                  />
+                </div>
+              )}
+
               {/* SCREEN: CUSTOM INSTITUTIONAL INVOICE GENERATOR */}
               {activeRoute === "/admin/invoice-generator" && (
                 <div className="-m-4 sm:-m-6 lg:-m-8 h-[calc(100%+2rem)] sm:h-[calc(100%+3rem)] lg:h-[calc(100%+4rem)] min-h-[720px] flex flex-col">

@@ -104,6 +104,12 @@ export interface Pharmacy {
     ip_address?: string;
     verified_authenticity_declaration: boolean;
   };
+
+  // WhatsApp Marketing Consent
+  whatsappMarketingOptIn?: boolean;
+  whatsappMarketingOptInAt?: string;
+  whatsappMarketingOptInSource?: string;
+  whatsappMarketingOptOutAt?: string;
 }
 
 export interface LegalConsent {
@@ -457,6 +463,271 @@ export interface CustomInvoiceData {
   dueAmount: number;
   notes?: string;
   updatedAt?: string;
+  totalCogs?: number | null;
+  grossProfit?: number | null;
+  hasUnknownCosts?: boolean;
+  status?: "Saved" | "Voided" | "Paid";
+  voidReason?: string;
 }
+
+// ==========================================
+// UNIFIED ACCOUNTS & BUSINESS LEDGER TYPES
+// ==========================================
+
+export type ExpenseCategory =
+  | "Delivery"
+  | "Transport"
+  | "Packaging"
+  | "Office"
+  | "Communication"
+  | "Software"
+  | "Marketing"
+  | "Salary/Wages"
+  | "Rent"
+  | "Bank/Payment Fees"
+  | "Miscellaneous";
+
+export interface PurchaseItem {
+  productId?: string;
+  name: string;
+  strength?: string;
+  packSize?: string;
+  batchNumber?: string;
+  expiryDate?: string;
+  quantity: number;
+  buyingPrice: number;
+  totalCost: number;
+}
+
+export interface Purchase {
+  id: string;
+  purchaseNumber: string;
+  supplierName: string;
+  invoiceReference?: string;
+  purchaseDate: string; // YYYY-MM-DD
+  totalAmount: number;
+  paidAmount: number;
+  dueAmount: number;
+  paymentStatus: "Paid" | "Partially Paid" | "Unpaid";
+  paymentMethod: "Cash" | "Bank Transfer" | "bKash" | "Nagad" | "Cheque" | "Credit/Payable" | "Other";
+  notes?: string;
+  items?: PurchaseItem[];
+  status: "Active" | "Voided";
+  voidReason?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomerCollection {
+  id: string;
+  collectionNumber: string;
+  pharmacyId?: string;
+  customerName: string;
+  collectionDate: string; // YYYY-MM-DD
+  amount: number;
+  paymentMethod: "Cash" | "Bank Transfer" | "bKash" | "Nagad" | "Cheque" | "Card" | "Other";
+  referenceInvoiceId?: string;
+  notes?: string;
+  status: "Active" | "Voided";
+  voidReason?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BusinessExpense {
+  id: string;
+  expenseNumber: string;
+  expenseDate: string; // YYYY-MM-DD
+  category: ExpenseCategory;
+  amount: number;
+  paymentMethod: "Cash" | "Bank Transfer" | "bKash" | "Nagad" | "Cheque" | "Card" | "Other";
+  description: string;
+  reference?: string;
+  attachmentUrl?: string;
+  status: "Active" | "Voided";
+  voidReason?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CapitalTransaction {
+  id: string;
+  transactionNumber: string;
+  transactionDate: string; // YYYY-MM-DD
+  type: "Contribution" | "Withdrawal";
+  partnerName: string;
+  amount: number;
+  paymentMethod: "Cash" | "Bank Transfer" | "bKash" | "Nagad" | "Cheque" | "Other";
+  reference?: string;
+  notes?: string;
+  status: "Active" | "Voided";
+  voidReason?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DailyLedgerSummary {
+  date: string; // YYYY-MM-DD
+  formattedDate: string; // e.g. "06 Oct 2026"
+  purchases: number;
+  deliveredSales: number;
+  customerCollections: number;
+  customerOutstanding: number;
+  cogs: number;
+  grossProfit: number;
+  deliveryExpenses: number;
+  otherExpenses: number;
+  netProfit: number;
+  cashIn: number;
+  cashOut: number;
+  netCashFlow: number;
+  capitalContributions: number;
+  capitalWithdrawals: number;
+  ordersCount: number;
+  invoicesCount: number;
+  hasIncompleteCost: boolean;
+  isClosed?: boolean;
+}
+
+export interface AccountsOverviewData {
+  todaySummary: DailyLedgerSummary;
+  dateRangeSummary: DailyLedgerSummary;
+  totalReceivables: number;
+  totalPayables: number;
+  totalCapital: number;
+  currentInventoryValue: number;
+  missingCostCount: number;
+  totalDeliveredOrders: number;
+  totalActiveInvoices: number;
+}
+
+export interface CustomerReceivableItem {
+  id: string;
+  sourceType: "Order" | "Combined Invoice" | "Custom Invoice";
+  customerName: string;
+  pharmacyId?: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  totalAmount: number;
+  collectedAmount: number;
+  dueAmount: number;
+  lastCollectionDate?: string;
+  status: "Paid" | "Partially Paid" | "Outstanding";
+  deliverySchedule?: string;
+}
+
+export interface SupplierPayableItem {
+  id: string;
+  purchaseNumber: string;
+  supplierName: string;
+  purchaseDate: string;
+  totalAmount: number;
+  paidAmount: number;
+  dueAmount: number;
+  status: "Paid" | "Partially Paid" | "Unpaid";
+  notes?: string;
+}
+
+export interface ReconciliationReport {
+  timestamp: string;
+  checks: {
+    name: string;
+    description: string;
+    sourceA: { name: string; value: number };
+    sourceB: { name: string; value: number };
+    difference: number;
+    status: "PASS" | "WARNING" | "ERROR";
+  }[];
+  overallStatus: "PASS" | "WARNING" | "ERROR";
+}
+
+// ==========================================
+// WHATSAPP BUSINESS MARKETING TYPES
+// ==========================================
+
+export type WhatsAppCampaignStatus = "draft" | "ready" | "in_progress" | "completed" | "archived";
+export type WhatsAppRecipientStatus = "pending" | "opened" | "sent" | "skipped" | "failed" | "invalid";
+
+export interface WhatsAppAudienceFilter {
+  segment: "all_opted_in" | "active_buyers" | "frequent_buyers" | "first_order" | "high_value" | "inactive" | "all_verified";
+  city?: string;
+  minOrderCount?: number;
+  minPurchaseAmount?: number;
+  search?: string;
+}
+
+export interface WhatsAppCampaign {
+  id: string;
+  name: string;
+  messageTemplate: string;
+  imageUrl?: string;
+  audienceFilter: WhatsAppAudienceFilter;
+  totalAudience: number;
+  eligibleCount: number;
+  sentCount: number;
+  openedCount: number;
+  skippedCount: number;
+  invalidCount: number;
+  status: WhatsAppCampaignStatus;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+  recipients?: WhatsAppCampaignRecipient[];
+}
+
+export interface WhatsAppCampaignRecipient {
+  id: string;
+  campaignId: string;
+  pharmacyId: string;
+  pharmacyName: string;
+  ownerName: string;
+  rawPhone: string;
+  formattedWhatsappNumber?: string;
+  personalizedMessage: string;
+  waMeUrl?: string;
+  status: WhatsAppRecipientStatus;
+  openedAt?: string;
+  sentAt?: string;
+  skippedAt?: string;
+  failureReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type WhatsAppTemplateCategory =
+  | "Promotion"
+  | "Product Discount"
+  | "New Product"
+  | "Announcement"
+  | "Festival Offer"
+  | "Reminder"
+  | "Custom";
+
+export interface WhatsAppTemplate {
+  id: string;
+  name: string;
+  category: WhatsAppTemplateCategory;
+  message: string;
+  imageUrl?: string;
+  isArchived: boolean;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WhatsAppAudienceStats {
+  totalPharmacies: number;
+  optedInCount: number;
+  optedOutCount: number;
+  missingPhoneCount: number;
+  validBangladeshNumbersCount: number;
+  invalidNumbersCount: number;
+}
+
+
 
 

@@ -15,3 +15,5 @@ export * from "./storage";
 export * from "./bulkDeals";
 export * from "./heroCarouselService";
 export * from "./restockService";
+export * from "./accountsService";
+export * from "./whatsappService";

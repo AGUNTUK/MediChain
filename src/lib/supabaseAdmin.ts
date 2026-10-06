@@ -1,6 +1,13 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import dotenv from "dotenv";
-dotenv.config();
+
+// In Node server/test environment, ensure env is loaded
+if (typeof process !== "undefined" && typeof (process as any).cwd === "function") {
+  try {
+    import("dotenv").then(dotenv => dotenv.config()).catch(() => {});
+  } catch {
+    // ignore
+  }
+}
 
 let adminClientInstance: SupabaseClient | null = null;
 

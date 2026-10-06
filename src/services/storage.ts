@@ -92,6 +92,13 @@ export const storageService = {
   },
 
   /**
+   * Upload an administrator catalog image or campaign poster to the public "product-images" bucket
+   */
+  async uploadVerificationDocument(file: File, folder = "documents"): Promise<{ path: string; url: string }> {
+    return this.uploadProductImage(file);
+  },
+
+  /**
    * Upload an administrator catalog image to the public "product-images" bucket
    */
   async uploadProductImage(file: File): Promise<{ path: string; url: string }> {
