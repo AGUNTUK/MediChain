@@ -5865,6 +5865,17 @@ app.put("/api/admin/capital/partners/:id", requireRole(["Admin"]), async (req, r
   }
 });
 
+app.delete("/api/admin/capital/partners/:id", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const partner = await capitalPartnerService.getPartnerById(req.params.id);
+    if (!partner) return res.status(404).json({ error: "Partner not found" });
+    await capitalPartnerService.deletePartner(req.params.id);
+    res.json({ success: true, message: "Partner profile deleted successfully" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/api/admin/capital/partners/:id/ledger", requireRole(["Admin"]), async (req, res) => {
   try {
     const ledgerData = await capitalPartnerService.getPartnerCapitalLedger(req.params.id);
@@ -6014,6 +6025,17 @@ app.post("/api/admin/capital/documents/:id/void", requireRole(["Admin"]), async 
     }
     const voided = await capitalPartnerService.voidCapitalDocument(req.params.id, reason, req.user?.name || "Admin");
     res.json({ success: true, document: voided });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/admin/capital/documents/:id", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const doc = await capitalPartnerService.getCapitalDocumentById(req.params.id);
+    if (!doc) return res.status(404).json({ error: "Document not found" });
+    await capitalPartnerService.deleteCapitalDocument(req.params.id);
+    res.json({ success: true, message: "Document deleted successfully" });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

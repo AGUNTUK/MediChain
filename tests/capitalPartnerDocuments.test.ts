@@ -15,7 +15,9 @@ import {
   getCapitalDocuments,
   getCapitalDocumentById,
   getDocumentVersionHistory,
-  getCapitalDashboardStats
+  getCapitalDashboardStats,
+  deletePartner,
+  deleteCapitalDocument
 } from "../src/lib/capitalPartnerService.js";
 import * as accountsService from "../src/lib/accountsService.js";
 
@@ -222,7 +224,44 @@ async function runCapitalPartnerTests() {
   assert.ok(stats.totalSavedDocuments >= 5, "At least 5 documents tracked");
   console.log("  Passed: Dashboard stats aggregated successfully:", stats);
 
-  console.log("\n🎉 ALL 10 CAPITAL & PARTNER DOCUMENT MANAGEMENT TESTS PASSED WITH 100% SUCCESS!");
+  // TEST 11: Document and Partner Profile Deletion
+  console.log("\nTest 11: Document and partner profile deletion...");
+  // 1. Create a transient partner to delete
+  const tempPartner = await createPartner({
+    name: "Temporary Test Partner",
+    phone: "01799887766",
+    partnerType: "INVESTOR_CAPITAL",
+    ownershipPercentage: 0,
+    profitSharePercentage: 0
+  });
+  assert.ok(tempPartner.id, "Transient partner created");
+
+  // 2. Create a transient document to delete
+  const tempDoc = await createCapitalDocumentDraft({
+    documentType: "CASH_RECEIPT_VOUCHER",
+    partnerId: tempPartner.id,
+    amount: 15000,
+    paymentMethod: "Cash",
+    date: "2026-10-06",
+    purpose: "Transient Voucher to Delete"
+  });
+  assert.ok(tempDoc.id, "Transient document drafted");
+
+  // 3. Delete Document
+  const docDeleted = await deleteCapitalDocument(tempDoc.id);
+  assert.strictEqual(docDeleted, true, "deleteCapitalDocument must return true");
+  const checkDoc = await getCapitalDocumentById(tempDoc.id);
+  assert.strictEqual(checkDoc, null, "Deleted document must no longer be found");
+  console.log("  Passed: Saved document successfully deleted and verified unretrievable.");
+
+  // 4. Delete Partner
+  const partnerDeleted = await deletePartner(tempPartner.id);
+  assert.strictEqual(partnerDeleted, true, "deletePartner must return true");
+  const checkPartner = await getPartnerById(tempPartner.id);
+  assert.strictEqual(checkPartner, null, "Deleted partner must no longer be found");
+  console.log("  Passed: Partner profile successfully deleted and verified unretrievable.");
+
+  console.log("\n🎉 ALL 11 CAPITAL & PARTNER DOCUMENT MANAGEMENT TESTS PASSED WITH 100% SUCCESS!");
 }
 
 runCapitalPartnerTests().catch(err => {

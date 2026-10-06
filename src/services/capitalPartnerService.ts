@@ -50,6 +50,14 @@ export const capitalClient = {
     return data.partner;
   },
 
+  async deletePartner(id: string): Promise<boolean> {
+    const res = await apiFetch(`/api/admin/capital/partners/${id}`, {
+      method: "DELETE"
+    });
+    const data = await res.json();
+    return data.success;
+  },
+
   async getPartnerLedger(partnerId: string): Promise<{
     partner: Partner;
     entries: CapitalLedgerEntry[];
@@ -157,6 +165,14 @@ export const capitalClient = {
     });
     const data = await res.json();
     return data.document;
+  },
+
+  async deleteDocument(id: string): Promise<boolean> {
+    const res = await apiFetch(`/api/admin/capital/documents/${id}`, {
+      method: "DELETE"
+    });
+    const data = await res.json();
+    return data.success;
   },
 
   getPdfUrl(id: string): string {

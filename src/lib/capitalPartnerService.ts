@@ -339,6 +339,24 @@ export async function updatePartner(id: string, updates: Partial<Partner>): Prom
   return null;
 }
 
+export async function deletePartner(id: string): Promise<boolean> {
+  try {
+    const { error } = await supabaseAdmin
+      .from("partners")
+      .delete()
+      .eq("id", id);
+    if (error) throw error;
+  } catch (err: any) {
+    console.warn("[CapitalPartners] Fallback deletePartner:", err?.message);
+  }
+
+  const idx = fallbackPartners.findIndex(p => p.id === id);
+  if (idx !== -1) {
+    fallbackPartners.splice(idx, 1);
+  }
+  return true;
+}
+
 function mapPartner(row: any): Partner {
   return {
     id: row.id,
@@ -906,6 +924,24 @@ export async function getDocumentVersionHistory(documentNumber: string): Promise
   return fallbackDocuments
     .filter(d => d.documentNumber === cleanNum)
     .sort((a, b) => a.documentVersion - b.documentVersion);
+}
+
+export async function deleteCapitalDocument(id: string): Promise<boolean> {
+  try {
+    const { error } = await supabaseAdmin
+      .from("capital_documents")
+      .delete()
+      .eq("id", id);
+    if (error) throw error;
+  } catch (err: any) {
+    console.warn("[CapitalDocuments] Fallback deleteCapitalDocument:", err?.message);
+  }
+
+  const idx = fallbackDocuments.findIndex(d => d.id === id);
+  if (idx !== -1) {
+    fallbackDocuments.splice(idx, 1);
+  }
+  return true;
 }
 
 function mapDocument(row: any): CapitalDocument {

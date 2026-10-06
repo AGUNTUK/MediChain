@@ -2395,6 +2395,25 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `npm run lint`: 0 errors.
   - `npm run build`: Production build succeeded.
 
+### TASK 103: Delete Option for Partners & Investors and Saved Documents
+- **SUMMARY:**
+  - Added secure deletion options for both Partner profiles and Saved Documents in Capital & Partner Management (`src/components/CapitalPartners.tsx`).
+  - **Backend API Endpoints (`server.ts`, `src/lib/capitalPartnerService.ts`)**:
+    - `DELETE /api/admin/capital/partners/:id`: Deletes partner profile from database and memory fallback while maintaining historical transactions and audit log safety.
+    - `DELETE /api/admin/capital/documents/:id`: Deletes saved document from repository.
+  - **Client Service (`src/services/capitalPartnerService.ts`)**:
+    - Added `capitalClient.deletePartner(id)` and `capitalClient.deleteDocument(id)`.
+  - **Frontend UI & Safety Confirmations (`src/components/CapitalPartners.tsx`)**:
+    - Added red `Trash2` action buttons in the Partners & Investors table row, the Saved Documents table row, and the Document Viewer top action bar.
+    - Interactive Confirmation Modals:
+      - Partner Delete Modal: Shows partner details, capital balance, equity %, and reassurance of preserved audit trails.
+      - Document Delete Modal: Shows document number, title, partner, status, and clear warning.
+    - Automatic state synchronization and overview metrics refresh upon confirmed deletion.
+- **VERIFICATION:**
+  - `npx tsx tests/capitalPartnerDocuments.test.ts`: Passed 100% (all 11 tests passed including deletion scenarios).
+  - `npm run lint`: 0 errors.
+  - `npm run build`: Production build succeeded.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

@@ -32,7 +32,8 @@ import {
   Mail,
   MapPin,
   Clock,
-  Sparkles
+  Sparkles,
+  Trash2
 } from "lucide-react";
 import {
   Partner,
@@ -91,6 +92,8 @@ export default function CapitalPartners({ initialSubTab = "partners", onBackToAc
   const [voidReason, setVoidReason] = useState<string>("");
   const [showCorrectionModal, setShowCorrectionModal] = useState<CapitalDocument | null>(null);
   const [correctionReason, setCorrectionReason] = useState<string>("");
+  const [deleteConfirmPartner, setDeleteConfirmPartner] = useState<Partner | null>(null);
+  const [deleteConfirmDoc, setDeleteConfirmDoc] = useState<CapitalDocument | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Printable ref
@@ -264,6 +267,44 @@ export default function CapitalPartners({ initialSubTab = "partners", onBackToAc
       setDocuments(docs);
     } catch (err: any) {
       showToast(err.message || "Failed to create new version", true);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle Delete Partner Profile
+  const handleDeletePartner = async (partnerId: string) => {
+    try {
+      setIsSubmitting(true);
+      await capitalClient.deletePartner(partnerId);
+      showToast("Partner profile deleted successfully");
+      setDeleteConfirmPartner(null);
+      if (selectedPartnerId === partnerId) {
+        setSelectedPartnerId(null);
+        setPartnerLedger(null);
+        setActiveTab("partners");
+      }
+      await loadDashboardData();
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete partner", true);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle Delete Saved Document
+  const handleDeleteDocument = async (docId: string) => {
+    try {
+      setIsSubmitting(true);
+      await capitalClient.deleteDocument(docId);
+      showToast("Document deleted successfully");
+      setDeleteConfirmDoc(null);
+      if (viewingDocument?.id === docId) {
+        setViewingDocument(null);
+      }
+      await loadDashboardData();
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete document", true);
     } finally {
       setIsSubmitting(false);
     }
@@ -601,6 +642,14 @@ export default function CapitalPartners({ initialSubTab = "partners", onBackToAc
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
+
+                          <button
+                            onClick={() => setDeleteConfirmPartner(partner)}
+                            className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition-colors cursor-pointer"
+                            title="Delete Partner Profile"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -925,6 +974,14 @@ export default function CapitalPartners({ initialSubTab = "partners", onBackToAc
                                 <Archive className="w-3.5 h-3.5" />
                               </button>
                             )}
+
+                            <button
+                              onClick={() => setDeleteConfirmDoc(doc)}
+                              className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition-colors cursor-pointer"
+                              title="Delete Document"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -1491,6 +1548,15 @@ export default function CapitalPartners({ initialSubTab = "partners", onBackToAc
                 </a>
 
                 <button
+                  onClick={() => setDeleteConfirmDoc(viewingDocument)}
+                  className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                  title="Delete Document"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete</span>
+                </button>
+
+                <button
                   onClick={() => setViewingDocument(null)}
                   className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
                 >
@@ -1761,6 +1827,119 @@ export default function CapitalPartners({ initialSubTab = "partners", onBackToAc
                 className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold cursor-pointer"
               >
                 {isSubmitting ? "Creating..." : `Create Version ${showCorrectionModal.documentVersion + 1}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 7: DELETE PARTNER CONFIRMATION */}
+      {/* ========================================================================= */}
+      {deleteConfirmPartner && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 space-y-4 animate-scale-in">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Delete Partner Profile</h3>
+                <p className="text-xs text-slate-500">This action will remove the partner from the active registry.</p>
+              </div>
+            </div>
+
+            <div className="bg-rose-50/70 border border-rose-200/80 rounded-xl p-3.5 space-y-2">
+              <div className="text-xs font-bold text-slate-900">
+                {deleteConfirmPartner.name}
+              </div>
+              <div className="text-[11px] text-slate-600 space-y-0.5">
+                <div><span className="font-semibold text-slate-700">Type:</span> {deleteConfirmPartner.partnerType.replace(/_/g, " ")}</div>
+                <div><span className="font-semibold text-slate-700">Phone:</span> {deleteConfirmPartner.phone}</div>
+                <div><span className="font-semibold text-slate-700">Capital Balance:</span> {formatTaka(deleteConfirmPartner.currentCapitalBalance)}</div>
+                <div><span className="font-semibold text-slate-700">Equity / Profit:</span> {deleteConfirmPartner.ownershipPercentage}% / {deleteConfirmPartner.profitSharePercentage}%</div>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-200/80">
+              Note: Historical financial records, ledger transactions, and issued documents remain safely preserved in the audit log.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmPartner(null)}
+                disabled={isSubmitting}
+                className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeletePartner(deleteConfirmPartner.id)}
+                disabled={isSubmitting}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isSubmitting ? "Deleting..." : "Confirm Delete"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 8: DELETE SAVED DOCUMENT CONFIRMATION */}
+      {/* ========================================================================= */}
+      {deleteConfirmDoc && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 space-y-4 animate-scale-in">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Delete Saved Document</h3>
+                <p className="text-xs text-slate-500">Permanently remove this document from the repository.</p>
+              </div>
+            </div>
+
+            <div className="bg-rose-50/70 border border-rose-200/80 rounded-xl p-3.5 space-y-2">
+              <div className="font-mono text-xs font-bold text-slate-900">
+                {deleteConfirmDoc.documentNumber}
+              </div>
+              <div className="text-[11px] text-slate-600 space-y-0.5">
+                <div><span className="font-semibold text-slate-700">Title:</span> {deleteConfirmDoc.documentTitle}</div>
+                <div><span className="font-semibold text-slate-700">Partner:</span> {deleteConfirmDoc.partnerName}</div>
+                <div><span className="font-semibold text-slate-700">Status:</span> {deleteConfirmDoc.documentStatus.toUpperCase()} (v{deleteConfirmDoc.documentVersion})</div>
+                {deleteConfirmDoc.documentPayload?.amount && (
+                  <div><span className="font-semibold text-slate-700">Amount:</span> {formatTaka(deleteConfirmDoc.documentPayload.amount)}</div>
+                )}
+              </div>
+            </div>
+
+            <p className="text-[11px] text-amber-700 bg-amber-50 p-2.5 rounded-lg border border-amber-200/80 flex items-center gap-1.5">
+              <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+              <span>Warning: This will permanently delete this document from the system repository.</span>
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmDoc(null)}
+                disabled={isSubmitting}
+                className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteDocument(deleteConfirmDoc.id)}
+                disabled={isSubmitting}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isSubmitting ? "Deleting..." : "Confirm Delete"}</span>
               </button>
             </div>
           </div>
