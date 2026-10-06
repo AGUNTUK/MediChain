@@ -28,6 +28,8 @@ import { supabaseAdmin } from "./src/lib/supabaseAdmin.js";
 import * as dbService from "./src/lib/dbService.js";
 import * as accountsService from "./src/lib/accountsService.js";
 import * as waMarketingService from "./src/lib/whatsappMarketingService.js";
+import * as capitalPartnerService from "./src/lib/capitalPartnerService.js";
+import { renderCapitalDocumentPdf } from "./src/lib/capitalPdfService.js";
 import {
   getDeliveryWindow,
   groupOrdersByDeliverySchedule,
@@ -5501,7 +5503,7 @@ app.put("/api/admin/accounts/daily-ledger/:date", requireRole(["Admin"]), async 
       cashIn: req.body.cashIn !== undefined ? Number(req.body.cashIn) : undefined,
       cashOut: req.body.cashOut !== undefined ? Number(req.body.cashOut) : undefined,
       notes: req.body.notes ? String(req.body.notes).trim() : undefined,
-      editedBy: req.user?.name || req.user?.email || "Admin"
+      editedBy: req.user?.email || req.user?.name || "Admin"
     };
 
     const updatedRow = await accountsService.saveDailyLedgerOverride(date, overrideData);
@@ -5519,10 +5521,45 @@ app.delete("/api/admin/accounts/daily-ledger/:date/override", requireRole(["Admi
     if (!date) {
       return res.status(400).json({ error: "Missing date parameter." });
     }
-    const resetRow = await accountsService.resetDailyLedgerOverride(date);
+    const resetRow = await accountsService.resetDailyLedgerOverride(date, req.user?.email || req.user?.name || "Admin");
     res.json({ success: true, row: resetRow });
   } catch (err: any) {
     console.error("[Accounts API] Error in DELETE /daily-ledger/:date/override:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2d. Section 22: Universal Daily Ledger Override Endpoints (PATCH / DELETE aliases)
+app.patch("/api/admin/accounts/daily-ledger/override", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { ledgerDate, field, value, reason } = req.body;
+    const date = ledgerDate || req.body.date;
+    if (!date) return res.status(400).json({ error: "Missing ledgerDate parameter." });
+
+    const overrideData: any = {
+      date,
+      notes: reason,
+      editedBy: req.user?.email || req.user?.name || "Admin"
+    };
+    if (field && value !== undefined) {
+      overrideData[field] = Number(value);
+    }
+    const updatedRow = await accountsService.saveDailyLedgerOverride(date, overrideData);
+    res.json({ success: true, row: updatedRow });
+  } catch (err: any) {
+    console.error("[Accounts API] Error in PATCH /daily-ledger/override:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/admin/accounts/daily-ledger/override", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const date = (req.query.date as string) || (req.query.ledgerDate as string) || req.body?.date || req.body?.ledgerDate;
+    if (!date) return res.status(400).json({ error: "Missing date parameter." });
+    const resetRow = await accountsService.resetDailyLedgerOverride(date, req.user?.email || req.user?.name || "Admin");
+    res.json({ success: true, row: resetRow });
+  } catch (err: any) {
+    console.error("[Accounts API] Error in DELETE /daily-ledger/override:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -5748,6 +5785,246 @@ app.post("/api/admin/accounts/capital/:id/void", requireRole(["Admin"]), async (
     }
     const success = await accountsService.voidCapitalTransaction(id, reason);
     res.json({ success });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==============================================================================
+// 6B. CAPITAL & PARTNER DOCUMENT MANAGEMENT SYSTEM (ADMIN ONLY)
+// ==============================================================================
+
+// 1. Dashboard Overview Stats
+app.get("/api/admin/capital/overview", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const stats = await capitalPartnerService.getCapitalDashboardStats();
+    res.json({ success: true, stats });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. Partners List & Search
+app.get("/api/admin/capital/partners", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const search = req.query.search as string;
+    const type = req.query.type as string;
+    const status = req.query.status as string;
+    const partners = await capitalPartnerService.getPartners({ search, type, status });
+    res.json({ success: true, partners });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. Create Partner Profile
+app.post("/api/admin/capital/partners", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { name, phone, email, address, nidReference, partnerType, ownershipPercentage, profitSharePercentage, joiningDate, notes } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: "Partner name is required" });
+    if (!phone || !phone.trim()) return res.status(400).json({ error: "Partner phone is required" });
+
+    const partner = await capitalPartnerService.createPartner({
+      name,
+      phone,
+      email,
+      address,
+      nidReference,
+      partnerType: partnerType || "PARTNER_CAPITAL",
+      ownershipPercentage,
+      profitSharePercentage,
+      joiningDate,
+      notes,
+      createdBy: req.user?.name || "Admin"
+    });
+
+    res.json({ success: true, partner });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. Partner Detail & Capital Ledger
+app.get("/api/admin/capital/partners/:id", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const partner = await capitalPartnerService.getPartnerById(req.params.id);
+    if (!partner) return res.status(404).json({ error: "Partner not found" });
+    res.json({ success: true, partner });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/admin/capital/partners/:id", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const updated = await capitalPartnerService.updatePartner(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: "Partner not found" });
+    res.json({ success: true, partner: updated });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/admin/capital/partners/:id/ledger", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const ledgerData = await capitalPartnerService.getPartnerCapitalLedger(req.params.id);
+    res.json({ success: true, ...ledgerData });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. Record Capital Contribution (Atomic Cash Book & Partner Ledger Sync)
+app.post("/api/admin/capital/contributions", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { partnerId, amount, paymentMethod, transactionDate, purpose, reference, notes } = req.body;
+    if (!partnerId) return res.status(400).json({ error: "partnerId is required" });
+    if (amount === undefined || isNaN(Number(amount)) || Number(amount) <= 0) {
+      return res.status(400).json({ error: "Valid capital amount greater than 0 is required" });
+    }
+
+    const result = await capitalPartnerService.recordPartnerCapitalContribution({
+      partnerId,
+      amount: Number(amount),
+      paymentMethod: paymentMethod || "Cash",
+      transactionDate,
+      purpose,
+      reference,
+      notes,
+      createdBy: req.user?.name || "Admin"
+    });
+
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 6. Record Capital Withdrawal
+app.post("/api/admin/capital/withdrawals", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { partnerId, amount, paymentMethod, transactionDate, purpose, reference, notes } = req.body;
+    if (!partnerId) return res.status(400).json({ error: "partnerId is required" });
+    if (amount === undefined || isNaN(Number(amount)) || Number(amount) <= 0) {
+      return res.status(400).json({ error: "Valid withdrawal amount greater than 0 is required" });
+    }
+
+    const transaction = await capitalPartnerService.recordPartnerCapitalWithdrawal({
+      partnerId,
+      amount: Number(amount),
+      paymentMethod: paymentMethod || "Bank Transfer",
+      transactionDate,
+      purpose,
+      reference,
+      notes,
+      createdBy: req.user?.name || "Admin"
+    });
+
+    res.json({ success: true, transaction });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 7. Documents CRUD & Generator
+app.get("/api/admin/capital/documents", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const partnerId = req.query.partnerId as string;
+    const type = req.query.type as string;
+    const status = req.query.status as string;
+    const search = req.query.search as string;
+
+    const documents = await capitalPartnerService.getCapitalDocuments({ partnerId, type, status, search });
+    res.json({ success: true, documents });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/capital/documents/draft", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { documentType, partnerId, capitalTransactionId, amount, paymentMethod, date, purpose, customPayload } = req.body;
+    if (!documentType || !partnerId) {
+      return res.status(400).json({ error: "documentType and partnerId are required" });
+    }
+
+    const doc = await capitalPartnerService.createCapitalDocumentDraft({
+      documentType,
+      partnerId,
+      capitalTransactionId,
+      amount: amount !== undefined ? Number(amount) : undefined,
+      paymentMethod,
+      date,
+      purpose,
+      customPayload,
+      createdBy: req.user?.name || "Admin"
+    });
+
+    res.json({ success: true, document: doc });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/admin/capital/documents/:id", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const doc = await capitalPartnerService.getCapitalDocumentById(req.params.id);
+    if (!doc) return res.status(404).json({ error: "Document not found" });
+    const history = await capitalPartnerService.getDocumentVersionHistory(doc.documentNumber);
+    res.json({ success: true, document: doc, history });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/capital/documents/:id/finalize", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const finalized = await capitalPartnerService.finalizeCapitalDocument(req.params.id, req.user?.name || "Admin");
+    res.json({ success: true, document: finalized });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/capital/documents/:id/new-version", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { updatedPayload, reason } = req.body;
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ error: "Correction reason is required for creating a new document version" });
+    }
+
+    const newDoc = await capitalPartnerService.createDocumentCorrectionVersion(
+      req.params.id,
+      updatedPayload || {},
+      reason,
+      req.user?.name || "Admin"
+    );
+
+    res.json({ success: true, document: newDoc });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/capital/documents/:id/void", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { reason } = req.body;
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ error: "Void reason is required" });
+    }
+    const voided = await capitalPartnerService.voidCapitalDocument(req.params.id, reason, req.user?.name || "Admin");
+    res.json({ success: true, document: voided });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 8. PDF Download & Rendering for Capital Documents
+app.get("/api/admin/capital/documents/:id/pdf", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const doc = await capitalPartnerService.getCapitalDocumentById(req.params.id);
+    if (!doc) return res.status(404).json({ error: "Document not found" });
+    renderCapitalDocumentPdf(res, doc);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

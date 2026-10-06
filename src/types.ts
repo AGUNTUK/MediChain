@@ -554,21 +554,114 @@ export interface BusinessExpense {
   updatedAt: string;
 }
 
+export type PartnerType = 
+  | "PARTNER_CAPITAL" 
+  | "INVESTOR_CAPITAL" 
+  | "PARTNER_LOAN" 
+  | "BUSINESS_LOAN";
+
+export type PartnerStatus = "Active" | "Inactive" | "Archived";
+
+export interface Partner {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  address?: string;
+  nidReference?: string;
+  partnerType: PartnerType;
+  ownershipPercentage: number;
+  profitSharePercentage: number;
+  joiningDate: string; // YYYY-MM-DD
+  status: PartnerStatus;
+  notes?: string;
+  totalContributed: number;
+  totalWithdrawn: number;
+  currentCapitalBalance: number;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CapitalTransaction {
   id: string;
   transactionNumber: string;
   transactionDate: string; // YYYY-MM-DD
-  type: "Contribution" | "Withdrawal";
+  type: "Contribution" | "Withdrawal" | "Adjustment" | "Profit Allocation";
   partnerName: string;
+  partnerId?: string;
   amount: number;
   paymentMethod: "Cash" | "Bank Transfer" | "bKash" | "Nagad" | "Cheque" | "Other";
   reference?: string;
+  purpose?: string;
   notes?: string;
   status: "Active" | "Voided";
   voidReason?: string;
   createdBy?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CapitalLedgerEntry {
+  id: string;
+  date: string;
+  transactionNumber: string;
+  reference?: string;
+  type: "Contribution" | "Withdrawal" | "Adjustment" | "Profit Allocation";
+  description: string;
+  contribution: number;
+  withdrawal: number;
+  profitAllocation: number;
+  adjustment: number;
+  balance: number;
+  paymentMethod?: string;
+  status: "Active" | "Voided";
+  documentCount?: number;
+}
+
+export type CapitalDocumentType =
+  | "CAPITAL_CONTRIBUTION_RECEIPT"
+  | "CASH_RECEIPT_VOUCHER"
+  | "CAPITAL_CONTRIBUTION_CERTIFICATE"
+  | "PARTNER_CAPITAL_STATEMENT"
+  | "PARTNER_CAPITAL_AGREEMENT";
+
+export type CapitalDocumentStatus = "draft" | "finalized" | "superseded" | "voided" | "archived";
+
+export interface CapitalDocument {
+  id: string;
+  documentNumber: string;
+  documentType: CapitalDocumentType;
+  partnerId?: string;
+  partnerName: string;
+  capitalTransactionId?: string;
+  documentTitle: string;
+  documentStatus: CapitalDocumentStatus;
+  documentVersion: number;
+  storagePath?: string;
+  fileUrl?: string;
+  documentPayload: any;
+  createdBy?: string;
+  finalizedBy?: string;
+  finalizedAt?: string;
+  voidReason?: string;
+  supersededBy?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CapitalDashboardStats {
+  totalPartners: number;
+  totalCapitalContributed: number;
+  totalCapitalWithdrawn: number;
+  netPartnerCapital: number;
+  cashContributions: number;
+  bankContributions: number;
+  thisMonthContributions: number;
+  thisMonthWithdrawals: number;
+  totalSavedDocuments: number;
+  activeAgreementsCount: number;
 }
 
 export interface DailyLedgerSummary {
@@ -598,6 +691,7 @@ export interface DailyLedgerSummary {
   overrideNotes?: string;
   lastEditedBy?: string;
   lastEditedAt?: string;
+  overriddenFields?: string[];
   rawCalculated?: {
     purchases: number;
     deliveredSales: number;
@@ -630,6 +724,8 @@ export interface DailyLedgerOverride {
   notes?: string;
   editedBy?: string;
   editedAt?: string;
+  overriddenFields?: string[];
+  rawCalculated?: any;
 }
 
 export interface AccountsOverviewData {

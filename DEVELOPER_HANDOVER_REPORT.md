@@ -2339,6 +2339,62 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `npm run lint` (`tsc --noEmit`): 0 errors.
   - `npm run build`: Production build succeeded.
 
+### TASK 101: Enterprise Partner Capital, Investor Management & Branded Document Generation System
+- **TIMESTAMP:** 2026-10-06
+- **USER BRIEF & REQUIREMENTS:**
+  - Complete institutional partner and investor management module for MediChain.
+  - Track partner equity profiles, capital contributions, withdrawals, and capital balances.
+  - Generate 5 institutional branded document types with official BDT numbering, amount-in-words conversion, and PDF rendering:
+    1. Capital Contribution Receipt (`MC-CAP-RCP-YYYY-####`)
+    2. Cash Receipt Voucher (`MC-CAP-VCH-YYYY-####`)
+    3. Capital Contribution Certificate (`MC-CAP-CERT-YYYY-####`)
+    4. Partner Capital Statement (`MC-CAP-STM-YYYY-####`)
+    5. Partner Capital Agreement (`MC-CAP-AGR-YYYY-####`)
+  - Strict accounting separation: Partner capital credits Cash/Bank and Partner Equity; strictly 100% excluded from Sales Revenue, COGS, and Operational Trading Profit.
+  - Financial locking, document versioning (V1 -> V2 correction trail with audit reasons), and void workflows.
+- **CHANGES & ARCHITECTURE:**
+  - **Database & Schemas (`supabase/migrations/17_capital_and_partner_documents.sql`)**:
+    - Created `partners`, `capital_documents`, `capital_document_versions`, `capital_document_audit_logs`, and `capital_document_sequences`.
+    - Added `partner_id` FK and column migrations to `capital_transactions`.
+    - Automated sequential document numbering function `generate_capital_document_number`.
+  - **Backend Services & API Endpoints (`server.ts`, `src/lib/capitalPartnerService.ts`)**:
+    - Partner CRUD: `GET/POST /api/admin/partners`, `GET/PUT/DELETE /api/admin/partners/:id`.
+    - Capital Contributions/Withdrawals: `POST /api/admin/partners/:id/contributions`, `POST /api/admin/partners/:id/withdrawals`.
+    - Partner Capital Ledger: `GET /api/admin/partners/:id/ledger`.
+    - Document Management: `GET/POST /api/admin/capital-documents`, `GET /api/admin/capital-documents/:id`, `POST /api/admin/capital-documents/:id/finalize`, `POST /api/admin/capital-documents/:id/void`, `POST /api/admin/capital-documents/:id/correct`, `GET /api/admin/capital-documents/by-number/:docNumber/history`.
+    - PDF Generation & Download: `GET /api/admin/capital-documents/:id/pdf` (integrated with PDFKit for server-rendered institutional PDFs + client-side PDF fallback).
+    - Summary Dashboard: `GET /api/admin/capital-dashboard/stats`.
+  - **Frontend UI & Navigation (`src/components/CapitalPartners.tsx`, `src/components/AdminPanel.tsx`)**:
+    - Added dedicated "Capital & Partners" tab in Admin sidebar with Landmark/Building icons and compliance badges.
+    - 4 tabbed workspaces: Overview & Analytics, Partner Profiles & Equity, Capital Documents & Repository, and Audit & Corrections History.
+    - Interactive Document Viewer with print layout, PDF download, finalization lock, and version history drawer.
+    - Partner Capital Contribution Modal with automatic receipt/voucher creation.
+  - **Strict Accounting Rule Verification**:
+    - Contributed capital increases Cash In and Partner Equity balance.
+    - Zero impact on Delivered Sales, COGS, Gross Profit, and Net Profit.
+- **VERIFICATION:**
+  - `npx tsx tests/capitalPartnerDocuments.test.ts`: Passed 100% (all 10 acceptance scenarios).
+  - `npx tsx tests/accountsLedger.test.ts`: Passed 100%.
+  - `npx tsx tests/dailyLedgerOverridesPersistence.test.ts`: Passed 100% (all 10 persistence & reload tests).
+  - `npx tsx tests/deliverySchedule.test.ts`: Passed 100% (24/24 tests).
+  - `npx tsx tests/whatsappMarketing.test.ts`: Passed 100%.
+  - `npm run lint` (`tsc --noEmit`): 0 errors.
+  - `npm run build`: Production build succeeded.
+
+### TASK 102: Daily Business Ledger Manual Override Authoritative Persistence & Reload Survival
+- **SUMMARY:**
+  - Resolved manual cell inline override persistence in the Daily Business Ledger table (`src/components/AccountsLedger.tsx`).
+  - Corrected schema compatibility in `daily_ledger_overrides` Supabase table and service layer:
+    - Added resilient storage for all override fields including `delivery_charge_collected` and `transport_expenses` with metadata fallback so older schemas never drop or error on upsert.
+    - Verified that manual overrides survive server restarts, browser refreshes, date filtering, and range aggregations.
+    - Added an authoritative "Reset to Auto" action per date with comprehensive audit logging in `audit_logs`.
+    - Implemented centralized `getEffectiveLedgerValue` helper ensuring manual values always take strict precedence over transactional auto-calculations.
+- **VERIFICATION:**
+  - `npx tsx tests/dailyLedgerOverridesPersistence.test.ts`: 10/10 tests passed (100% success).
+  - `npx tsx tests/accountsLedger.test.ts`: All 7 scenarios passed (100% success).
+  - `npm run lint`: 0 errors.
+  - `npm run build`: Production build succeeded.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

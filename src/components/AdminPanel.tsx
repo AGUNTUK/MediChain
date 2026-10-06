@@ -43,6 +43,7 @@ import {
   ClipboardList,
   Menu,
   BellRing,
+  Landmark,
   Ban,
   Lock,
   MessageSquare
@@ -61,6 +62,7 @@ import AdminRestockRequests from "./AdminRestockRequests";
 import CustomInvoiceGenerator from "./CustomInvoiceGenerator";
 import AccountsLedger from "./AccountsLedger";
 import WhatsAppMarketing from "./WhatsAppMarketing";
+import CapitalPartners from "./CapitalPartners";
 import {
   getDeliveryWindow,
   groupOrdersByDeliverySchedule,
@@ -87,7 +89,9 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
     "/admin/notifications" | 
     "/admin/settings" | "/admin/bulk-deals" | "/admin/audit-logs" | "/admin/finance" |
     "/admin/invoice-generator" |
-    "/admin/whatsapp-marketing"
+    "/admin/whatsapp-marketing" |
+    "/admin/capital-partners" |
+    "/admin/capital-partners/documents"
   >("/admin/dashboard");
 
   const [pendingRestockCount, setPendingRestockCount] = useState(0);
@@ -110,7 +114,9 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
         "/admin/audit-logs",
         "/admin/finance",
         "/admin/invoice-generator",
-        "/admin/whatsapp-marketing"
+        "/admin/whatsapp-marketing",
+        "/admin/capital-partners",
+        "/admin/capital-partners/documents"
       ];
       if (validRoutes.includes(matched)) {
         setActiveRoute(matched);
@@ -1508,6 +1514,23 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
             >
               <CircleDollarSign className="w-4 h-4" />
               <span>Accounts & Ledger</span>
+            </button>
+
+            <button
+              onClick={() => navigateTo("/admin/capital-partners")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all cursor-pointer ${
+                activeRoute === "/admin/capital-partners" || activeRoute === "/admin/capital-partners/documents"
+                  ? "bg-purple-700 text-white shadow-lg"
+                  : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <Landmark className="w-4 h-4 text-purple-400" />
+              <div className="flex items-center justify-between flex-1">
+                <span>Capital & Partners</span>
+                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-100 text-purple-700 border border-purple-200">
+                  Docs
+                </span>
+              </div>
             </button>
 
             <button
@@ -3564,6 +3587,16 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                     pharmacies={pharmacies}
                     orders={orders}
                     onBackToOrders={() => navigateTo("/admin/orders")}
+                  />
+                </div>
+              )}
+
+              {/* SCREEN: CAPITAL & PARTNER DOCUMENT MANAGEMENT SYSTEM */}
+              {(activeRoute === "/admin/capital-partners" || activeRoute === "/admin/capital-partners/documents") && (
+                <div className="space-y-6">
+                  <CapitalPartners
+                    initialSubTab={activeRoute === "/admin/capital-partners/documents" ? "documents" : "partners"}
+                    onBackToAccounts={() => navigateTo("/admin/finance")}
                   />
                 </div>
               )}

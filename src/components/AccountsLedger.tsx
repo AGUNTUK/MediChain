@@ -52,8 +52,10 @@ import {
   SlidersHorizontal,
   Sparkles,
   Undo2,
-  Info
+  Info,
+  Landmark
 } from "lucide-react";
+import CapitalPartners from "./CapitalPartners";
 
 interface AccountsLedgerProps {
   pharmacies?: Pharmacy[];
@@ -71,6 +73,7 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
     | "expenses"
     | "profit-loss"
     | "cash-flow"
+    | "capital-partners"
     | "inventory-value"
     | "reconciliation"
   >("daily-ledger");
@@ -601,6 +604,7 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
           { id: "expenses", label: "Expenses", icon: CreditCard },
           { id: "profit-loss", label: "Profit & Loss", icon: TrendingUp },
           { id: "cash-flow", label: "Cash Flow", icon: Wallet },
+          { id: "capital-partners", label: "Capital & Partners", icon: Landmark },
           { id: "inventory-value", label: "Inventory Value", icon: Layers },
           { id: "reconciliation", label: "Reconciliation", icon: CheckCircle2 }
         ].map(tab => {
@@ -917,7 +921,10 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
                                 className="w-20 px-1.5 py-1 text-xs border border-amber-400 bg-white rounded font-mono font-bold text-emerald-800 text-right focus:outline-none focus:ring-1 focus:ring-amber-500"
                               />
                             ) : (
-                              <span className="font-semibold text-emerald-700">
+                              <span
+                                className={`font-semibold text-emerald-700 ${row.rawCalculated && row.rawCalculated.purchases !== row.purchases ? "underline decoration-amber-400 decoration-dotted cursor-help" : ""}`}
+                                title={row.rawCalculated && row.rawCalculated.purchases !== row.purchases ? `Manual Override. Auto: ${formatTaka(row.rawCalculated.purchases)}` : undefined}
+                              >
                                 {formatTaka(row.purchases)}
                               </span>
                             )}
@@ -934,7 +941,10 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
                                 className="w-20 px-1.5 py-1 text-xs border border-amber-400 bg-white rounded font-mono font-bold text-indigo-900 text-right focus:outline-none focus:ring-1 focus:ring-amber-500"
                               />
                             ) : (
-                              <span className="font-bold text-indigo-900">
+                              <span
+                                className={`font-bold text-indigo-900 ${row.rawCalculated && row.rawCalculated.deliveredSales !== row.deliveredSales ? "underline decoration-amber-400 decoration-dotted cursor-help" : ""}`}
+                                title={row.rawCalculated && row.rawCalculated.deliveredSales !== row.deliveredSales ? `Manual Override. Auto: ${formatTaka(row.rawCalculated.deliveredSales)}` : undefined}
+                              >
                                 {formatTaka(row.deliveredSales)}
                               </span>
                             )}
@@ -951,7 +961,10 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
                                 className="w-16 px-1.5 py-1 text-xs border border-emerald-400 bg-emerald-50 rounded font-mono font-bold text-emerald-800 text-right focus:outline-none focus:ring-1 focus:ring-emerald-500"
                               />
                             ) : (
-                              <span className="font-bold text-emerald-700">
+                              <span
+                                className={`font-bold text-emerald-700 ${row.rawCalculated && row.rawCalculated.deliveryChargeCollected !== row.deliveryChargeCollected ? "underline decoration-amber-400 decoration-dotted cursor-help" : ""}`}
+                                title={row.rawCalculated && row.rawCalculated.deliveryChargeCollected !== row.deliveryChargeCollected ? `Manual Override. Auto: +${formatTaka(row.rawCalculated.deliveryChargeCollected)}` : undefined}
+                              >
                                 +{formatTaka(row.deliveryChargeCollected)}
                               </span>
                             )}
@@ -968,7 +981,10 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
                                 className="w-20 px-1.5 py-1 text-xs border border-amber-400 bg-white rounded font-mono font-bold text-blue-800 text-right focus:outline-none focus:ring-1 focus:ring-amber-500"
                               />
                             ) : (
-                              <span className="font-semibold text-blue-700">
+                              <span
+                                className={`font-semibold text-blue-700 ${row.rawCalculated && row.rawCalculated.customerCollections !== row.customerCollections ? "underline decoration-amber-400 decoration-dotted cursor-help" : ""}`}
+                                title={row.rawCalculated && row.rawCalculated.customerCollections !== row.customerCollections ? `Manual Override. Auto: ${formatTaka(row.rawCalculated.customerCollections)}` : undefined}
+                              >
                                 {formatTaka(row.customerCollections)}
                               </span>
                             )}
@@ -985,7 +1001,10 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
                                 className="w-20 px-1.5 py-1 text-xs border border-amber-400 bg-white rounded font-mono font-semibold text-slate-800 text-right focus:outline-none focus:ring-1 focus:ring-amber-500"
                               />
                             ) : (
-                              <span className="font-semibold text-slate-800">
+                              <span
+                                className={`font-semibold text-slate-800 ${row.rawCalculated && row.rawCalculated.cogs !== row.cogs ? "underline decoration-amber-400 decoration-dotted cursor-help" : ""}`}
+                                title={row.rawCalculated && row.rawCalculated.cogs !== row.cogs ? `Manual Override. Auto: ${formatTaka(row.rawCalculated.cogs)}` : undefined}
+                              >
                                 {formatTaka(row.cogs)}
                               </span>
                             )}
@@ -993,7 +1012,10 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
 
                           {/* 7. Gross Profit (Sales - COGS + Delivery Charge) */}
                           <td className="py-3 px-3">
-                            <span className="font-bold text-teal-700">
+                            <span
+                              className={`font-bold text-teal-700 ${row.rawCalculated && row.rawCalculated.grossProfit !== row.grossProfit ? "underline decoration-amber-400 decoration-dotted cursor-help" : ""}`}
+                              title={row.rawCalculated && row.rawCalculated.grossProfit !== row.grossProfit ? `Effective GP. Auto: ${formatTaka(row.rawCalculated.grossProfit)}` : undefined}
+                            >
                               {formatTaka(liveGrossProfit)}
                             </span>
                           </td>
@@ -1009,7 +1031,10 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
                                 className="w-18 px-1.5 py-1 text-xs border border-amber-400 bg-white rounded font-mono font-medium text-amber-800 text-right focus:outline-none focus:ring-1 focus:ring-amber-500"
                               />
                             ) : (
-                              <span className="text-amber-700 font-medium">
+                              <span
+                                className={`text-amber-700 font-medium ${row.rawCalculated && row.rawCalculated.transportExpenses !== row.transportExpenses ? "underline decoration-amber-400 decoration-dotted cursor-help" : ""}`}
+                                title={row.rawCalculated && row.rawCalculated.transportExpenses !== row.transportExpenses ? `Manual Override. Auto: ${formatTaka(row.rawCalculated.transportExpenses)}` : undefined}
+                              >
                                 {formatTaka(row.transportExpenses)}
                               </span>
                             )}
@@ -1026,7 +1051,10 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
                                 className="w-18 px-1.5 py-1 text-xs border border-amber-400 bg-white rounded font-mono font-medium text-purple-800 text-right focus:outline-none focus:ring-1 focus:ring-amber-500"
                               />
                             ) : (
-                              <span className="text-purple-700">
+                              <span
+                                className={`text-purple-700 ${row.rawCalculated && row.rawCalculated.otherExpenses !== row.otherExpenses ? "underline decoration-amber-400 decoration-dotted cursor-help" : ""}`}
+                                title={row.rawCalculated && row.rawCalculated.otherExpenses !== row.otherExpenses ? `Manual Override. Auto: ${formatTaka(row.rawCalculated.otherExpenses)}` : undefined}
+                              >
                                 {formatTaka(row.otherExpenses)}
                               </span>
                             )}
@@ -1034,7 +1062,12 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
 
                           {/* 10. Net Profit (Auto-recalculated) */}
                           <td className={`py-3 px-3 font-black ${liveNetProfit >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                            {formatTaka(liveNetProfit)}
+                            <span
+                              className={row.rawCalculated && row.rawCalculated.netProfit !== row.netProfit ? "underline decoration-amber-400 decoration-dotted cursor-help" : ""}
+                              title={row.rawCalculated && row.rawCalculated.netProfit !== row.netProfit ? `Effective Net Profit. Auto: ${formatTaka(row.rawCalculated.netProfit)}` : undefined}
+                            >
+                              {formatTaka(liveNetProfit)}
+                            </span>
                           </td>
 
                           {/* 11. Cash In */}
@@ -1048,7 +1081,10 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
                                 className="w-20 px-1.5 py-1 text-xs border border-amber-400 bg-white rounded font-mono font-medium text-blue-700 text-right focus:outline-none focus:ring-1 focus:ring-amber-500"
                               />
                             ) : (
-                              <span className="text-blue-600">
+                              <span
+                                className={`text-blue-600 ${row.rawCalculated && row.rawCalculated.cashIn !== row.cashIn ? "underline decoration-amber-400 decoration-dotted cursor-help" : ""}`}
+                                title={row.rawCalculated && row.rawCalculated.cashIn !== row.cashIn ? `Manual Override. Auto: +${formatTaka(row.rawCalculated.cashIn)}` : undefined}
+                              >
                                 +{formatTaka(row.cashIn)}
                               </span>
                             )}
@@ -1065,7 +1101,10 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
                                 className="w-20 px-1.5 py-1 text-xs border border-amber-400 bg-white rounded font-mono font-medium text-rose-700 text-right focus:outline-none focus:ring-1 focus:ring-amber-500"
                               />
                             ) : (
-                              <span className="text-rose-600">
+                              <span
+                                className={`text-rose-600 ${row.rawCalculated && row.rawCalculated.cashOut !== row.cashOut ? "underline decoration-amber-400 decoration-dotted cursor-help" : ""}`}
+                                title={row.rawCalculated && row.rawCalculated.cashOut !== row.cashOut ? `Manual Override. Auto: -${formatTaka(row.rawCalculated.cashOut)}` : undefined}
+                              >
                                 -{formatTaka(row.cashOut)}
                               </span>
                             )}
@@ -1587,6 +1626,13 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
             </table>
           </div>
         </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 7. CAPITAL & PARTNER DOCUMENT MANAGEMENT SYSTEM */}
+      {/* ========================================================================= */}
+      {subTab === "capital-partners" && (
+        <CapitalPartners onBackToAccounts={() => setSubTab("daily-ledger")} />
       )}
 
       {/* ========================================================================= */}
@@ -2142,7 +2188,14 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1 text-[11px]">Delivered Sales (৳)</label>
+                    <label className="block font-bold text-slate-700 mb-1 text-[11px]">
+                      Delivered Sales (৳)
+                      {showEditDayModal.rawCalculated?.deliveredSales !== undefined && (
+                        <span className="text-[10px] text-slate-400 font-normal ml-1.5">
+                          (Auto: {formatTaka(showEditDayModal.rawCalculated.deliveredSales)})
+                        </span>
+                      )}
+                    </label>
                     <input
                       type="number"
                       step="any"
@@ -2153,7 +2206,14 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
                     />
                   </div>
                   <div>
-                    <label className="block font-bold text-emerald-800 mb-1 text-[11px]">Delivery Charge (+) (৳)</label>
+                    <label className="block font-bold text-emerald-800 mb-1 text-[11px]">
+                      Delivery Charge (+) (৳)
+                      {showEditDayModal.rawCalculated?.deliveryChargeCollected !== undefined && (
+                        <span className="text-[10px] text-slate-400 font-normal ml-1.5">
+                          (Auto: {formatTaka(showEditDayModal.rawCalculated.deliveryChargeCollected)})
+                        </span>
+                      )}
+                    </label>
                     <input
                       type="number"
                       step="any"
@@ -2165,7 +2225,14 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
                     <p className="text-[10px] text-slate-400 mt-0.5">Collected per invoice</p>
                   </div>
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1 text-[11px]">Cost of Goods Sold - COGS (৳)</label>
+                    <label className="block font-bold text-slate-700 mb-1 text-[11px]">
+                      Cost of Goods Sold - COGS (৳)
+                      {showEditDayModal.rawCalculated?.cogs !== undefined && (
+                        <span className="text-[10px] text-slate-400 font-normal ml-1.5">
+                          (Auto: {formatTaka(showEditDayModal.rawCalculated.cogs)})
+                        </span>
+                      )}
+                    </label>
                     <input
                       type="number"
                       step="any"
@@ -2186,7 +2253,14 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
                 </h4>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Total Purchases (৳)</label>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Total Purchases (৳)
+                      {showEditDayModal.rawCalculated?.purchases !== undefined && (
+                        <span className="text-[10px] text-slate-400 font-normal ml-1.5">
+                          (Auto: {formatTaka(showEditDayModal.rawCalculated.purchases)})
+                        </span>
+                      )}
+                    </label>
                     <input
                       type="number"
                       step="any"
@@ -2197,7 +2271,14 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
                     />
                   </div>
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Customer Collections (৳)</label>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Customer Collections (৳)
+                      {showEditDayModal.rawCalculated?.customerCollections !== undefined && (
+                        <span className="text-[10px] text-slate-400 font-normal ml-1.5">
+                          (Auto: {formatTaka(showEditDayModal.rawCalculated.customerCollections)})
+                        </span>
+                      )}
+                    </label>
                     <input
                       type="number"
                       step="any"
@@ -2218,7 +2299,14 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block font-bold text-amber-800 mb-1 text-[11px]">Wholesaler Transport (-) (৳)</label>
+                    <label className="block font-bold text-amber-800 mb-1 text-[11px]">
+                      Wholesaler Transport (-) (৳)
+                      {showEditDayModal.rawCalculated?.transportExpenses !== undefined && (
+                        <span className="text-[10px] text-slate-400 font-normal ml-1.5">
+                          (Auto: {formatTaka(showEditDayModal.rawCalculated.transportExpenses)})
+                        </span>
+                      )}
+                    </label>
                     <input
                       type="number"
                       step="any"
@@ -2230,7 +2318,14 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
                     <p className="text-[10px] text-slate-400 mt-0.5">Wholesaler procurement transit</p>
                   </div>
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1 text-[11px]">Delivery Expenses (৳)</label>
+                    <label className="block font-bold text-slate-700 mb-1 text-[11px]">
+                      Delivery Expenses (৳)
+                      {showEditDayModal.rawCalculated?.deliveryExpenses !== undefined && (
+                        <span className="text-[10px] text-slate-400 font-normal ml-1.5">
+                          (Auto: {formatTaka(showEditDayModal.rawCalculated.deliveryExpenses)})
+                        </span>
+                      )}
+                    </label>
                     <input
                       type="number"
                       step="any"
@@ -2241,7 +2336,14 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
                     />
                   </div>
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1 text-[11px]">Other Operating Expenses (৳)</label>
+                    <label className="block font-bold text-slate-700 mb-1 text-[11px]">
+                      Other Operating Expenses (৳)
+                      {showEditDayModal.rawCalculated?.otherExpenses !== undefined && (
+                        <span className="text-[10px] text-slate-400 font-normal ml-1.5">
+                          (Auto: {formatTaka(showEditDayModal.rawCalculated.otherExpenses)})
+                        </span>
+                      )}
+                    </label>
                     <input
                       type="number"
                       step="any"
@@ -2262,7 +2364,14 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
                 </h4>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Total Cash In (৳)</label>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Total Cash In (৳)
+                      {showEditDayModal.rawCalculated?.cashIn !== undefined && (
+                        <span className="text-[10px] text-slate-400 font-normal ml-1.5">
+                          (Auto: {formatTaka(showEditDayModal.rawCalculated.cashIn)})
+                        </span>
+                      )}
+                    </label>
                     <input
                       type="number"
                       step="any"
@@ -2273,7 +2382,14 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
                     />
                   </div>
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Total Cash Out (৳)</label>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Total Cash Out (৳)
+                      {showEditDayModal.rawCalculated?.cashOut !== undefined && (
+                        <span className="text-[10px] text-slate-400 font-normal ml-1.5">
+                          (Auto: {formatTaka(showEditDayModal.rawCalculated.cashOut)})
+                        </span>
+                      )}
+                    </label>
                     <input
                       type="number"
                       step="any"
@@ -2298,22 +2414,38 @@ export default function AccountsLedger({ pharmacies = [], products = [] }: Accou
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowEditDayModal(null)}
-                  className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-bold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSavingRow}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center gap-1.5 shadow-md cursor-pointer"
-                >
-                  {isSavingRow ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  <span>Save Day Record</span>
-                </button>
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                {showEditDayModal.isOverridden ? (
+                  <button
+                    type="button"
+                    onClick={() => handleResetRowOverride(showEditDayModal.date)}
+                    disabled={isSavingRow}
+                    className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    title="Remove all manual overrides and restore auto-calculated order values"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Reset to Automatic</span>
+                  </button>
+                ) : (
+                  <div />
+                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditDayModal(null)}
+                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 font-bold text-xs hover:bg-slate-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingRow}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50"
+                  >
+                    {isSavingRow ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    <span>{isSavingRow ? "Saving..." : "Save Day Record"}</span>
+                  </button>
+                </div>
               </div>
             </form>
           </div>

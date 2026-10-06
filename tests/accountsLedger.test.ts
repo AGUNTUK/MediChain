@@ -3,6 +3,9 @@ import {
   toBDDateString,
   getDailyLedgerSummary,
   saveDailyLedgerOverride,
+  resetDailyLedgerOverride,
+  getEffectiveLedgerValue,
+  getDateRangeLedgerSummary,
   createPurchase,
   createCollection,
   createExpense,
@@ -11,6 +14,7 @@ import {
   getInventoryValuation,
   generateReconciliationReport
 } from "../src/lib/accountsService";
+import { supabaseAdmin } from "../src/lib/supabaseAdmin.js";
 import { DEFAULT_DELIVERY_CHARGE } from "../src/lib/deliverySchedule";
 
 async function runAccountsLedgerTests() {
@@ -29,7 +33,11 @@ async function runAccountsLedgerTests() {
 
   // TEST 2: Comprehensive Accounting Math (Specification Section 55)
   console.log("\nTest 2: Core Accounting Formula & Purchase vs COGS vs Cash flow...");
-  const testDate = `2026-12-${String((Date.now() % 25) + 1).padStart(2, "0")}`; // Use isolated test date without interference from today's real customer orders
+  const randYear2 = 2050 + Math.floor(Math.random() * 20);
+  const randMonth2 = String(1 + Math.floor(Math.random() * 12)).padStart(2, "0");
+  const randDay2 = String(1 + Math.floor(Math.random() * 28)).padStart(2, "0");
+  const testDate = `${randYear2}-${randMonth2}-${randDay2}`; // Use globally isolated test date
+  const baselineLedger = await getDailyLedgerSummary(testDate);
 
   // Step A: Record Purchase: ৳100,000, Paid: ৳70,000, Due: ৳30,000
   const pur = await createPurchase({
@@ -134,12 +142,12 @@ async function runAccountsLedgerTests() {
   console.log("    Net Cash Flow: ৳" + ledger.netCashFlow);
 
   // Verify Exact Specifications
-  assert.strictEqual(ledger.grossProfit, 10000, "Gross profit must be Sales (60,000) - COGS (50,000) = 10,000");
-  assert.strictEqual(ledger.netProfit, 9100, "Net profit must be Gross Profit (10,000) - Delivery (400) - Other (500) = 9,100");
-  assert.strictEqual(ledger.customerOutstanding, 15000, "Customer outstanding must be Sales (60,000) - Collection (45,000) = 15,000");
-  assert.strictEqual(ledger.cashIn, 45000, "Cash in = Customer collection (45,000)");
-  assert.strictEqual(ledger.cashOut, 70900, "Cash out = Purchase Paid (70,000) + Delivery (400) + Other (500) = 70,900");
-  assert.strictEqual(ledger.netCashFlow, -25900, "Net cash flow must be 45,000 - 70,900 = -25,900");
+  assert.strictEqual(ledger.grossProfit, baselineLedger.grossProfit + 10000, "Gross profit must be Sales (60,000) - COGS (50,000) = 10,000 delta");
+  assert.strictEqual(ledger.netProfit, baselineLedger.netProfit + 9100, "Net profit must be Gross Profit (10,000) - Delivery (400) - Other (500) = 9,100 delta");
+  assert.strictEqual(ledger.customerOutstanding, baselineLedger.customerOutstanding + 15000, "Customer outstanding must be Sales (60,000) - Collection (45,000) = 15,000 delta");
+  assert.strictEqual(ledger.cashIn, baselineLedger.cashIn + 45000, "Cash in = Customer collection (45,000) delta");
+  assert.strictEqual(ledger.cashOut, baselineLedger.cashOut + 70900, "Cash out = Purchase Paid (70,000) + Delivery (400) + Other (500) = 70,900 delta");
+  assert.strictEqual(ledger.netCashFlow, baselineLedger.netCashFlow - 25900, "Net cash flow must be 45,000 - 70,900 = -25,900 delta");
   console.log("  Passed: Section 55 accounting scenario verified with 100% precision!");
 
   // TEST 3: Capital Contribution vs Revenue (Section 56)
@@ -219,7 +227,10 @@ async function runAccountsLedgerTests() {
 
   // TEST 6: Delivery Charge (+) Addition & Wholesaler Procurement Transport (-) Deduction
   console.log("\nTest 6: Delivery charge collected (+) & wholesaler procurement transport cost (-)...");
-  const testDate6 = "2027-01-" + String(Math.floor(10 + Math.random() * 18)).padStart(2, "0");
+  const randYear = 2030 + Math.floor(Math.random() * 20);
+  const randMonth = String(Math.floor(1 + Math.random() * 12)).padStart(2, "0");
+  const randDay = String(Math.floor(1 + Math.random() * 28)).padStart(2, "0");
+  const testDate6 = `${randYear}-${randMonth}-${randDay}`;
   
   // 1. Create a purchase with transport cost
   await createExpense({
@@ -269,16 +280,107 @@ async function runAccountsLedgerTests() {
   // Net Profit = Gross Profit (1620) - Wholesaler Transport (1500) = 120
   assert.strictEqual(ledger6.netProfit, 120, "Net profit must deduct wholesaler transport expenses (-)");
 
-  // 3. Test Manual Override for delivery charge & transport
-  const overridden = await saveDailyLedgerOverride(testDate6, {
-    date: testDate6,
-    deliveryChargeCollected: 200,
-    transportExpenses: 800,
-    notes: "Manual override testing"
+  // TEST 7: Supabase Persistence, Reload Survival, Non-Destruction & Reset to Automatic
+  console.log("\nTest 7: Daily Ledger Manual Override authoritative Supabase persistence & survival...");
+  const randYear7 = 2075 + Math.floor(Math.random() * 20);
+  const randMonth7 = String(1 + Math.floor(Math.random() * 12)).padStart(2, "0");
+  const randDay7 = String(1 + Math.floor(Math.random() * 28)).padStart(2, "0");
+  const testDate7 = `${randYear7}-${randMonth7}-${randDay7}`;
+
+  // 1. Initial State: No override exists -> automatic calculation is displayed
+  await createPurchase({
+    supplierName: "Beximco Pharma",
+    purchaseDate: testDate7,
+    totalAmount: 50000,
+    paidAmount: 50000,
+    paymentMethod: "Bank Transfer",
+    notes: "Baseline test purchase"
   });
-  assert.strictEqual(overridden.deliveryChargeCollected, 200);
-  assert.strictEqual(overridden.transportExpenses, 800);
-  console.log("  Passed: Delivery charge (+) and wholesaler transport cost (-) correctly computed in Gross & Net Profit.");
+
+  const baselineSummary = await getDailyLedgerSummary(testDate7);
+  assert.strictEqual(baselineSummary.purchases, 50000, "Automatic purchase must be ৳50,000");
+  assert.strictEqual(baselineSummary.isOverridden, false, "Must not be overridden yet");
+
+  // 2. Admin Manually Overrides: Purchases: ৳55,000, Delivered Sales: ৳48,000
+  console.log("  Step 2: Admin saves manual override (Purchases: ৳55,000, Sales: ৳48,000)...");
+  const savedOverride = await saveDailyLedgerOverride(testDate7, {
+    date: testDate7,
+    purchases: 55000,
+    deliveredSales: 48000,
+    deliveryChargeCollected: 100,
+    notes: "Manual stock audit adjustment",
+    editedBy: "admin@medichain.com"
+  });
+
+  assert.strictEqual(savedOverride.purchases, 55000, "Effective purchases must be ৳55,000");
+  assert.strictEqual(savedOverride.deliveredSales, 48000, "Effective sales must be ৳48,000");
+  assert.strictEqual(savedOverride.deliveryChargeCollected, 100, "Effective delivery charge must be ৳100");
+  assert.strictEqual(savedOverride.isOverridden, true, "isOverridden must be true");
+  assert.strictEqual(savedOverride.rawCalculated?.purchases, 50000, "rawCalculated must preserve automatic ৳50,000");
+
+  // 3. Verify Database Directly (Supabase Persistence)
+  console.log("  Step 3: Verifying direct database persistence in Supabase table daily_ledger_overrides...");
+  const { data: dbRow, error: dbErr } = await supabaseAdmin
+    .from("daily_ledger_overrides")
+    .select("*")
+    .eq("date", testDate7)
+    .single();
+
+  assert.strictEqual(dbErr, null, "Database query must succeed with no error");
+  assert.ok(dbRow, "Row must exist in Supabase table daily_ledger_overrides");
+  assert.strictEqual(Number(dbRow.purchases), 55000, "DB purchases column must be 55000");
+  assert.strictEqual(Number(dbRow.delivered_sales), 48000, "DB delivered_sales column must be 48000");
+  assert.strictEqual(dbRow.edited_by, "admin@medichain.com", "DB edited_by must be saved");
+
+  // 4. Simulate Browser Refresh / Server Restart (Fetch fresh without in-memory cache)
+  console.log("  Step 4: Simulating full browser refresh / server restart (fetching fresh from DB)...");
+  const refreshedRange = await getDateRangeLedgerSummary(testDate7, testDate7);
+  assert.strictEqual(refreshedRange.dailyRows.length, 1);
+  const refreshedRow = refreshedRange.dailyRows[0];
+  assert.strictEqual(refreshedRow.purchases, 55000, "Refreshed row must still have manual ৳55,000");
+  assert.strictEqual(refreshedRow.deliveredSales, 48000, "Refreshed row must still have manual ৳48,000");
+  assert.strictEqual(refreshedRow.deliveryChargeCollected, 100, "Refreshed row must still have manual ৳100");
+  assert.strictEqual(refreshedRow.isOverridden, true, "Refreshed row must remain marked as overridden");
+
+  // 5. Automatic Recalculation Must NOT Overwrite Override
+  console.log("  Step 5: Triggering automatic recalculation by adding more transactions...");
+  await createPurchase({
+    supplierName: "Square Pharma",
+    purchaseDate: testDate7,
+    totalAmount: 10000,
+    paidAmount: 10000,
+    paymentMethod: "Cash",
+    notes: "Additional automatic purchase"
+  });
+
+  const recalculatedSummary = await getDailyLedgerSummary(testDate7);
+  assert.strictEqual(recalculatedSummary.purchases, 55000, "Manual override ৳55,000 must NOT be destroyed by auto-recalculation");
+  assert.strictEqual(recalculatedSummary.rawCalculated?.purchases, 60000, "rawCalculated must update to reflect new automatic ৳60,000");
+
+  // 6. Reset to Automatic
+  console.log("  Step 6: Resetting override to Automatic...");
+  const resetSummary = await resetDailyLedgerOverride(testDate7, "admin@medichain.com");
+  assert.strictEqual(resetSummary.purchases, 60000, "After reset, purchases must restore to auto-calculated ৳60,000");
+  assert.strictEqual(resetSummary.isOverridden, false, "After reset, isOverridden must be false");
+
+  // Verify DB row was actually deleted
+  const { data: dbDeleted } = await supabaseAdmin
+    .from("daily_ledger_overrides")
+    .select("*")
+    .eq("date", testDate7)
+    .maybeSingle();
+  assert.strictEqual(dbDeleted, null, "DB row must be deleted upon reset to automatic");
+
+  // 7. Verify Audit Log was recorded
+  console.log("  Step 7: Verifying audit_logs table has recorded the override and reset events...");
+  const { data: auditRecords } = await supabaseAdmin
+    .from("audit_logs")
+    .select("*")
+    .eq("record_id", testDate7)
+    .order("created_at", { ascending: false });
+
+  assert.ok(auditRecords && auditRecords.length >= 1, "At least 1 audit log record must be found in audit_logs");
+  console.log("  Passed: Supabase persistence, reload survival, non-destruction, and reset verified 100%!");
 
   console.log("\n🎉 ALL ACCOUNTS & BUSINESS LEDGER TESTS PASSED SUCCESSFULLY!");
 }

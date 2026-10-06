@@ -511,6 +511,7 @@ function mapExpense(row: any): BusinessExpense {
 export async function createCapitalTransaction(capData: {
   type: "Contribution" | "Withdrawal";
   partnerName: string;
+  partnerId?: string;
   amount: number;
   paymentMethod: "Cash" | "Bank Transfer" | "bKash" | "Nagad" | "Cheque" | "Other";
   transactionDate: string;
@@ -527,6 +528,7 @@ export async function createCapitalTransaction(capData: {
     transaction_number: transactionNumber,
     type: capData.type,
     partner_name: capData.partnerName.trim(),
+    partner_id: capData.partnerId || null,
     amount: amount,
     payment_method: capData.paymentMethod || "Bank Transfer",
     transaction_date: capData.transactionDate || toBDDateString(new Date()),
@@ -537,11 +539,23 @@ export async function createCapitalTransaction(capData: {
   };
 
   try {
-    const { data, error } = await supabaseAdmin
+    let insertRow: any = { ...row };
+    let { data, error } = await supabaseAdmin
       .from("capital_transactions")
-      .insert(row)
+      .insert(insertRow)
       .select()
       .single();
+
+    if (error && (error.message?.includes("partner_id") || error.code === "PGRST204")) {
+      delete insertRow.partner_id;
+      const retry = await supabaseAdmin
+        .from("capital_transactions")
+        .insert(insertRow)
+        .select()
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) throw error;
     return mapCapital(data);
@@ -552,6 +566,7 @@ export async function createCapitalTransaction(capData: {
       transactionNumber,
       type: row.type,
       partnerName: row.partner_name,
+      partnerId: row.partner_id || undefined,
       amount: row.amount,
       paymentMethod: row.payment_method as any,
       transactionDate: row.transaction_date,
@@ -572,6 +587,7 @@ export async function getCapitalTransactions(filter?: {
   endDate?: string;
   status?: string;
 }): Promise<CapitalTransaction[]> {
+  let dbList: CapitalTransaction[] = [];
   try {
     let query = supabaseAdmin
       .from("capital_transactions")
@@ -584,12 +600,19 @@ export async function getCapitalTransactions(filter?: {
 
     const { data, error } = await query;
     if (error) throw error;
-    if (data) return data.map(mapCapital);
+    if (data) dbList = data.map(mapCapital);
   } catch (err: any) {
     console.warn("[Accounts] Fallback getCapitalTransactions:", err.message);
   }
 
-  let list = [...fallbackCapital];
+  let list = [...dbList];
+  // Merge any in-memory fallback items not yet in dbList
+  for (const fb of fallbackCapital) {
+    if (!list.some(x => x.transactionNumber === fb.transactionNumber || x.id === fb.id)) {
+      list.push(fb);
+    }
+  }
+
   if (filter?.startDate) list = list.filter(c => c.transactionDate >= filter.startDate!);
   if (filter?.endDate) list = list.filter(c => c.transactionDate <= filter.endDate!);
   if (filter?.status) list = list.filter(c => c.status === filter.status);
@@ -625,6 +648,7 @@ function mapCapital(row: any): CapitalTransaction {
     transactionNumber: row.transaction_number || `CAP-${row.id?.substring(0, 8)}`,
     type: row.type || "Contribution",
     partnerName: row.partner_name || "Partner",
+    partnerId: row.partner_id || undefined,
     amount: parseFloat(row.amount || 0),
     paymentMethod: row.payment_method || "Bank Transfer",
     transactionDate: row.transaction_date ? String(row.transaction_date).slice(0, 10) : toBDDateString(new Date()),
@@ -845,9 +869,85 @@ function mapCustomInvoice(row: any): CustomInvoiceData {
 // 6. CORE DAILY LEDGER & FINANCIAL AGGREGATION
 // ==========================================
 
-export async function getDailyLedgerSummary(
-  targetDateStr: string // YYYY-MM-DD in Asia/Dhaka
-): Promise<DailyLedgerSummary> {
+/**
+ * Core Accounting Precedence Helper:
+ * IF override is enabled and manual value is defined, return manual value.
+ * Otherwise, return automatic value.
+ */
+export function getEffectiveLedgerValue(
+  automaticValue: number,
+  manualValue: number | undefined | null,
+  isOverridden: boolean
+): number {
+  if (isOverridden && manualValue !== undefined && manualValue !== null && !isNaN(manualValue)) {
+    return Math.round(Number(manualValue) * 100) / 100;
+  }
+  return Math.round(Number(automaticValue || 0) * 100) / 100;
+}
+
+/**
+ * Deserializes a database row from `daily_ledger_overrides`, extracting dedicated columns
+ * as well as structured JSON metadata in `notes` (such as deliveryChargeCollected, transportExpenses,
+ * rawCalculated snapshot, and overriddenFields).
+ */
+export function parseOverrideRow(row: any): DailyLedgerOverride {
+  let userNotes: string | undefined = undefined;
+  let metaDeliveryCharge: number | undefined = undefined;
+  let metaTransport: number | undefined = undefined;
+  let metaFields: string[] | undefined = undefined;
+  let metaRawCalculated: any = undefined;
+
+  if (row.notes) {
+    try {
+      const parsed = JSON.parse(row.notes);
+      if (parsed && typeof parsed === "object") {
+        userNotes = parsed.userNotes || parsed.notes || undefined;
+        metaDeliveryCharge = parsed.deliveryChargeCollected !== undefined ? Number(parsed.deliveryChargeCollected) : undefined;
+        metaTransport = parsed.transportExpenses !== undefined ? Number(parsed.transportExpenses) : undefined;
+        metaFields = Array.isArray(parsed.overriddenFields) ? parsed.overriddenFields : undefined;
+        metaRawCalculated = parsed.rawCalculated || undefined;
+      } else {
+        userNotes = String(row.notes);
+      }
+    } catch {
+      userNotes = String(row.notes);
+    }
+  }
+
+  const deliveryCharge = (row.delivery_charge_collected !== undefined && row.delivery_charge_collected !== null)
+    ? parseFloat(row.delivery_charge_collected)
+    : metaDeliveryCharge;
+
+  const transportExpenses = (row.transport_expenses !== undefined && row.transport_expenses !== null)
+    ? parseFloat(row.transport_expenses)
+    : metaTransport;
+
+  return {
+    date: row.date,
+    purchases: row.purchases !== null && row.purchases !== undefined ? parseFloat(row.purchases) : undefined,
+    deliveredSales: row.delivered_sales !== null && row.delivered_sales !== undefined ? parseFloat(row.delivered_sales) : undefined,
+    deliveryChargeCollected: deliveryCharge,
+    customerCollections: row.customer_collections !== null && row.customer_collections !== undefined ? parseFloat(row.customer_collections) : undefined,
+    cogs: row.cogs !== null && row.cogs !== undefined ? parseFloat(row.cogs) : undefined,
+    transportExpenses: transportExpenses,
+    deliveryExpenses: row.delivery_expenses !== null && row.delivery_expenses !== undefined ? parseFloat(row.delivery_expenses) : undefined,
+    otherExpenses: row.other_expenses !== null && row.other_expenses !== undefined ? parseFloat(row.other_expenses) : undefined,
+    cashIn: row.cash_in !== null && row.cash_in !== undefined ? parseFloat(row.cash_in) : undefined,
+    cashOut: row.cash_out !== null && row.cash_out !== undefined ? parseFloat(row.cash_out) : undefined,
+    notes: userNotes,
+    editedBy: row.edited_by || undefined,
+    editedAt: row.edited_at || undefined,
+    overriddenFields: metaFields,
+    rawCalculated: metaRawCalculated
+  };
+}
+
+/**
+ * Pure transactional accounting calculation for a target day in Asia/Dhaka.
+ * Computes raw order sales, COGS, customer collections, purchase inventory costs,
+ * operating expenses, and capital flows without applying manual overrides.
+ */
+export async function getRawDailyCalculation(targetDateStr: string) {
   const allOrders = await dbService.getOrders(undefined, 1, 1000);
   const pharmacies = await dbService.getAllPharmacies(1, 500);
   const pharmMap: Record<string, any> = {};
@@ -930,44 +1030,90 @@ export async function getDailyLedgerSummary(
   const cashOut = Math.round((totalPurchasePaid + rawTransportExpenses + rawDeliveryExpenses + rawOtherExpenses + capitalWithdrawals) * 100) / 100;
   const netCashFlow = Math.round((cashIn - cashOut) * 100) / 100;
 
-  const rawPurchases = Math.round(totalPurchaseValue * 100) / 100;
-  const rawSales = roundedSales;
-  const rawCollections = Math.round(totalCollections * 100) / 100;
-  const rawCogs = roundedCogs;
-  const rawGrossProfit = roundedGrossProfit;
-  const rawNetProfit = netProfit;
-  const rawCashIn = cashIn;
-  const rawCashOut = cashOut;
-  const rawNetCashFlow = netCashFlow;
+  return {
+    purchases: Math.round(totalPurchaseValue * 100) / 100,
+    deliveredSales: roundedSales,
+    deliveryChargeCollected: autoDeliveryChargeCollected,
+    customerCollections: Math.round(totalCollections * 100) / 100,
+    customerOutstanding,
+    cogs: roundedCogs,
+    grossProfit: roundedGrossProfit,
+    transportExpenses: rawTransportExpenses,
+    deliveryExpenses: rawDeliveryExpenses,
+    otherExpenses: rawOtherExpenses,
+    netProfit,
+    cashIn,
+    cashOut,
+    netCashFlow,
+    totalPurchasePaid,
+    capitalContributions: Math.round(capitalContributions * 100) / 100,
+    capitalWithdrawals: Math.round(capitalWithdrawals * 100) / 100,
+    ordersCount: dayOrders.length,
+    invoicesCount: deliveryGroupCount + customInvoices.length,
+    hasIncompleteCost
+  };
+}
+
+export async function getDailyLedgerSummary(
+  targetDateStr: string, // YYYY-MM-DD in Asia/Dhaka
+  cachedOverride?: DailyLedgerOverride
+): Promise<DailyLedgerSummary> {
+  const dateKey = toBDDateString(targetDateStr);
 
   // Retrieve any manual override record for this date
-  const override = fallbackDailyLedgerOverrides[targetDateStr];
+  let override = cachedOverride !== undefined ? cachedOverride : fallbackDailyLedgerOverrides[dateKey];
+  if (override === undefined) {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from("daily_ledger_overrides")
+        .select("*")
+        .eq("date", dateKey)
+        .maybeSingle();
 
-  const finalPurchases = override?.purchases !== undefined ? override.purchases : rawPurchases;
-  const finalSales = override?.deliveredSales !== undefined ? override.deliveredSales : rawSales;
-  const finalDeliveryCharge = override?.deliveryChargeCollected !== undefined ? override.deliveryChargeCollected : autoDeliveryChargeCollected;
-  const finalCollections = override?.customerCollections !== undefined ? override.customerCollections : rawCollections;
-  const finalCogs = override?.cogs !== undefined ? override.cogs : rawCogs;
-  // Live Gross Profit
+      if (!error && data) {
+        override = parseOverrideRow(data);
+        fallbackDailyLedgerOverrides[dateKey] = override;
+      }
+    } catch (err: any) {
+      console.warn("[Accounts] Error fetching override from Supabase for date:", dateKey, err.message);
+    }
+  }
+
+  // Pure calculated automatic transactional values
+  const raw = await getRawDailyCalculation(dateKey);
+
+  // Authoritative Precedence:
+  // IF override exists for field, use manual value; ELSE use automatic calculation.
+  const finalPurchases = getEffectiveLedgerValue(raw.purchases, override?.purchases, override?.purchases !== undefined);
+  const finalSales = getEffectiveLedgerValue(raw.deliveredSales, override?.deliveredSales, override?.deliveredSales !== undefined);
+  const finalDeliveryCharge = getEffectiveLedgerValue(raw.deliveryChargeCollected, override?.deliveryChargeCollected, override?.deliveryChargeCollected !== undefined);
+  const finalCollections = getEffectiveLedgerValue(raw.customerCollections, override?.customerCollections, override?.customerCollections !== undefined);
+  const finalCogs = getEffectiveLedgerValue(raw.cogs, override?.cogs, override?.cogs !== undefined);
+
+  // Live Gross Profit: (Delivered Sales - COGS) + Delivery Charge Collected
   const finalGrossProfit = Math.round(((finalSales - finalCogs) + finalDeliveryCharge) * 100) / 100;
-  const finalTransportExpenses = override?.transportExpenses !== undefined ? override.transportExpenses : rawTransportExpenses;
-  const finalDeliveryExpenses = override?.deliveryExpenses !== undefined ? override.deliveryExpenses : rawDeliveryExpenses;
-  const finalOtherExpenses = override?.otherExpenses !== undefined ? override.otherExpenses : rawOtherExpenses;
-  // Live Net Profit
+
+  const finalTransportExpenses = getEffectiveLedgerValue(raw.transportExpenses, override?.transportExpenses, override?.transportExpenses !== undefined);
+  const finalDeliveryExpenses = getEffectiveLedgerValue(raw.deliveryExpenses, override?.deliveryExpenses, override?.deliveryExpenses !== undefined);
+  const finalOtherExpenses = getEffectiveLedgerValue(raw.otherExpenses, override?.otherExpenses, override?.otherExpenses !== undefined);
+
+  // Live Net Profit: Gross Profit - Wholesaler Transport - Delivery Expenses - Other Expenses
   const finalNetProfit = Math.round((finalGrossProfit - finalTransportExpenses - finalDeliveryExpenses - finalOtherExpenses) * 100) / 100;
   const finalOutstanding = Math.max(0, Math.round((finalSales - finalCollections) * 100) / 100);
 
-  const finalCashIn = override?.cashIn !== undefined ? override.cashIn : rawCashIn;
-  const finalCashOut = override?.cashOut !== undefined ? override.cashOut : (
-    override?.transportExpenses !== undefined || override?.deliveryExpenses !== undefined || override?.otherExpenses !== undefined
-      ? Math.round((totalPurchasePaid + finalTransportExpenses + finalDeliveryExpenses + finalOtherExpenses + capitalWithdrawals) * 100) / 100
-      : rawCashOut
-  );
+  const finalCashIn = getEffectiveLedgerValue(raw.cashIn, override?.cashIn, override?.cashIn !== undefined);
+  const finalCashOut = override?.cashOut !== undefined
+    ? Math.round(Number(override.cashOut) * 100) / 100
+    : (
+      (override?.transportExpenses !== undefined || override?.deliveryExpenses !== undefined || override?.otherExpenses !== undefined)
+        ? Math.round((raw.totalPurchasePaid + finalTransportExpenses + finalDeliveryExpenses + finalOtherExpenses + raw.capitalWithdrawals) * 100) / 100
+        : raw.cashOut
+    );
   const finalNetCashFlow = Math.round((finalCashIn - finalCashOut) * 100) / 100;
 
   return {
-    date: targetDateStr,
-    formattedDate: formatBDRangeLabel(targetDateStr),
+    date: dateKey,
+    formattedDate: formatBDRangeLabel(dateKey),
     purchases: finalPurchases,
     deliveredSales: finalSales,
     deliveryChargeCollected: finalDeliveryCharge,
@@ -982,91 +1128,211 @@ export async function getDailyLedgerSummary(
     cashIn: finalCashIn,
     cashOut: finalCashOut,
     netCashFlow: finalNetCashFlow,
-    capitalContributions: Math.round(capitalContributions * 100) / 100,
-    capitalWithdrawals: Math.round(capitalWithdrawals * 100) / 100,
-    ordersCount: dayOrders.length,
-    invoicesCount: deliveryGroupCount + customInvoices.length,
-    hasIncompleteCost,
+    capitalContributions: raw.capitalContributions,
+    capitalWithdrawals: raw.capitalWithdrawals,
+    ordersCount: raw.ordersCount,
+    invoicesCount: raw.invoicesCount,
+    hasIncompleteCost: raw.hasIncompleteCost,
     isOverridden: !!override,
     overrideNotes: override?.notes,
     lastEditedBy: override?.editedBy,
     lastEditedAt: override?.editedAt,
+    overriddenFields: override?.overriddenFields,
     rawCalculated: override ? {
-      purchases: rawPurchases,
-      deliveredSales: rawSales,
-      deliveryChargeCollected: autoDeliveryChargeCollected,
-      customerCollections: rawCollections,
-      cogs: rawCogs,
-      grossProfit: rawGrossProfit,
-      transportExpenses: rawTransportExpenses,
-      deliveryExpenses: rawDeliveryExpenses,
-      otherExpenses: rawOtherExpenses,
-      netProfit: rawNetProfit,
-      cashIn: rawCashIn,
-      cashOut: rawCashOut,
-      netCashFlow: rawNetCashFlow
+      purchases: raw.purchases,
+      deliveredSales: raw.deliveredSales,
+      deliveryChargeCollected: raw.deliveryChargeCollected,
+      customerCollections: raw.customerCollections,
+      cogs: raw.cogs,
+      grossProfit: raw.grossProfit,
+      transportExpenses: raw.transportExpenses,
+      deliveryExpenses: raw.deliveryExpenses,
+      otherExpenses: raw.otherExpenses,
+      netProfit: raw.netProfit,
+      cashIn: raw.cashIn,
+      cashOut: raw.cashOut,
+      netCashFlow: raw.netCashFlow
     } : undefined
   };
 }
 
-export async function saveDailyLedgerOverride(dateStr: string, overrideData: DailyLedgerOverride): Promise<DailyLedgerSummary> {
+export async function saveDailyLedgerOverride(
+  dateStr: string,
+  overrideData: DailyLedgerOverride
+): Promise<DailyLedgerSummary> {
   const dateKey = toBDDateString(dateStr);
+  const raw = await getRawDailyCalculation(dateKey);
+
+  const overriddenFields: string[] = [];
+  if (overrideData.purchases !== undefined) overriddenFields.push("purchases");
+  if (overrideData.deliveredSales !== undefined) overriddenFields.push("deliveredSales");
+  if (overrideData.deliveryChargeCollected !== undefined) overriddenFields.push("deliveryChargeCollected");
+  if (overrideData.customerCollections !== undefined) overriddenFields.push("customerCollections");
+  if (overrideData.cogs !== undefined) overriddenFields.push("cogs");
+  if (overrideData.transportExpenses !== undefined) overriddenFields.push("transportExpenses");
+  if (overrideData.deliveryExpenses !== undefined) overriddenFields.push("deliveryExpenses");
+  if (overrideData.otherExpenses !== undefined) overriddenFields.push("otherExpenses");
+  if (overrideData.cashIn !== undefined) overriddenFields.push("cashIn");
+  if (overrideData.cashOut !== undefined) overriddenFields.push("cashOut");
+
+  const notesText = overrideData.notes?.trim() || "";
+  const nowIso = new Date().toISOString();
+
+  // Pack robust metadata inside notes so extra fields and raw snapshot are 100% saved in Supabase
+  const metadataPayload = JSON.stringify({
+    userNotes: notesText || null,
+    deliveryChargeCollected: overrideData.deliveryChargeCollected !== undefined ? Math.round(Number(overrideData.deliveryChargeCollected) * 100) / 100 : undefined,
+    transportExpenses: overrideData.transportExpenses !== undefined ? Math.round(Number(overrideData.transportExpenses) * 100) / 100 : undefined,
+    overriddenFields,
+    rawCalculated: {
+      purchases: raw.purchases,
+      deliveredSales: raw.deliveredSales,
+      deliveryChargeCollected: raw.deliveryChargeCollected,
+      customerCollections: raw.customerCollections,
+      cogs: raw.cogs,
+      grossProfit: raw.grossProfit,
+      transportExpenses: raw.transportExpenses,
+      deliveryExpenses: raw.deliveryExpenses,
+      otherExpenses: raw.otherExpenses,
+      netProfit: raw.netProfit,
+      cashIn: raw.cashIn,
+      cashOut: raw.cashOut,
+      netCashFlow: raw.netCashFlow
+    }
+  });
+
+  const parsedPurchases = overrideData.purchases !== undefined ? Math.round(Number(overrideData.purchases) * 100) / 100 : null;
+  const parsedSales = overrideData.deliveredSales !== undefined ? Math.round(Number(overrideData.deliveredSales) * 100) / 100 : null;
+  const parsedDeliveryCharge = overrideData.deliveryChargeCollected !== undefined ? Math.round(Number(overrideData.deliveryChargeCollected) * 100) / 100 : null;
+  const parsedCollections = overrideData.customerCollections !== undefined ? Math.round(Number(overrideData.customerCollections) * 100) / 100 : null;
+  const parsedCogs = overrideData.cogs !== undefined ? Math.round(Number(overrideData.cogs) * 100) / 100 : null;
+  const parsedTransport = overrideData.transportExpenses !== undefined ? Math.round(Number(overrideData.transportExpenses) * 100) / 100 : null;
+  const parsedDeliveryExp = overrideData.deliveryExpenses !== undefined ? Math.round(Number(overrideData.deliveryExpenses) * 100) / 100 : null;
+  const parsedOtherExp = overrideData.otherExpenses !== undefined ? Math.round(Number(overrideData.otherExpenses) * 100) / 100 : null;
+  const parsedCashIn = overrideData.cashIn !== undefined ? Math.round(Number(overrideData.cashIn) * 100) / 100 : null;
+  const parsedCashOut = overrideData.cashOut !== undefined ? Math.round(Number(overrideData.cashOut) * 100) / 100 : null;
+
+  const rowPayload: any = {
+    date: dateKey,
+    purchases: parsedPurchases,
+    delivered_sales: parsedSales,
+    delivery_charge_collected: parsedDeliveryCharge,
+    customer_collections: parsedCollections,
+    cogs: parsedCogs,
+    transport_expenses: parsedTransport,
+    delivery_expenses: parsedDeliveryExp,
+    other_expenses: parsedOtherExp,
+    cash_in: parsedCashIn,
+    cash_out: parsedCashOut,
+    notes: metadataPayload,
+    edited_by: overrideData.editedBy || "Admin",
+    edited_at: nowIso,
+    updated_at: nowIso
+  };
+
+  let { error: upsertError } = await supabaseAdmin
+    .from("daily_ledger_overrides")
+    .upsert(rowPayload, { onConflict: "date" });
+
+  if (upsertError && (upsertError.code === "PGRST204" || upsertError.message?.includes("column"))) {
+    // If Supabase table lacks delivery_charge_collected or transport_expenses columns,
+    // retry with core columns only (the extra fields are safely preserved in the metadata JSON inside notes)
+    delete rowPayload.delivery_charge_collected;
+    delete rowPayload.transport_expenses;
+    const retry = await supabaseAdmin
+      .from("daily_ledger_overrides")
+      .upsert(rowPayload, { onConflict: "date" });
+    upsertError = retry.error;
+  }
+
+  if (upsertError) {
+    console.error("[Accounts] Failed to persist daily ledger override to Supabase:", upsertError);
+    throw new Error(`Database error saving ledger override: ${upsertError.message}`);
+  }
+
   const record: DailyLedgerOverride = {
     date: dateKey,
-    purchases: overrideData.purchases !== undefined ? Math.round(Number(overrideData.purchases) * 100) / 100 : undefined,
-    deliveredSales: overrideData.deliveredSales !== undefined ? Math.round(Number(overrideData.deliveredSales) * 100) / 100 : undefined,
-    deliveryChargeCollected: overrideData.deliveryChargeCollected !== undefined ? Math.round(Number(overrideData.deliveryChargeCollected) * 100) / 100 : undefined,
-    customerCollections: overrideData.customerCollections !== undefined ? Math.round(Number(overrideData.customerCollections) * 100) / 100 : undefined,
-    cogs: overrideData.cogs !== undefined ? Math.round(Number(overrideData.cogs) * 100) / 100 : undefined,
-    transportExpenses: overrideData.transportExpenses !== undefined ? Math.round(Number(overrideData.transportExpenses) * 100) / 100 : undefined,
-    deliveryExpenses: overrideData.deliveryExpenses !== undefined ? Math.round(Number(overrideData.deliveryExpenses) * 100) / 100 : undefined,
-    otherExpenses: overrideData.otherExpenses !== undefined ? Math.round(Number(overrideData.otherExpenses) * 100) / 100 : undefined,
-    cashIn: overrideData.cashIn !== undefined ? Math.round(Number(overrideData.cashIn) * 100) / 100 : undefined,
-    cashOut: overrideData.cashOut !== undefined ? Math.round(Number(overrideData.cashOut) * 100) / 100 : undefined,
-    notes: overrideData.notes?.trim() || undefined,
+    purchases: parsedPurchases !== null ? parsedPurchases : undefined,
+    deliveredSales: parsedSales !== null ? parsedSales : undefined,
+    deliveryChargeCollected: parsedDeliveryCharge !== null ? parsedDeliveryCharge : undefined,
+    customerCollections: parsedCollections !== null ? parsedCollections : undefined,
+    cogs: parsedCogs !== null ? parsedCogs : undefined,
+    transportExpenses: parsedTransport !== null ? parsedTransport : undefined,
+    deliveryExpenses: parsedDeliveryExp !== null ? parsedDeliveryExp : undefined,
+    otherExpenses: parsedOtherExp !== null ? parsedOtherExp : undefined,
+    cashIn: parsedCashIn !== null ? parsedCashIn : undefined,
+    cashOut: parsedCashOut !== null ? parsedCashOut : undefined,
+    notes: notesText || undefined,
     editedBy: overrideData.editedBy || "Admin",
-    editedAt: new Date().toISOString()
+    editedAt: nowIso,
+    overriddenFields,
+    rawCalculated: raw
   };
 
   fallbackDailyLedgerOverrides[dateKey] = record;
 
+  // Insert into audit_logs table
   try {
-    await supabaseAdmin
-      .from("daily_ledger_overrides")
-      .upsert({
+    await supabaseAdmin.from("audit_logs").insert({
+      action: `Daily Business Ledger Manual Override for ${dateKey}`,
+      affected_module: "Accounts",
+      record_id: dateKey,
+      user_email: overrideData.editedBy || "Admin",
+      user_role: "Admin",
+      details: {
         date: dateKey,
-        purchases: record.purchases,
-        delivered_sales: record.deliveredSales,
-        delivery_charge_collected: record.deliveryChargeCollected,
-        customer_collections: record.customerCollections,
-        cogs: record.cogs,
-        transport_expenses: record.transportExpenses,
-        delivery_expenses: record.deliveryExpenses,
-        other_expenses: record.otherExpenses,
-        cash_in: record.cashIn,
-        cash_out: record.cashOut,
-        notes: record.notes,
-        edited_by: record.editedBy,
-        edited_at: record.editedAt
-      }, { onConflict: "date" });
-  } catch {
-    // ignore
+        overriddenFields,
+        manualValues: {
+          purchases: parsedPurchases,
+          deliveredSales: parsedSales,
+          deliveryChargeCollected: parsedDeliveryCharge,
+          customerCollections: parsedCollections,
+          cogs: parsedCogs,
+          transportExpenses: parsedTransport,
+          deliveryExpenses: parsedDeliveryExp,
+          otherExpenses: parsedOtherExp,
+          cashIn: parsedCashIn,
+          cashOut: parsedCashOut
+        },
+        rawCalculated: raw,
+        notes: notesText
+      }
+    });
+  } catch (err: any) {
+    console.warn("[Accounts] Non-fatal: could not write to audit_logs:", err.message);
   }
 
-  return getDailyLedgerSummary(dateKey);
+  return getDailyLedgerSummary(dateKey, record);
 }
 
-export async function resetDailyLedgerOverride(dateStr: string): Promise<DailyLedgerSummary> {
+export async function resetDailyLedgerOverride(
+  dateStr: string,
+  resetBy?: string
+): Promise<DailyLedgerSummary> {
   const dateKey = toBDDateString(dateStr);
   delete fallbackDailyLedgerOverrides[dateKey];
 
+  const { error: delError } = await supabaseAdmin
+    .from("daily_ledger_overrides")
+    .delete()
+    .eq("date", dateKey);
+
+  if (delError) {
+    console.error("[Accounts] Failed to reset daily ledger override from Supabase:", delError);
+    throw new Error(`Database error resetting ledger override: ${delError.message}`);
+  }
+
   try {
-    await supabaseAdmin
-      .from("daily_ledger_overrides")
-      .delete()
-      .eq("date", dateKey);
-  } catch {
-    // ignore
+    await supabaseAdmin.from("audit_logs").insert({
+      action: `Daily Business Ledger Override Reset to Automatic for ${dateKey}`,
+      affected_module: "Accounts",
+      record_id: dateKey,
+      user_email: resetBy || "Admin",
+      user_role: "Admin",
+      details: { date: dateKey }
+    });
+  } catch (err: any) {
+    console.warn("[Accounts] Non-fatal: could not write reset to audit_logs:", err.message);
   }
 
   return getDailyLedgerSummary(dateKey);
@@ -1079,26 +1345,11 @@ export async function getDailyLedgerOverrides(): Promise<Record<string, DailyLed
       .select("*");
     if (!error && Array.isArray(data)) {
       for (const row of data) {
-        fallbackDailyLedgerOverrides[row.date] = {
-          date: row.date,
-          purchases: row.purchases !== null ? parseFloat(row.purchases) : undefined,
-          deliveredSales: row.delivered_sales !== null ? parseFloat(row.delivered_sales) : undefined,
-          deliveryChargeCollected: row.delivery_charge_collected !== null ? parseFloat(row.delivery_charge_collected) : undefined,
-          customerCollections: row.customer_collections !== null ? parseFloat(row.customer_collections) : undefined,
-          cogs: row.cogs !== null ? parseFloat(row.cogs) : undefined,
-          transportExpenses: row.transport_expenses !== null ? parseFloat(row.transport_expenses) : undefined,
-          deliveryExpenses: row.delivery_expenses !== null ? parseFloat(row.delivery_expenses) : undefined,
-          otherExpenses: row.other_expenses !== null ? parseFloat(row.other_expenses) : undefined,
-          cashIn: row.cash_in !== null ? parseFloat(row.cash_in) : undefined,
-          cashOut: row.cash_out !== null ? parseFloat(row.cash_out) : undefined,
-          notes: row.notes || undefined,
-          editedBy: row.edited_by || undefined,
-          editedAt: row.edited_at || undefined
-        };
+        fallbackDailyLedgerOverrides[row.date] = parseOverrideRow(row);
       }
     }
-  } catch {
-    // ignore
+  } catch (err: any) {
+    console.warn("[Accounts] Error in getDailyLedgerOverrides:", err.message);
   }
   return fallbackDailyLedgerOverrides;
 }
@@ -1107,15 +1358,31 @@ export async function getDateRangeLedgerSummary(
   startDateStr: string,
   endDateStr: string
 ): Promise<{ summary: DailyLedgerSummary; dailyRows: DailyLedgerSummary[] }> {
-  const start = new Date(startDateStr);
-  const end = new Date(endDateStr);
+  // Pre-fetch all overrides in this date range from Supabase in one query
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("daily_ledger_overrides")
+      .select("*")
+      .gte("date", startDateStr)
+      .lte("date", endDateStr);
+
+    if (!error && Array.isArray(data)) {
+      for (const row of data) {
+        fallbackDailyLedgerOverrides[row.date] = parseOverrideRow(row);
+      }
+    }
+  } catch (err: any) {
+    console.warn("[Accounts] Error pre-fetching range overrides from Supabase:", err.message);
+  }
+
+  const start = new Date(startDateStr + "T00:00:00+06:00");
+  const end = new Date(endDateStr + "T00:00:00+06:00");
   const dailyRows: DailyLedgerSummary[] = [];
 
-  // Generate sequence of dates
   let curr = new Date(start);
   while (curr <= end) {
-    const dStr = curr.toISOString().slice(0, 10);
-    const row = await getDailyLedgerSummary(dStr);
+    const dStr = toBDDateString(curr);
+    const row = await getDailyLedgerSummary(dStr, fallbackDailyLedgerOverrides[dStr]);
     dailyRows.push(row);
     curr.setDate(curr.getDate() + 1);
   }
