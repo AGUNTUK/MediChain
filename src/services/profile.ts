@@ -1,0 +1,48 @@
+import { Pharmacy } from "../types";
+import { apiCache } from "../lib/apiCache";
+import { apiFetch } from "../lib/apiFetch";
+
+/**
+ * MediChain Pharmacy Profile Service
+ * 
+ * Manages official physical drug trade licenses, addresses, contact information,
+ * and tracks the pharmacy's B2B credit parameters.
+ */
+export const profileService = {
+  /**
+   * Retrieves the physical trade profile and credit metrics for the current pharmacy owner.
+   */
+  async getPharmacyProfile(): Promise<Pharmacy | null> {
+    return apiCache.swr("pharmacy_profile", async () => {
+      const res = await apiFetch("/api/pharmacy/profile");
+      if (res.status === 401 || res.status === 404) {
+        return null;
+      }
+      if (!res.ok) {
+        return null;
+      }
+      return res.json();
+    });
+  },
+
+  /**
+   * Updates or registers the pharmacy verification credentials and profile details.
+   */
+  async updatePharmacyProfile(profileData: Partial<Pharmacy>): Promise<{ success: boolean; pharmacy: Pharmacy }> {
+    const response = await apiFetch("/api/pharmacy/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(profileData),
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      if (errData.fields) { throw { message: errData.error || "Validation failed", fields: errData.fields }; } throw new Error(errData.error || "Failed to update pharmacy verification profile.");
+    }
+
+    const data = await response.json();
+    // Invalidate the cached profile so the next fetch gets the fresh one
+    apiCache.invalidate("pharmacy_profile");
+    return data;
+  },
+};

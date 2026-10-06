@@ -1,0 +1,235 @@
+import React, { useState, useRef } from "react";
+import { Camera, Upload, X, Send, Image as ImageIcon, FileText } from "lucide-react";
+import { apiFetch } from "../lib/apiFetch";
+
+interface Props {
+  onClose: () => void;
+}
+
+export default function PhysiciansProductSheet({ onClose }: Props) {
+  const [files, setFiles] = useState<File[]>([]);
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [sendSuccess, setSendSuccess] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSend = async () => {
+    if (files.length === 0) return;
+    
+    setIsSending(true);
+    setSendError(null);
+    
+    try {
+      const formData = new FormData();
+      files.forEach((file) => formData.append("files", file));
+      
+      const res = await apiFetch("/api/physicians-product-request", {
+        method: "POST",
+        body: formData,
+        headers: {}
+      });
+      
+      let data;
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        console.error("Non-JSON response:", text);
+        data = { error: res.status === 413 ? "File too large (Max 10MB)." : "An unexpected server error occurred. Please try again." };
+      }
+      
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to send request");
+      }
+      
+      setSendSuccess(true);
+      setTimeout(() => {
+        onClose();
+      }, 2500);
+      
+    } catch (err: any) {
+      setSendError(err.message || "Network error. Please try again.");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-900/40 backdrop-blur-sm sm:items-center p-4">
+      <div className="w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-slide-up pb-safe">
+        
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">Pharmacy Short List</h2>
+            <p className="text-sm font-medium text-brand-purple">শর্ট লিস্ট অর্ডার</p>
+          </div>
+          <button 
+            onClick={onClose}
+            className="p-2 -mr-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6">
+          {sendSuccess ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center animate-fade-in">
+              <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-4">
+                <Send className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">Short List Sent!</h3>
+              <p className="text-slate-600">Our team will review and contact you shortly.</p>
+              <p className="text-sm font-medium text-slate-500 mt-1">আমাদের টিম দ্রুত আপনার শর্ট লিস্ট যাচাই করে কনফার্ম করবে।</p>
+            </div>
+          ) : (
+            <>
+              {/* Info Banner */}
+              <div className="bg-brand-purple/5 border border-brand-purple/10 rounded-xl p-4 mb-3">
+                <p className="text-sm text-slate-700 leading-relaxed">
+                  <span className="font-bold text-brand-purple block mb-1">Wholesale Pricing & Best Discount</span>
+                  আপনার ফার্মেসির প্রয়োজনীয় ওষুধের খাতা বা শর্ট লিস্টের ছবি আপলোড করুন। আমাদের টিম দ্রুত প্রোডাক্ট ও আকর্ষণীয় পাইকারি মূল্য নিশ্চিত করবে।
+                </p>
+              </div>
+
+              {/* SmartOrder Cross-Reference Notice */}
+              <div className="bg-amber-50/90 border border-amber-200/90 rounded-xl px-3.5 py-2.5 mb-5 flex items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center gap-2 text-xs text-amber-950 font-medium">
+                  <span className="text-base shrink-0">💡</span>
+                  <span>ক্যাটালগ থেকে সরাসরি অর্ডারের জন্য <strong>'SmartOrder'</strong> ব্যবহার করুন</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-100/80 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0 border border-emerald-300"
+                >
+                  হোমে যান
+                </button>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <button
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="flex flex-col items-center justify-center gap-2 py-6 px-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl transition-colors cursor-pointer"
+                >
+                  <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center text-slate-700">
+                    <Camera className="w-6 h-6" />
+                  </div>
+                  <span className="text-sm font-semibold text-slate-700">ছবি তুলুন (Take Photo)</span>
+                </button>
+                
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex flex-col items-center justify-center gap-2 py-6 px-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl transition-colors cursor-pointer"
+                >
+                  <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center text-slate-700">
+                    <Upload className="w-6 h-6" />
+                  </div>
+                  <span className="text-sm font-semibold text-slate-700">ফাইল আপলোড (Upload File)</span>
+                </button>
+              </div>
+
+              {/* Hidden Inputs */}
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                ref={cameraInputRef}
+                onChange={handleFileChange}
+                multiple
+              />
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                className="hidden"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                multiple
+              />
+
+              {/* File Preview */}
+              {files.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="text-sm font-semibold text-slate-900 mb-3">Selected Files ({files.length})</h4>
+                  <div className="flex gap-3 overflow-x-auto pb-2 -mx-2 px-2 snap-x">
+                    {files.map((file, idx) => (
+                      <div key={idx} className="relative flex-none w-20 snap-start">
+                        <div className="w-20 h-20 bg-slate-100 rounded-xl overflow-hidden border border-slate-200 flex items-center justify-center">
+                          {file.type.startsWith("image/") ? (
+                            <img 
+                              src={URL.createObjectURL(file)} 
+                              alt="preview" 
+                              className="w-full h-full object-cover"
+                              onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)}
+                            />
+                          ) : (
+                            <FileText className="w-8 h-8 text-slate-400" />
+                          )}
+                        </div>
+                        <button
+                          onClick={() => removeFile(idx)}
+                          className="absolute -top-2 -right-2 w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center shadow-md hover:bg-red-600 transition-colors"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                        <div className="text-[10px] text-center mt-1 text-slate-500 truncate px-1">
+                          {file.name}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Error Message */}
+              {sendError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-lg flex items-start gap-2">
+                  <span className="font-bold">Error:</span>
+                  <span>{sendError}</span>
+                </div>
+              )}
+
+              {/* Submit Button */}
+              <button
+                onClick={handleSend}
+                disabled={files.length === 0 || isSending}
+                className={`w-full py-3.5 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2 ${
+                  files.length === 0 || isSending
+                    ? "bg-slate-300 shadow-none cursor-not-allowed"
+                    : "bg-gradient-to-r from-brand-purple to-purple-600 hover:opacity-90 shadow-brand-purple/25 hover:shadow-brand-purple/40 cursor-pointer"
+                }`}
+              >
+                {isSending ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span>পাঠানো হচ্ছে...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-5 h-5" />
+                    <span>শর্ট লিস্ট পাঠান (Send Short List)</span>
+                  </>
+                )}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
