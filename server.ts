@@ -1917,6 +1917,75 @@ app.get("/api/upload/document-url", requireAuth, async (req, res) => {
   }
 });
 
+// --- PUBLIC/ADMIN IMAGE & POSTER UPLOAD ENDPOINT ---
+app.post("/api/upload/image", uploadMiddleware.single("file") as any, async (req, res) => {
+  try {
+    let fileBuffer: Buffer | null = null;
+    let fileName = "";
+    let mimeType = "image/jpeg";
+
+    if (req.file) {
+      fileBuffer = req.file.buffer;
+      fileName = req.file.originalname;
+      mimeType = req.file.mimetype || "image/jpeg";
+    } else if (req.body?.fileBase64) {
+      const base64Data = req.body.fileBase64.replace(/^data:[^;]+;base64,/, "");
+      fileBuffer = Buffer.from(base64Data, "base64");
+      fileName = req.body.fileName || `poster_${Date.now()}.jpg`;
+      mimeType = req.body.mimeType || "image/jpeg";
+    } else {
+      return res.status(400).json({ error: "No image file provided." });
+    }
+
+    if (!fileBuffer || fileBuffer.length === 0) {
+      return res.status(400).json({ error: "File is empty." });
+    }
+
+    // Attempt Supabase storage first
+    try {
+      const fileExt = fileName.split(".").pop()?.toLowerCase() || "jpg";
+      const cleanFileName = fileName.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const storagePath = `posters/${Date.now()}_${cleanFileName}.${fileExt}`;
+
+      const { data: uploadData, error: uploadErr } = await supabaseAdmin.storage
+        .from("product-images")
+        .upload(storagePath, fileBuffer, {
+          contentType: mimeType,
+          cacheControl: "31536000",
+          upsert: true
+        });
+
+      if (!uploadErr) {
+        const { data: publicData } = supabaseAdmin.storage
+          .from("product-images")
+          .getPublicUrl(storagePath);
+
+        if (publicData?.publicUrl) {
+          return res.json({
+            success: true,
+            path: storagePath,
+            url: publicData.publicUrl
+          });
+        }
+      }
+    } catch (supabaseStorageErr) {
+      log.warn("Supabase bucket upload skipped or failed, falling back to data URL:", supabaseStorageErr);
+    }
+
+    // High-fidelity fallback: Return standard base64 data URI
+    const base64Str = fileBuffer.toString("base64");
+    const dataUrl = `data:${mimeType};base64,${base64Str}`;
+    return res.json({
+      success: true,
+      path: `data_${Date.now()}`,
+      url: dataUrl
+    });
+  } catch (err: any) {
+    log.error("Image upload exception:", err);
+    return res.status(500).json({ error: err.message || "Failed to process image upload." });
+  }
+});
+
 // --- WEB PUSH NOTIFICATIONS (Direct Mobile Delivery) ---
 
 app.get("/api/notifications/vapid-public-key", (req, res) => {
