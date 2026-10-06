@@ -172,7 +172,7 @@ export default function CustomInvoiceGenerator({
     setInvoiceDate(getTodayDateStr());
     setDueDate(group.deliveryDate);
     setNotes(
-      `Consolidated Delivery Schedule Invoice (${group.deliverySchedule} Delivery, ${group.deliveryDate}). Cutoff: 5:00 PM BST. Included Orders: ${group.readableOrderIds.join(", ")}.`
+      `Consolidated Delivery Schedule Invoice (${group.deliverySchedule} Delivery, ${group.deliveryDate}). Cutoff: 12:00 PM BST. Included Orders: ${group.readableOrderIds.join(", ")}.`
     );
 
     showToast(`Successfully consolidated ${group.orders.length} orders for ${group.deliveryScheduleLabel} with single ৳40 delivery charge.`);
@@ -880,16 +880,17 @@ export default function CustomInvoiceGenerator({
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Automatically consolidate all pending wholesale orders for a pharmacy into ONE invoice with a single ৳40 delivery charge for Sunday, Tuesday, or Friday delivery.
+                  Automatically consolidate all pending wholesale orders for a pharmacy into ONE invoice with a single ৳40 delivery charge for Monday, Wednesday, or Saturday delivery.
                 </p>
 
                 <div className="space-y-2 max-h-[190px] overflow-y-auto pr-1">
                   {deliveryGroups.map((grp, idx) => {
                     const isCurrentGroup = grp.pharmacyId === selectedExistingPharmacyId && grp.readableOrderIds.join(" + ") === orderRef;
                     const schedBadge = 
-                      grp.deliverySchedule === "FRIDAY" ? "bg-emerald-100 text-emerald-800 border-emerald-200" :
-                      grp.deliverySchedule === "SUNDAY" ? "bg-purple-100 text-purple-800 border-purple-200" :
-                      "bg-blue-100 text-blue-800 border-blue-200";
+                      grp.deliverySchedule === "MONDAY" ? "bg-blue-100 text-blue-800 border-blue-200" :
+                      grp.deliverySchedule === "WEDNESDAY" ? "bg-emerald-100 text-emerald-800 border-emerald-200" :
+                      grp.deliverySchedule === "SATURDAY" ? "bg-purple-100 text-purple-800 border-purple-200" :
+                      "bg-slate-100 text-slate-800 border-slate-200";
 
                     return (
                       <div
@@ -906,7 +907,7 @@ export default function CustomInvoiceGenerator({
                               🗓️ {grp.deliverySchedule} DELIVERY
                             </span>
                             <span className="text-[10px] text-slate-500 font-medium">
-                              {grp.deliveryDate} (Cutoff: 5:00 PM BST)
+                              {grp.deliveryDate} (Cutoff: 12:00 PM BST)
                             </span>
                           </div>
                           <p className="font-extrabold text-slate-900 text-xs mt-1 truncate">

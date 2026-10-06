@@ -85,7 +85,7 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 app.set("trust proxy", 1); // Trust first proxy (necessary for secure cookie-sessions on reverse proxies like Vercel/Cloud Run)
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const DEBUG = process.env.DEBUG === "true" || process.env.NODE_ENV !== "production";
 
 const log = {
@@ -3046,7 +3046,7 @@ function generateCombinedInvoicePdf(res: any, group: ConsolidatedInvoiceGroup, p
 
   doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#4338CA").text("DELIVERY WINDOW & INCLUDED ORDERS", refBoxX + 8, stripY + 3);
   doc.font("Helvetica").fontSize(7).fillColor("#475569").text(`Window: ${group.deliveryScheduleLabel}`, refBoxX + 8, stripY + 15);
-  doc.text(`Daily Cutoff: 5:00 PM BST (Asia/Dhaka)`, refBoxX + 8, stripY + 26);
+  doc.text(`Daily Cutoff: 12:00 PM BST (Asia/Dhaka)`, refBoxX + 8, stripY + 26);
   
   const orderListStr = group.readableOrderIds.join(", ");
   doc.font("Helvetica-Bold").fontSize(7).fillColor("#0F172A").text("Orders: ", refBoxX + 8, stripY + 38, { continued: true });

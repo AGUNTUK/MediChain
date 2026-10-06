@@ -1060,6 +1060,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
 
   // Consolidated Delivery Schedule Invoices
   const [orderViewMode, setOrderViewMode] = useState<"consolidated" | "individual">("consolidated");
+  const [deliveryScheduleFilter, setDeliveryScheduleFilter] = useState<"ALL" | "MONDAY" | "WEDNESDAY" | "SATURDAY">("ALL");
   const [downloadingCombinedKey, setDownloadingCombinedKey] = useState<string | null>(null);
 
   const consolidatedGroups = useMemo(() => {
@@ -2668,7 +2669,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100">
                           <div>
                             <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">Wholesale Orders & Invoicing</h3>
-                            <p className="text-[11px] text-slate-500 mt-0.5">Automated Sunday, Tuesday & Friday delivery schedule consolidation</p>
+                            <p className="text-[11px] text-slate-500 mt-0.5">Automated Monday, Wednesday & Saturday delivery schedule consolidation</p>
                           </div>
                           <div className="flex items-center gap-2">
                             <button
@@ -2680,6 +2681,36 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                               <span>Custom Invoice Generator</span>
                             </button>
                           </div>
+                        </div>
+
+                        {/* Schedule Day Filter Tabs */}
+                        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                          {(["ALL", "MONDAY", "WEDNESDAY", "SATURDAY"] as const).map((dayTab) => {
+                            const count = dayTab === "ALL" 
+                              ? consolidatedGroups.length 
+                              : consolidatedGroups.filter(g => g.deliverySchedule === dayTab).length;
+                            const label = dayTab === "ALL" ? "All Schedules" : `${dayTab.charAt(0) + dayTab.slice(1).toLowerCase()} Delivery`;
+                            const isActive = deliveryScheduleFilter === dayTab;
+                            return (
+                              <button
+                                key={dayTab}
+                                type="button"
+                                onClick={() => setDeliveryScheduleFilter(dayTab)}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer border ${
+                                  isActive
+                                    ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                                    : "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                                }`}
+                              >
+                                <span>{label}</span>
+                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                                  isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"
+                                }`}>
+                                  {count}
+                                </span>
+                              </button>
+                            );
+                          })}
                         </div>
 
                         {/* View Mode Toggle: Consolidated vs Individual */}
@@ -2725,6 +2756,9 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                               <div className="space-y-3 max-h-[560px] overflow-y-auto pr-1">
                                 {consolidatedGroups
                                   .filter(g => {
+                                    if (deliveryScheduleFilter !== "ALL" && g.deliverySchedule !== deliveryScheduleFilter) {
+                                      return false;
+                                    }
                                     const s = orderSearch.toLowerCase();
                                     return (
                                       g.pharmacyName.toLowerCase().includes(s) ||
@@ -2737,9 +2771,10 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                                     const isSelected = selectedOrderDetails && group.orders.some(o => o.id === selectedOrderDetails.id);
                                     const isDownloading = downloadingCombinedKey === group.groupKey;
                                     const scheduleColor = 
-                                      group.deliverySchedule === "FRIDAY" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                                      group.deliverySchedule === "SUNDAY" ? "bg-purple-50 text-purple-700 border-purple-200" :
-                                      "bg-blue-50 text-blue-700 border-blue-200";
+                                      group.deliverySchedule === "MONDAY" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                                      group.deliverySchedule === "WEDNESDAY" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                                      group.deliverySchedule === "SATURDAY" ? "bg-purple-50 text-purple-700 border-purple-200" :
+                                      "bg-slate-50 text-slate-700 border-slate-200";
 
                                     return (
                                       <div
@@ -2757,7 +2792,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                                                 🗓️ {group.deliverySchedule} DELIVERY
                                               </span>
                                               <span className="text-[10px] text-slate-500 font-medium">
-                                                {group.deliveryDate} (Cutoff: 5:00 PM BST)
+                                                {group.deliveryDate} (Cutoff: 12:00 PM BST)
                                               </span>
                                               {group.isLocked ? (
                                                 <span className="text-[9px] font-extrabold bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200">
@@ -2997,7 +3032,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                                       🗓️ {orderWindow.deliveryScheduleLabel}
                                     </span>
                                     <span className="text-[9px] bg-indigo-200 text-indigo-900 font-extrabold px-1.5 py-0.2 rounded">
-                                      Cutoff: 5:00 PM BST
+                                      Cutoff: 12:00 PM BST
                                     </span>
                                   </div>
 
@@ -3018,7 +3053,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                                     </div>
                                   ) : (
                                     <p className="text-[10.5px] text-indigo-800">
-                                      Sole order in this delivery window. Next orders placed before 5:00 PM cutoff will merge with 1x ৳40 delivery charge.
+                                      Sole order in this delivery window. Next orders placed before 12:00 PM cutoff will merge with 1x ৳40 delivery charge.
                                     </p>
                                   )}
                                 </div>

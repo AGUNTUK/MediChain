@@ -184,9 +184,9 @@ export interface Order {
   netProfit?: number | null; // grossProfit - deliveryCost (null if COGS incomplete)
   hasUnknownCostItems?: boolean; // Flag indicating if any item has unknown buying price
   // Delivery Schedule & Consolidated Invoice Attributes
-  deliverySchedule?: "SUNDAY" | "TUESDAY" | "FRIDAY";
+  deliverySchedule?: "MONDAY" | "WEDNESDAY" | "SATURDAY" | "SUNDAY" | "TUESDAY" | "FRIDAY";
   deliveryDate?: string; // YYYY-MM-DD
-  deliveryWindowKey?: string; // e.g. "FRIDAY_2026-10-02"
+  deliveryWindowKey?: string; // e.g. "WEDNESDAY_2026-10-07"
   deliveryWindowStart?: string;
   deliveryWindowEnd?: string;
   deliveryScheduleLabel?: string;

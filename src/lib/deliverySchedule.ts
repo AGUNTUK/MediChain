@@ -1,32 +1,36 @@
 /**
  * MediChain Delivery Schedule & Order Consolidation Engine
  * 
- * BUSINESS RULES:
- * - MediChain delivers only on: SUNDAY, TUESDAY, FRIDAY.
- * - Daily cut-off time is exactly 5:00 PM Bangladesh time (Asia/Dhaka, UTC+6:00).
- * - Orders from the same pharmacy in the same delivery window are consolidated into ONE invoice.
- * - At exactly 5:00 PM (17:00:00.000), orders belong to the NEXT delivery window.
+ * OFFICIAL BUSINESS RULES:
+ * - Delivery Days: MONDAY, WEDNESDAY, SATURDAY.
+ * - Daily cut-off time is exactly 12:00 PM (noon) Bangladesh time (Asia/Dhaka, UTC+6:00).
+ * - At exactly 12:00:00.000 PM, orders transition to the NEXT delivery schedule.
+ * - Orders from the same pharmacy belonging to the same assigned delivery date/schedule are consolidated into ONE invoice.
+ * - Single ৳40 delivery charge per combined invoice.
  * 
- * WINDOWS:
- * 1. FRIDAY WINDOW:  Tuesday 5:00 PM -> Friday 5:00 PM  (Delivery: Friday)
- * 2. SUNDAY WINDOW:  Friday 5:00 PM -> Sunday 5:00 PM   (Delivery: Sunday)
- * 3. TUESDAY WINDOW: Sunday 5:00 PM -> Tuesday 5:00 PM  (Delivery: Tuesday)
+ * RECURRING WINDOWS:
+ * 1. MONDAY DELIVERY:
+ *    - Saturday 12:00 PM -> Monday 12:00 PM
+ * 2. WEDNESDAY DELIVERY:
+ *    - Monday 12:00 PM -> Wednesday 12:00 PM
+ * 3. SATURDAY DELIVERY:
+ *    - Wednesday 12:00 PM -> Saturday 12:00 PM
  */
 
 import { Order, OrderItem, Pharmacy } from "../types";
 
-export type DeliveryScheduleDay = "SUNDAY" | "TUESDAY" | "FRIDAY";
+export type DeliveryScheduleDay = "MONDAY" | "WEDNESDAY" | "SATURDAY" | "SUNDAY" | "TUESDAY" | "FRIDAY";
 
 export interface DeliveryWindowInfo {
   deliveryDay: DeliveryScheduleDay;
   deliveryDate: string; // YYYY-MM-DD
-  windowKey: string; // e.g. "FRIDAY_2026-10-02"
+  windowKey: string; // e.g. "WEDNESDAY_2026-10-07"
   windowStart: string; // ISO string UTC
   windowEnd: string; // ISO string UTC
-  deliveryScheduleLabel: string; // e.g. "Friday Delivery (Oct 2, 2026)"
-  cutoffTimeLabel: string; // e.g. "5:00 PM BST"
+  deliveryScheduleLabel: string; // e.g. "Wednesday Delivery (Oct 7, 2026)"
+  cutoffTimeLabel: string; // "12:00 PM BST"
   isBeforeCutoff: boolean;
-  formattedDeliveryDate: string; // e.g. "Friday, Oct 2, 2026"
+  formattedDeliveryDate: string; // e.g. "Wednesday, Oct 7, 2026"
 }
 
 export interface ConsolidatedInvoiceGroup {
@@ -43,7 +47,7 @@ export interface ConsolidatedInvoiceGroup {
   windowStart: string;
   windowEnd: string;
   deliveryScheduleLabel: string;
-  invoiceNumber: string; // e.g. "INV-COMB-F034F-62EAD" or "INV-20261002-XXXX"
+  invoiceNumber: string; // e.g. "INV-COMB-F034F-62EAD" or "INV-20261007-XXXX"
   orders: Order[];
   orderIds: string[];
   readableOrderIds: string[];
@@ -85,89 +89,86 @@ export function getDeliveryWindow(dateInput: string | Date | number): DeliveryWi
   const date = bdTime.getUTCDate();
   const day = bdTime.getUTCDay(); // 0 = Sunday, 1 = Monday, 2 = Tuesday, 3 = Wednesday, 4 = Thursday, 5 = Friday, 6 = Saturday
   const hours = bdTime.getUTCHours();
-  const minutes = bdTime.getUTCMinutes();
-  const seconds = bdTime.getUTCSeconds();
-  const ms = bdTime.getUTCMilliseconds();
 
-  // Exactly at 5:00:00.000 PM (hours >= 17), cutoff is reached and the order enters the NEXT window
-  const isBefore5PM = (hours < 17);
+  // Exact 12:00:00.000 PM cutoff in Asia/Dhaka (hours < 12 is before cutoff; hours >= 12 is at/after cutoff)
+  const isBefore12PM = (hours < 12);
 
   let deliveryDay: DeliveryScheduleDay;
   let daysToDelivery: number;
   let startOffsetDays: number;
   let endOffsetDays: number;
 
-  if (day === 0) {
-    // SUNDAY
-    if (isBefore5PM) {
-      deliveryDay = "SUNDAY";
-      daysToDelivery = 0;
-      startOffsetDays = -2; // Friday 5:00 PM was 2 days ago
-      endOffsetDays = 0;    // Sunday 5:00 PM is today
-    } else {
-      deliveryDay = "TUESDAY";
-      daysToDelivery = 2;   // Tuesday is in 2 days
-      startOffsetDays = 0;  // Sunday 5:00 PM is today
-      endOffsetDays = 2;    // Tuesday 5:00 PM is in 2 days
-    }
-  } else if (day === 1) {
+  if (day === 1) {
     // MONDAY
-    deliveryDay = "TUESDAY";
-    daysToDelivery = 1;
-    startOffsetDays = -1;   // Sunday 5:00 PM was 1 day ago
-    endOffsetDays = 1;     // Tuesday 5:00 PM is tomorrow
-  } else if (day === 2) {
-    // TUESDAY
-    if (isBefore5PM) {
-      deliveryDay = "TUESDAY";
+    if (isBefore12PM) {
+      deliveryDay = "MONDAY";
       daysToDelivery = 0;
-      startOffsetDays = -2; // Sunday 5:00 PM was 2 days ago
-      endOffsetDays = 0;    // Tuesday 5:00 PM is today
+      startOffsetDays = -2; // Saturday 12:00 PM was 2 days ago
+      endOffsetDays = 0;    // Monday 12:00 PM is today
     } else {
-      deliveryDay = "FRIDAY";
-      daysToDelivery = 3;   // Friday is in 3 days
-      startOffsetDays = 0;  // Tuesday 5:00 PM is today
-      endOffsetDays = 3;    // Friday 5:00 PM is in 3 days
+      deliveryDay = "WEDNESDAY";
+      daysToDelivery = 2;   // Wednesday is in 2 days
+      startOffsetDays = 0;  // Monday 12:00 PM is today
+      endOffsetDays = 2;    // Wednesday 12:00 PM is in 2 days
     }
+  } else if (day === 2) {
+    // TUESDAY (Not a delivery day -> Wednesday delivery)
+    deliveryDay = "WEDNESDAY";
+    daysToDelivery = 1;     // Wednesday is tomorrow
+    startOffsetDays = -1;   // Monday 12:00 PM was 1 day ago
+    endOffsetDays = 1;      // Wednesday 12:00 PM is tomorrow
   } else if (day === 3) {
     // WEDNESDAY
-    deliveryDay = "FRIDAY";
-    daysToDelivery = 2;
-    startOffsetDays = -1;   // Tuesday 5:00 PM was 1 day ago
-    endOffsetDays = 2;     // Friday 5:00 PM is in 2 days
-  } else if (day === 4) {
-    // THURSDAY
-    deliveryDay = "FRIDAY";
-    daysToDelivery = 1;
-    startOffsetDays = -2;   // Tuesday 5:00 PM was 2 days ago
-    endOffsetDays = 1;     // Friday 5:00 PM is tomorrow
-  } else if (day === 5) {
-    // FRIDAY
-    if (isBefore5PM) {
-      deliveryDay = "FRIDAY";
+    if (isBefore12PM) {
+      deliveryDay = "WEDNESDAY";
       daysToDelivery = 0;
-      startOffsetDays = -3; // Tuesday 5:00 PM was 3 days ago
-      endOffsetDays = 0;    // Friday 5:00 PM is today
+      startOffsetDays = -2; // Monday 12:00 PM was 2 days ago
+      endOffsetDays = 0;    // Wednesday 12:00 PM is today
     } else {
-      deliveryDay = "SUNDAY";
-      daysToDelivery = 2;   // Sunday is in 2 days
-      startOffsetDays = 0;  // Friday 5:00 PM is today
-      endOffsetDays = 2;    // Sunday 5:00 PM is in 2 days
+      deliveryDay = "SATURDAY";
+      daysToDelivery = 3;   // Saturday is in 3 days
+      startOffsetDays = 0;  // Wednesday 12:00 PM is today
+      endOffsetDays = 3;    // Saturday 12:00 PM is in 3 days
+    }
+  } else if (day === 4) {
+    // THURSDAY (Not a delivery day -> Saturday delivery)
+    deliveryDay = "SATURDAY";
+    daysToDelivery = 2;     // Saturday is in 2 days
+    startOffsetDays = -1;   // Wednesday 12:00 PM was 1 day ago
+    endOffsetDays = 2;      // Saturday 12:00 PM is in 2 days
+  } else if (day === 5) {
+    // FRIDAY (Not a delivery day -> Saturday delivery)
+    deliveryDay = "SATURDAY";
+    daysToDelivery = 1;     // Saturday is tomorrow
+    startOffsetDays = -2;   // Wednesday 12:00 PM was 2 days ago
+    endOffsetDays = 1;      // Saturday 12:00 PM is tomorrow
+  } else if (day === 6) {
+    // SATURDAY
+    if (isBefore12PM) {
+      deliveryDay = "SATURDAY";
+      daysToDelivery = 0;
+      startOffsetDays = -3; // Wednesday 12:00 PM was 3 days ago
+      endOffsetDays = 0;    // Saturday 12:00 PM is today
+    } else {
+      deliveryDay = "MONDAY";
+      daysToDelivery = 2;   // Monday is in 2 days
+      startOffsetDays = 0;  // Saturday 12:00 PM is today
+      endOffsetDays = 2;    // Monday 12:00 PM is in 2 days
     }
   } else {
-    // SATURDAY (day === 6)
-    deliveryDay = "SUNDAY";
-    daysToDelivery = 1;
-    startOffsetDays = -1;   // Friday 5:00 PM was 1 day ago
-    endOffsetDays = 1;     // Sunday 5:00 PM is tomorrow
+    // SUNDAY (day === 0, Not a delivery day -> Monday delivery)
+    deliveryDay = "MONDAY";
+    daysToDelivery = 1;     // Monday is tomorrow
+    startOffsetDays = -1;   // Saturday 12:00 PM was 1 day ago
+    endOffsetDays = 1;      // Monday 12:00 PM is tomorrow
   }
 
-  // Calculate exact windowStart (at 17:00:00.000 BD time)
-  const startBdDay = new Date(Date.UTC(year, month, date + startOffsetDays, 17, 0, 0, 0));
+  // Calculate exact windowStart (at 12:00:00.000 BD time)
+  const startBdDay = new Date(Date.UTC(year, month, date + startOffsetDays, 12, 0, 0, 0));
   const windowStartUtc = new Date(startBdDay.getTime() - BD_TIMEZONE_OFFSET_MS);
 
-  // Calculate exact windowEnd (at 17:00:00.000 BD time)
-  const endBdDay = new Date(Date.UTC(year, month, date + endOffsetDays, 17, 0, 0, 0));
+  // Calculate exact windowEnd (at 12:00:00.000 BD time)
+  const endBdDay = new Date(Date.UTC(year, month, date + endOffsetDays, 12, 0, 0, 0));
   const windowEndUtc = new Date(endBdDay.getTime() - BD_TIMEZONE_OFFSET_MS);
 
   // Target Delivery calendar date in BD (YYYY-MM-DD)
@@ -181,9 +182,17 @@ export function getDeliveryWindow(dateInput: string | Date | number): DeliveryWi
 
   // Month names for clean readable labels
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const fullDays = { SUNDAY: "Sunday", TUESDAY: "Tuesday", FRIDAY: "Friday" };
-  const formattedDeliveryDate = `${fullDays[deliveryDay]}, ${monthNames[delivBdDay.getUTCMonth()]} ${delivBdDay.getUTCDate()}, ${delivYear}`;
-  const deliveryScheduleLabel = `${fullDays[deliveryDay]} Delivery (${monthNames[delivBdDay.getUTCMonth()]} ${delivBdDay.getUTCDate()}, ${delivYear})`;
+  const fullDays: Record<string, string> = {
+    MONDAY: "Monday",
+    WEDNESDAY: "Wednesday",
+    SATURDAY: "Saturday",
+    SUNDAY: "Sunday",
+    TUESDAY: "Tuesday",
+    FRIDAY: "Friday"
+  };
+  const dayName = fullDays[deliveryDay] || deliveryDay;
+  const formattedDeliveryDate = `${dayName}, ${monthNames[delivBdDay.getUTCMonth()]} ${delivBdDay.getUTCDate()}, ${delivYear}`;
+  const deliveryScheduleLabel = `${dayName} Delivery (${monthNames[delivBdDay.getUTCMonth()]} ${delivBdDay.getUTCDate()}, ${delivYear})`;
 
   return {
     deliveryDay,
@@ -192,8 +201,8 @@ export function getDeliveryWindow(dateInput: string | Date | number): DeliveryWi
     windowStart: windowStartUtc.toISOString(),
     windowEnd: windowEndUtc.toISOString(),
     deliveryScheduleLabel,
-    cutoffTimeLabel: "5:00 PM BST",
-    isBeforeCutoff: isBefore5PM,
+    cutoffTimeLabel: "12:00 PM BST",
+    isBeforeCutoff: isBefore12PM,
     formattedDeliveryDate
   };
 }
