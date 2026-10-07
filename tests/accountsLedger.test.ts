@@ -169,6 +169,7 @@ async function runAccountsLedgerTests() {
   assert.strictEqual(ledgerAfterCap.capitalContributions, 100000, "Capital contribution recorded as 100,000");
   assert.strictEqual(ledgerAfterCap.cashIn, 145000, "Cash in increases by 100,000 to 145,000");
   assert.strictEqual(ledgerAfterCap.netCashFlow, 74100, "Net cash flow is 145,000 - 70,900 = 74,100");
+  await supabaseAdmin.from("capital_transactions").delete().eq("id", cap.id);
   console.log("  Passed: Capital increases cash and equity with ZERO change to revenue or profit.");
 
   // TEST 4: Custom Invoice Idempotency & Profit (Section 57)

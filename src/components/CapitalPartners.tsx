@@ -1031,14 +1031,15 @@ export default function CapitalPartners({ initialSubTab = "partners", onBackToAc
                 try {
                   setIsSubmitting(true);
                   if (showPartnerModal === "new") {
-                    await capitalClient.createPartner(payload);
-                    showToast("Partner profile created successfully.");
+                    const created = await capitalClient.createPartner(payload);
+                    showToast(`Partner "${created.name}" profile created successfully.`);
+                    setActiveTab("partners");
                   } else {
-                    await capitalClient.updatePartner(showPartnerModal.id, payload);
-                    showToast("Partner profile updated.");
+                    const updated = await capitalClient.updatePartner(showPartnerModal.id, payload);
+                    showToast(`Partner "${updated.name}" profile updated.`);
                   }
                   setShowPartnerModal(null);
-                  loadDashboardData();
+                  await loadDashboardData();
                 } catch (err: any) {
                   showToast(err.message || "Failed to save partner", true);
                 } finally {
@@ -1244,7 +1245,7 @@ export default function CapitalPartners({ initialSubTab = "partners", onBackToAc
                   }
 
                   setShowContributionModal(null);
-                  loadDashboardData();
+                  await loadDashboardData();
                   if (selectedPartnerId) refreshCurrentLedger(selectedPartnerId);
                 } catch (err: any) {
                   showToast(err.message || "Failed to record transaction", true);

@@ -12,6 +12,7 @@ export const capitalClient = {
   async getOverview(): Promise<CapitalDashboardStats> {
     const res = await apiFetch("/api/admin/capital/overview");
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to load overview");
     return data.stats;
   },
 
@@ -23,30 +24,36 @@ export const capitalClient = {
 
     const res = await apiFetch(`/api/admin/capital/partners?${query.toString()}`);
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to load partners");
     return data.partners || [];
   },
 
   async getPartnerById(id: string): Promise<Partner> {
     const res = await apiFetch(`/api/admin/capital/partners/${id}`);
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to load partner");
     return data.partner;
   },
 
   async createPartner(payload: Partial<Partner>): Promise<Partner> {
     const res = await apiFetch("/api/admin/capital/partners", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to create partner");
     return data.partner;
   },
 
   async updatePartner(id: string, payload: Partial<Partner>): Promise<Partner> {
     const res = await apiFetch(`/api/admin/capital/partners/${id}`, {
       method: "PUT",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to update partner");
     return data.partner;
   },
 
@@ -55,6 +62,7 @@ export const capitalClient = {
       method: "DELETE"
     });
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to delete partner");
     return data.success;
   },
 
@@ -66,7 +74,9 @@ export const capitalClient = {
     totalWithdrawals: number;
   }> {
     const res = await apiFetch(`/api/admin/capital/partners/${partnerId}/ledger`);
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to load partner ledger");
+    return data;
   },
 
   async recordContribution(payload: {
@@ -80,9 +90,12 @@ export const capitalClient = {
   }): Promise<{ transaction: CapitalTransaction; documents: CapitalDocument[] }> {
     const res = await apiFetch("/api/admin/capital/contributions", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to record contribution");
+    return data;
   },
 
   async recordWithdrawal(payload: {
@@ -96,9 +109,12 @@ export const capitalClient = {
   }): Promise<{ transaction: CapitalTransaction }> {
     const res = await apiFetch("/api/admin/capital/withdrawals", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to record withdrawal");
+    return data;
   },
 
   async getDocuments(filter?: {
@@ -115,12 +131,15 @@ export const capitalClient = {
 
     const res = await apiFetch(`/api/admin/capital/documents?${query.toString()}`);
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to load documents");
     return data.documents || [];
   },
 
   async getDocumentById(id: string): Promise<{ document: CapitalDocument; history: CapitalDocument[] }> {
     const res = await apiFetch(`/api/admin/capital/documents/${id}`);
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to load document");
+    return data;
   },
 
   async createDocumentDraft(payload: {
@@ -135,9 +154,11 @@ export const capitalClient = {
   }): Promise<CapitalDocument> {
     const res = await apiFetch("/api/admin/capital/documents/draft", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to create document draft");
     return data.document;
   },
 
@@ -146,24 +167,29 @@ export const capitalClient = {
       method: "POST"
     });
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to finalize document");
     return data.document;
   },
 
   async createNewVersion(id: string, updatedPayload: any, reason: string): Promise<CapitalDocument> {
     const res = await apiFetch(`/api/admin/capital/documents/${id}/new-version`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ updatedPayload, reason })
     });
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to create new document version");
     return data.document;
   },
 
   async voidDocument(id: string, reason: string): Promise<CapitalDocument> {
     const res = await apiFetch(`/api/admin/capital/documents/${id}/void`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ reason })
     });
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to void document");
     return data.document;
   },
 
@@ -172,6 +198,7 @@ export const capitalClient = {
       method: "DELETE"
     });
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to delete document");
     return data.success;
   },
 

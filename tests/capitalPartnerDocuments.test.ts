@@ -20,6 +20,7 @@ import {
   deleteCapitalDocument
 } from "../src/lib/capitalPartnerService.js";
 import * as accountsService from "../src/lib/accountsService.js";
+import { supabaseAdmin } from "../src/lib/supabaseAdmin.js";
 
 async function runCapitalPartnerTests() {
   console.log("=== RUNNING MEDICHAIN CAPITAL & PARTNER DOCUMENT MANAGEMENT SYSTEM TESTS ===\n");
@@ -260,6 +261,13 @@ async function runCapitalPartnerTests() {
   const checkPartner = await getPartnerById(tempPartner.id);
   assert.strictEqual(checkPartner, null, "Deleted partner must no longer be found");
   console.log("  Passed: Partner profile successfully deleted and verified unretrievable.");
+
+  // CLEANUP: Clean up test partner, transaction, and documents so live DB is not polluted
+  await supabaseAdmin.from("capital_documents").delete().eq("partner_id", partner.id);
+  await deletePartner(partner.id);
+  if (contributionResult.transaction?.id) {
+    await supabaseAdmin.from("capital_transactions").delete().eq("id", contributionResult.transaction.id);
+  }
 
   console.log("\n🎉 ALL 11 CAPITAL & PARTNER DOCUMENT MANAGEMENT TESTS PASSED WITH 100% SUCCESS!");
 }
