@@ -31,6 +31,7 @@ export interface DeliveryWindowInfo {
   cutoffTimeLabel: string; // "12:00 PM BST"
   isBeforeCutoff: boolean;
   formattedDeliveryDate: string; // e.g. "Wednesday, Oct 7, 2026"
+  estimatedDeliveryTimestamp: string; // ISO-8601 UTC timestamp for delivery day in Asia/Dhaka
 }
 
 export interface ConsolidatedInvoiceGroup {
@@ -194,6 +195,9 @@ export function getDeliveryWindow(dateInput: string | Date | number): DeliveryWi
   const formattedDeliveryDate = `${dayName}, ${monthNames[delivBdDay.getUTCMonth()]} ${delivBdDay.getUTCDate()}, ${delivYear}`;
   const deliveryScheduleLabel = `${dayName} Delivery (${monthNames[delivBdDay.getUTCMonth()]} ${delivBdDay.getUTCDate()}, ${delivYear})`;
 
+  // Authoritative ISO-8601 timestamp for the scheduled delivery day in Asia/Dhaka (+06:00) at 12:00 PM BST:
+  const estimatedDeliveryTimestamp = new Date(Date.UTC(delivYear, delivBdDay.getUTCMonth(), delivBdDay.getUTCDate(), 12, 0, 0, 0) - BD_TIMEZONE_OFFSET_MS).toISOString();
+
   return {
     deliveryDay,
     deliveryDate: deliveryDateStr,
@@ -203,7 +207,8 @@ export function getDeliveryWindow(dateInput: string | Date | number): DeliveryWi
     deliveryScheduleLabel,
     cutoffTimeLabel: "12:00 PM BST",
     isBeforeCutoff: isBefore12PM,
-    formattedDeliveryDate
+    formattedDeliveryDate,
+    estimatedDeliveryTimestamp
   };
 }
 

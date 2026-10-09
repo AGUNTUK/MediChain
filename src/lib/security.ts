@@ -85,6 +85,18 @@ export const schemas = {
     paymentMethod: z.literal("Cash on Delivery").default("Cash on Delivery").optional(),
     notes: z.string().optional(),
     deliveryAddress: z.string().min(5, "Delivery address is required."),
+    estimatedDelivery: z.string().optional().refine(
+      val => !val || (!isNaN(Date.parse(val)) && !val.includes("Cutoff:") && !val.includes("Delivery (")),
+      { message: "Invalid estimated delivery timestamp. Expected a valid ISO-8601 timestamp, not a human-readable delivery schedule label." }
+    ),
+    estimated_delivery: z.string().optional().refine(
+      val => !val || (!isNaN(Date.parse(val)) && !val.includes("Cutoff:") && !val.includes("Delivery (")),
+      { message: "Invalid estimated delivery timestamp. Expected a valid ISO-8601 timestamp, not a human-readable delivery schedule label." }
+    ),
+    deliveryScheduleLabel: z.string().optional(),
+    delivery_schedule_label: z.string().optional(),
+    deliveryDate: z.string().optional(),
+    delivery_date: z.string().optional(),
   }).passthrough(),
   adminProduct: z.object({
     name: z.string().min(2, "Product name is required."),

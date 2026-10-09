@@ -2430,6 +2430,33 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `npm run lint`: 0 errors.
   - `npm run build`: Production build succeeded.
 
+### TASK 105: Checkout Delivery Schedule Timestamp Database Syntax Error Fix & Invariant Hardening
+- **SUMMARY:**
+  - **Root Cause Identified**:
+    - During checkout order placement, the PostgreSQL `orders` table has a column `estimated_delivery` of type `TIMESTAMPTZ`.
+    - If a human-readable delivery schedule label (e.g., `"Saturday Delivery (Oct 10, 2026) (Cutoff: 12:00 PM BST)"`) was supplied or inadvertently mapped into the database column rather than an ISO-8601 UTC timestamp, PostgreSQL threw `invalid input syntax for type timestamp with time zone`, failing the order insertion at line 1923 with: `Failed to log order receipt. DB error: invalid input syntax for type timestamp with time zone: "Saturday Delivery (Oct 10, 2026) (Cutoff: 12:00 PM BST)"`.
+  - **Separation of Display Labels vs. Database Values**:
+    - `orders.estimated_delivery` (PostgreSQL `TIMESTAMPTZ`): strictly receives a valid ISO-8601 string calculated authoritatively in `Asia/Dhaka` (UTC+6) by `deliveryWindow.estimatedDeliveryTimestamp` (e.g. `2026-10-10T06:00:00.000Z`).
+    - `orders.wms_attributes` (PostgreSQL `JSONB`): preserves `deliveryScheduleLabel` (`Saturday Delivery (Oct 10, 2026) (Cutoff: 12:00 PM BST)`), `deliverySchedule` (`SATURDAY`), `deliveryDate` (`2026-10-10`), `deliveryWindowStart`, and `deliveryWindowEnd`.
+    - `Order` type (`src/types.ts`): provides both `estimatedDelivery` (human-readable display string) and `estimatedDeliveryTimestamp` (ISO-8601 string).
+  - **API Payload & Transaction Invariant Hardening**:
+    - `src/lib/security.ts` (`schemas.orderCreate`): Added `.refine()` validation ensuring `estimatedDelivery` and `estimated_delivery`, if present, are valid ISO-8601 timestamps and reject human-readable delivery schedule labels with a 400 Bad Request before database access.
+    - `src/lib/dbService.ts` (`createOrderTransaction`):
+      - Validates any caller-supplied `estimatedDelivery` / `estimated_delivery` immediately upon function entry. Rejects non-ISO strings or schedule labels prior to inventory reservation, preventing transaction rollbacks and guaranteeing zero duplicate orders.
+      - Added a critical assertion guard immediately prior to `supabaseAdmin.from("orders").insert()` verifying `estimatedDeliveryIso` is strictly valid ISO-8601.
+    - `server.ts` (`POST /api/orders`): Properly handles `estimatedDelivery`, `estimated_delivery`, `deliveryScheduleLabel`, and `deliveryDate`.
+  - **Preserved Delivery & Accounting Rules**:
+    - Asia/Dhaka (UTC+6) time zone calculations and 12:00 PM BST cutoff preserved with 100% precision across Monday, Wednesday, and Saturday delivery windows.
+    - Invoices generated with `due_date` as TIMESTAMPTZ (15 days net terms), `amount_paid: 0` for Cash on Delivery, and single ৳40 delivery charge.
+- **VERIFICATION:**
+  - `npx tsx tests/checkoutDeliveryTimestamp.test.ts`: Passed 100% (all 6 comprehensive scenarios passed).
+  - `npx tsx tests/deliverySchedule.test.ts`: Passed 100% (24/24 tests passed).
+  - `npx tsx tests/accountsLedger.test.ts`: Passed 100% (7/7 tests passed).
+  - `npx tsx tests/capitalPartnerDocuments.test.ts`: Passed 100% (11/11 tests passed).
+  - `npx tsx tests/whatsappMarketing.test.ts`: Passed 100%.
+  - `npm run lint` (`tsc --noEmit`): 0 errors.
+  - `npm run build`: Production build succeeded.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

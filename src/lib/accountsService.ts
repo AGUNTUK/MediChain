@@ -959,7 +959,7 @@ export async function getRawDailyCalculation(targetDateStr: string) {
   const dayOrders = allOrders.filter(o => {
     if (o.status === "Cancelled") return false;
     const orderBdDate = toBDDateString(o.createdAt);
-    const assignedDeliveryDate = o.estimatedDelivery ? toBDDateString(o.estimatedDelivery) : orderBdDate;
+    const assignedDeliveryDate = o.deliveryDate || (o.estimatedDelivery && !isNaN(new Date(o.estimatedDelivery).getTime()) ? toBDDateString(o.estimatedDelivery) : orderBdDate);
     return orderBdDate === targetDateStr || assignedDeliveryDate === targetDateStr;
   });
 

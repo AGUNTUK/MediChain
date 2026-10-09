@@ -1625,12 +1625,31 @@ export async function createOrderTransaction(
     notes?: string;
     items: Array<{ productId: string; quantity: number }>;
     deliveryAddress?: string;
+    estimatedDelivery?: string;
+    estimated_delivery?: string;
+    deliveryScheduleLabel?: string;
+    delivery_schedule_label?: string;
+    deliveryDate?: string;
+    delivery_date?: string;
   },
   preloadedProducts?: any[]
 ) {
   const backupState: any[] = []; // Stores list of functions to execute to rollback state on failure
 
   try {
+    // Validate optional explicit estimatedDelivery / estimated_delivery in orderPayload
+    const inputEstimatedDelivery = (orderPayload as any).estimatedDelivery || (orderPayload as any).estimated_delivery;
+    if (inputEstimatedDelivery !== undefined && inputEstimatedDelivery !== null && inputEstimatedDelivery !== "") {
+      if (
+        typeof inputEstimatedDelivery !== "string" || 
+        isNaN(Date.parse(inputEstimatedDelivery)) || 
+        inputEstimatedDelivery.includes("Cutoff:") || 
+        inputEstimatedDelivery.includes("Delivery (")
+      ) {
+        throw new Error(`Invalid estimated delivery timestamp: "${inputEstimatedDelivery}". Expected a valid ISO-8601 timestamp, not a human-readable delivery schedule label.`);
+      }
+    }
+
     // 1. Fetch pharmacy profile and verification status
     const pharmacy = await getPharmacyById(pharmacyId);
     if (!pharmacy) throw new Error("Pharmacy not found");
@@ -1885,15 +1904,38 @@ export async function createOrderTransaction(
     // Authoritative Delivery Window Calculation (Asia/Dhaka)
     const orderTimestamp = new Date();
     const deliveryWindow = getDeliveryWindow(orderTimestamp);
+    const deliveryScheduleFullLabel = `${deliveryWindow.deliveryScheduleLabel} (Cutoff: 12:00 PM BST)`;
+
+    const explicitLabel = (orderPayload as any).deliveryScheduleLabel || (orderPayload as any).delivery_schedule_label;
+    const explicitDate = (orderPayload as any).deliveryDate || (orderPayload as any).delivery_date;
 
     const wmsMeta = {
       deliverySchedule: deliveryWindow.deliveryDay,
-      deliveryDate: deliveryWindow.deliveryDate,
+      deliveryDate: explicitDate || deliveryWindow.deliveryDate,
       deliveryWindowKey: deliveryWindow.windowKey,
       deliveryWindowStart: deliveryWindow.windowStart,
       deliveryWindowEnd: deliveryWindow.windowEnd,
-      deliveryScheduleLabel: deliveryWindow.deliveryScheduleLabel
+      deliveryScheduleLabel: explicitLabel || deliveryScheduleFullLabel
     };
+
+    // Valid ISO-8601 timestamp in Asia/Dhaka (+06:00) for PostgreSQL TIMESTAMPTZ column
+    let estimatedDeliveryIso: string;
+    if (inputEstimatedDelivery && !isNaN(Date.parse(inputEstimatedDelivery))) {
+      estimatedDeliveryIso = new Date(inputEstimatedDelivery).toISOString();
+    } else {
+      estimatedDeliveryIso = deliveryWindow.estimatedDeliveryTimestamp || 
+        new Date(`${deliveryWindow.deliveryDate}T12:00:00+06:00`).toISOString();
+    }
+
+    // Invariant safety assertion: Never pass a human-readable label or invalid date into PostgreSQL TIMESTAMPTZ column
+    if (
+      !estimatedDeliveryIso || 
+      isNaN(Date.parse(estimatedDeliveryIso)) || 
+      estimatedDeliveryIso.includes("Cutoff:") || 
+      estimatedDeliveryIso.includes("Delivery (")
+    ) {
+      throw new Error(`Critical invariant violation: Invalid estimated_delivery timestamp value "${estimatedDeliveryIso}". Must be a valid ISO-8601 timestamp.`);
+    }
 
     const { data: insertedOrder, error: orderErr } = await supabaseAdmin
       .from("orders")
@@ -1908,7 +1950,7 @@ export async function createOrderTransaction(
         notes: cleanNotes,
         order_number: uniqueOrderId,
         delivery_address: orderPayload.deliveryAddress || pharmacy.address,
-        estimated_delivery: `${deliveryWindow.deliveryScheduleLabel} (Cutoff: 12:00 PM BST)`,
+        estimated_delivery: estimatedDeliveryIso,
         handover_otp: handoverOtp,
         wms_attributes: wmsMeta
       })
@@ -1976,12 +2018,14 @@ export async function createOrderTransaction(
         notes: insertedOrder.notes,
         createdAt: insertedOrder.created_at,
         estimatedDelivery: `${deliveryWindow.deliveryScheduleLabel} (Cutoff: 12:00 PM BST)`,
+        estimatedDeliveryTimestamp: insertedOrder.estimated_delivery || estimatedDeliveryIso,
         deliverySchedule: deliveryWindow.deliveryDay,
         deliveryDate: deliveryWindow.deliveryDate,
         deliveryWindowKey: deliveryWindow.windowKey,
         deliveryWindowStart: deliveryWindow.windowStart,
         deliveryWindowEnd: deliveryWindow.windowEnd,
         deliveryScheduleLabel: deliveryWindow.deliveryScheduleLabel,
+        deliveryScheduleFullLabel: deliveryScheduleFullLabel,
         isInvoiceLocked: false,
         items: orderItemsToInsert.map(itm => ({
           productId: itm.product_id,
@@ -2233,12 +2277,14 @@ export async function getOrders(pharmacyId?: string, page = 1, limit = 100): Pro
         deliveryAddress: order.delivery_address,
         createdAt: order.created_at,
         estimatedDelivery: `${deliveryWindow.deliveryScheduleLabel} (Cutoff: 12:00 PM BST)`,
+        estimatedDeliveryTimestamp: order.estimated_delivery || deliveryWindow.estimatedDeliveryTimestamp,
         deliverySchedule: deliveryWindow.deliveryDay,
         deliveryDate: deliveryWindow.deliveryDate,
         deliveryWindowKey: deliveryWindow.windowKey,
         deliveryWindowStart: deliveryWindow.windowStart,
         deliveryWindowEnd: deliveryWindow.windowEnd,
         deliveryScheduleLabel: deliveryWindow.deliveryScheduleLabel,
+        deliveryScheduleFullLabel: `${deliveryWindow.deliveryScheduleLabel} (Cutoff: 12:00 PM BST)`,
         isInvoiceLocked: isLocked,
         hasReturnRequested: order.has_return_requested,
         returnReason: order.return_reason,
@@ -2476,12 +2522,14 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
     deliveryAddress: data.delivery_address,
     createdAt: data.created_at,
     estimatedDelivery: `${deliveryWindow.deliveryScheduleLabel} (Cutoff: 12:00 PM BST)`,
+    estimatedDeliveryTimestamp: data.estimated_delivery || deliveryWindow.estimatedDeliveryTimestamp,
     deliverySchedule: deliveryWindow.deliveryDay,
     deliveryDate: deliveryWindow.deliveryDate,
     deliveryWindowKey: deliveryWindow.windowKey,
     deliveryWindowStart: deliveryWindow.windowStart,
     deliveryWindowEnd: deliveryWindow.windowEnd,
     deliveryScheduleLabel: deliveryWindow.deliveryScheduleLabel,
+    deliveryScheduleFullLabel: `${deliveryWindow.deliveryScheduleLabel} (Cutoff: 12:00 PM BST)`,
     isInvoiceLocked: isLocked,
     hasReturnRequested: data.has_return_requested,
     returnReason: data.return_reason,

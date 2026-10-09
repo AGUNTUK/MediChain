@@ -165,6 +165,7 @@ export interface Order {
   deliveryAddress?: string;
   createdAt: string;
   estimatedDelivery: string;
+  estimatedDeliveryTimestamp?: string;
   hasReturnRequested?: boolean;
   returnReason?: string;
   returnStatus?: "None" | "Pending" | "Approved" | "Rejected";
@@ -196,6 +197,7 @@ export interface Order {
   deliveryWindowStart?: string;
   deliveryWindowEnd?: string;
   deliveryScheduleLabel?: string;
+  deliveryScheduleFullLabel?: string;
   combinedInvoiceId?: string;
   isInvoiceLocked?: boolean;
   consolidatedOrderIds?: string[];

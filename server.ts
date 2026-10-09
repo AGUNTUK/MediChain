@@ -2603,7 +2603,7 @@ app.get("/api/orders", requireAuth, async (req, res) => {
 });
 
 app.post("/api/orders", requireAuth, orderLimiter, validateBody(schemas.orderCreate), async (req, res) => {
-  const { notes, deliveryAddress } = req.body;
+  const { notes, deliveryAddress, estimatedDelivery, estimated_delivery, deliveryScheduleLabel, deliveryDate } = req.body;
 
   try {
     const cartItems = await dbService.getCart(req.user.id);
@@ -2681,7 +2681,10 @@ app.post("/api/orders", requireAuth, orderLimiter, validateBody(schemas.orderCre
           productId: item.productId,
           quantity: item.quantity
         })),
-        deliveryAddress
+        deliveryAddress,
+        estimatedDelivery: estimatedDelivery || estimated_delivery,
+        deliveryScheduleLabel: deliveryScheduleLabel || req.body?.delivery_schedule_label,
+        deliveryDate: deliveryDate || req.body?.delivery_date
       },
       products || Array.from(productMap.values())
     );
