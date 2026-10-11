@@ -14,6 +14,7 @@ export const getRackLocation = (productId: string, name: string, category: strin
   else if (category === "Injection" || category === "Infusion") section = "C";
   else if (category === "Cream" || category === "Ointment" || category === "Gel" || category === "Lotion") section = "D";
   else if (category === "Supplement" || category === "Vitamins") section = "E";
+  else if (category === "Ophthalmic" || category === "Eye Drops") section = "F";
   
   const shelf = (name.length % 4) + 1;
   return `Rack ${section}-${index.toString().padStart(2, "0")}, Shelf ${shelf}`;

@@ -2457,6 +2457,33 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `npm run lint` (`tsc --noEmit`): 0 errors.
   - `npm run build`: Production build succeeded.
 
+### TASK 106: Ophthalmic Category Consolidation & Eye Care Products Reassignment
+- **SUMMARY:**
+  - **Category Creation & Schema Migration**:
+    - Created migration `19_ophthalmic_category.sql` ensuring the `Ophthalmic` category exists in the `public.categories` table (`id: aae02b5a-6bfd-4db8-8ca6-d7b739a5fefc`).
+    - Standardized `DEFAULT_CATEGORY_OPTIONS` and `CATEGORY_GROUPS` in `src/constants/categories.ts` so `Ophthalmic` is the dedicated category representing all eye care and eye drops medicines (`labelBn: "চক্ষু ওষুধ (চোখের ড্রপ/মলম)"`).
+  - **Complete Product Migration in Database**:
+    - Migrated all eye drops, ophthalmic solutions, ocular suspensions, eye gels, eye ointments, artificial tears, and anti-glaucoma medicines in the Supabase PostgreSQL `products` table into `category_name_fallback = 'Ophthalmic'` and `category_id = aae02b5a-6bfd-4db8-8ca6-d7b739a5fefc`.
+    - Resolved edge case product `Supraphen 0.5%` (Chloramphenicol 0.5% eye drops) which was previously under legacy category `Drop`.
+    - Total 77 ophthalmic and eye care medicines accurately assigned to `Ophthalmic`.
+    - Preserved non-eye categories: ear drops (e.g. `Candiflox`, `Audicom`), nasal drops/sprays (e.g. `Afrin`, `Antazol`), and pediatric oral drops remain in their respective distinct categories.
+  - **Backend API & Service Enhancements**:
+    - `server.ts` (`GET /api/products`): Category filtering supports `category=Ophthalmic` as well as backward-compatible aliases (`eye drops`, `eye care`).
+    - `src/lib/importService.ts`: Upgraded `mapRowToFields` to automatically detect eye drops, eye care, ophthalmic preparations, and brand signatures (like Supraphen) and assign them to `Ophthalmic` during catalog imports.
+    - `src/components/depot/depotUtils.ts`: Added dedicated depot rack location section `F` for `Ophthalmic` products.
+    - `src/components/ModernInvoiceModal.tsx`: Updated `resolveItemType` to recognize Ophthalmic formulations.
+    - `src/components/CategoryIcon.tsx`: Category icon maps to Lucide `Eye` icon with `bg-cyan-50 text-cyan-600 border-cyan-200`.
+- **VERIFICATION:**
+  - `npx tsx tests/ophthalmicCategory.test.ts`: Passed 100% (all 6 tests passed).
+  - `npx tsx tests/checkoutDeliveryTimestamp.test.ts`: Passed 100%.
+  - `npx tsx tests/deliverySchedule.test.ts`: Passed 100% (24/24 tests passed).
+  - `npx tsx tests/accountsLedger.test.ts`: Passed 100%.
+  - `npx tsx tests/capitalPartnerDocuments.test.ts`: Passed 100% (11/11 tests passed).
+  - `npx tsx tests/dailyLedgerOverridesPersistence.test.ts`: Passed 100% (10/10 tests passed).
+  - `npx tsx tests/whatsappMarketing.test.ts`: Passed 100%.
+  - `npm run lint` (`tsc --noEmit`): 0 errors.
+  - `npm run build`: Production build succeeded.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

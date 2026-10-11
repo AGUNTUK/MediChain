@@ -133,11 +133,21 @@ export function mapRowToFields(row: Record<string, string>): RawImportRow {
   const rawCategory = findVal(["Category", "product_category", "type"]);
   const strength = findVal(["Strength", "power", "dose"]) || "N/A";
   
-  // Robust category mapping to meet the strict 6 healthcare categories in types.ts
+  // Robust category mapping to meet healthcare categories in types.ts
   let category = "Tablet";
-  if (rawCategory) {
+  const pNameLower = (productName || "").toLowerCase();
+  const gNameLower = (genericName || "").toLowerCase();
+  const isEyeCare = pNameLower.includes("eye drop") || pNameLower.includes("eye care") || pNameLower.includes("eye gel") ||
+    pNameLower.includes("eye ointment") || pNameLower.includes("ophthalmic") || gNameLower.includes("ophthalmic") ||
+    pNameLower.includes("supraphen");
+
+  if (isEyeCare) {
+    category = "Ophthalmic";
+  } else if (rawCategory) {
     const normCat = rawCategory.trim().toLowerCase();
-    if (normCat.includes("tablet") || normCat.includes("bolus") || normCat.includes("suppository") || normCat.includes("pill")) {
+    if (normCat.includes("ophthalmic") || normCat.includes("eye") || normCat.includes("ocular") || normCat.includes("ophth")) {
+      category = "Ophthalmic";
+    } else if (normCat.includes("tablet") || normCat.includes("bolus") || normCat.includes("suppository") || normCat.includes("pill")) {
       category = "Tablet";
     } else if (normCat.includes("capsule") || normCat.includes("cozycap") || normCat.includes("licap") || normCat.includes("softgel")) {
       category = "Capsule";
@@ -152,6 +162,8 @@ export function mapRowToFields(row: Record<string, string>): RawImportRow {
     } else {
       category = "Tablet";
     }
+  } else if (productName && (productName.toLowerCase().includes("eye drop") || productName.toLowerCase().includes("eye care") || productName.toLowerCase().includes("ophthalmic"))) {
+    category = "Ophthalmic";
   }
 
   // Sensible default value fallbacks for blank cells in bulk import spreadsheet

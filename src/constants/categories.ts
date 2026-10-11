@@ -4,7 +4,7 @@ export const DEFAULT_CATEGORY_OPTIONS: string[] = [
   "Syrup",
   "Injection",
   "Suspension",
-  "Eye Drops",
+  "Ophthalmic",
   "Ear Drops",
   "Ointment",
   "Cream",
@@ -74,7 +74,7 @@ export const CATEGORY_GROUPS: CategoryGroup[] = [
     groupName: "Topicals & Ophthalmic",
     groupNameBn: "বাহ্যিক ব্যবহারের ওষুধ",
     items: [
-      { value: "Eye Drops", label: "Eye Drops", labelBn: "চোখের ড্রপ" },
+      { value: "Ophthalmic", label: "Ophthalmic", labelBn: "চক্ষু ওষুধ (চোখের ড্রপ/মলম)" },
       { value: "Ear Drops", label: "Ear Drops", labelBn: "কানের ড্রপ" },
       { value: "Ointment", label: "Ointment", labelBn: "মলম" },
       { value: "Cream", label: "Cream", labelBn: "ক্রিম" },

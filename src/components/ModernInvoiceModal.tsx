@@ -26,6 +26,7 @@ export function resolveItemType(item: Partial<OrderItem>): string {
   const pack = (item.packSize || "").toLowerCase();
   
   if (cat.includes("tablet") || name.includes("tablet") || name.includes("tab ") || name.includes("tab.") || pack.includes("tab")) return "Tablet";
+  if (cat.includes("ophthalmic") || name.includes("ophthalmic") || cat.includes("eye") || name.includes("eye drop") || name.includes("eye care") || name.includes("eye gel") || name.includes("eye ointment")) return "Ophthalmic";
   if (cat.includes("syrup") || cat.includes("suspension") || name.includes("syrup") || name.includes("suspension") || name.includes("syp") || name.includes("liquid") || pack.includes("bottle") || pack.includes("100ml") || pack.includes("200ml") || pack.includes("60ml")) return "Syrup";
   if (cat.includes("capsule") || name.includes("capsule") || name.includes("cap ") || name.includes("cap.") || pack.includes("cap")) return "Capsule";
   if (cat.includes("injection") || name.includes("injection") || name.includes("inj") || name.includes("infusion") || name.includes("iv") || pack.includes("vial") || pack.includes("ampoule")) return "Injection";

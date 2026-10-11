@@ -19,14 +19,14 @@ export function getCategoryConfig(categoryName: string = "") {
   if (cat.includes("tablet") || cat.includes("capsule") || cat.includes("pill")) {
     return { bg: "bg-purple-50", text: "text-purple-600", border: "border-purple-200" };
   }
+  if (cat.includes("ophthalmic") || cat.includes("eye") || cat.includes("ear")) {
+    return { bg: "bg-cyan-50", text: "text-cyan-600", border: "border-cyan-200" };
+  }
   if (cat.includes("injection") || cat.includes("vaccine") || cat.includes("infusion")) {
     return { bg: "bg-rose-50", text: "text-rose-600", border: "border-rose-200" };
   }
   if (cat.includes("syrup") || cat.includes("suspension") || cat.includes("drop") || cat.includes("liquid")) {
     return { bg: "bg-amber-50", text: "text-amber-600", border: "border-amber-200" };
-  }
-  if (cat.includes("eye") || cat.includes("ear")) {
-    return { bg: "bg-cyan-50", text: "text-cyan-600", border: "border-cyan-200" };
   }
   if (cat.includes("cardio") || cat.includes("heart")) {
     return { bg: "bg-red-50", text: "text-red-600", border: "border-red-200" };
@@ -51,7 +51,7 @@ export default function CategoryIcon({ name, className = "w-5 h-5" }: CategoryIc
   if (cat.includes("injection") || cat.includes("vaccine") || cat.includes("infusion")) {
     return <Syringe className={className} />;
   }
-  if (cat.includes("eye") || cat.includes("ear")) {
+  if (cat.includes("ophthalmic") || cat.includes("eye") || cat.includes("ear")) {
     return <Eye className={className} />;
   }
   if (cat.includes("syrup") || cat.includes("suspension") || cat.includes("drop")) {

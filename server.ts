@@ -791,11 +791,12 @@ app.get("/api/categories", async (req, res) => {
     }
     
     // First try getting from categories table directly
-    const { data: catData, error: catErr } = await supabaseAdmin.from("categories").select("name").limit(100);
+    const { data: catData, error: catErr } = await supabaseAdmin.from("categories").select("name").limit(300);
     
     let categories: string[] = [];
     if (!catErr && catData && catData.length > 0) {
-       categories = catData.map((c: any) => c.name);
+       const dbCats = catData.map((c: any) => c.name);
+       categories = Array.from(new Set([...DEFAULT_CATEGORY_OPTIONS, ...dbCats]));
     } else {
        // Fast fallback to standardized DGDA categories constant instead of scanning 21,000 product rows
        categories = DEFAULT_CATEGORY_OPTIONS;
@@ -1021,7 +1022,14 @@ app.get("/api/products", publicLimiter, async (req, res) => {
     }
 
     if (category && category !== "All") {
-      filtered = filtered.filter(p => p.category === category);
+      const targetCat = (category as string).trim();
+      const isOphthalmicQuery = /^(ophthalmic|eye\s*drops?|eye\s*care)$/i.test(targetCat);
+      filtered = filtered.filter(p => {
+        if (isOphthalmicQuery) {
+          return p.category === "Ophthalmic" || /^(ophthalmic|eye\s*drops?|eye\s*care)$/i.test(p.category || "");
+        }
+        return p.category === targetCat;
+      });
     }
 
     if (filter === "low_stock") {

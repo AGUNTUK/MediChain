@@ -14,9 +14,10 @@ import { supabaseAdmin } from "../src/lib/supabaseAdmin.js";
 async function runComprehensiveOverrideTests() {
   console.log("=== RUNNING DAILY BUSINESS LEDGER MANUAL OVERRIDE PERSISTENCE SUITE ===\n");
 
-  const randOffset = Math.floor(100 + Math.random() * 800);
-  const testDateA = `2036-05-${String(10 + (randOffset % 15))}`;
-  const testDateB = `2036-05-${String(25 + (randOffset % 3))}`;
+  const randYear = 2080 + Math.floor(Math.random() * 50);
+  const randMonth = String(Math.floor(1 + Math.random() * 12)).padStart(2, "0");
+  const testDateA = `${randYear}-${randMonth}-10`;
+  const testDateB = `${randYear}-${randMonth}-25`;
 
   // ---------------------------------------------------------
   // TEST 1: No override -> automatic value displayed
@@ -188,9 +189,14 @@ async function runComprehensiveOverrideTests() {
   assert.strictEqual(getEffectiveLedgerValue(50000, 48000, false), 50000);
   console.log("  Passed: getEffectiveLedgerValue respects strict precedence.");
 
-  // Clean up test dates
+  // Clean up test dates and test fixtures
   await resetDailyLedgerOverride(testDateA);
   await resetDailyLedgerOverride(testDateB);
+  await supabaseAdmin.from("purchases").delete().ilike("notes", "%T1 Auto Purchase%");
+  await supabaseAdmin.from("purchases").delete().ilike("notes", "%T7 Additional Purchase%");
+  await supabaseAdmin.from("purchases").delete().ilike("notes", "%T8 Date B Purchase%");
+  await supabaseAdmin.from("daily_ledger_overrides").delete().eq("date", testDateA);
+  await supabaseAdmin.from("daily_ledger_overrides").delete().eq("date", testDateB);
 
   console.log("\n🎉 ALL 10 COMPREHENSIVE OVERRIDE PERSISTENCE TESTS PASSED (100% SUCCESS)!");
 }
