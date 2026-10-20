@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://medichain-kqgy.onrender.com/api/:path*" },
+    { "source": "/socket.io/:path*", "destination": "https://medichain-kqgy.onrender.com/socket.io/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
