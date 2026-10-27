@@ -41,6 +41,9 @@ import BulkDealBillboardBanner from "./BulkDealBillboardBanner";
 import CategoryIcon, { getCategoryConfig } from "./CategoryIcon";
 import { ALL_CATEGORY_VALUES } from "../constants/categories";
 import { useDebounce } from "../hooks/useDebounce";
+import PharmaKhataHomeWidget from "./khata/PharmaKhataHomeWidget";
+import PharmaKhataHub, { KhataTab } from "./khata/PharmaKhataHub";
+import { usePharmaKhata } from "../hooks/usePharmaKhata";
 
 interface HomeProps {
   onTriggerSearch: (query?: string, category?: string) => void;
@@ -89,6 +92,16 @@ export default function Home({
   const [liveCampaign, setLiveCampaign] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(!apiCache.get("categories"));
   const [error, setError] = useState<string | null>(null);
+
+  // Pharma-Smart Khata Hub state
+  const [isKhataHubOpen, setIsKhataHubOpen] = useState(false);
+  const [khataInitialTab, setKhataInitialTab] = useState<KhataTab>('dashboard');
+  const { summary: khataSummary } = usePharmaKhata({ pharmacyName, orders });
+
+  const handleOpenKhataHub = (tab: KhataTab = 'dashboard') => {
+    setKhataInitialTab(tab);
+    setIsKhataHubOpen(true);
+  };
 
   // Live Products Catalog on Home states
   const [search, setSearch] = useState("");
@@ -364,6 +377,15 @@ export default function Home({
                 if (el) el.scrollIntoView({ behavior: "smooth" });
               }} 
               onOpenBulkDeals={onOpenBulkDeals} 
+            />
+          </div>
+
+          {/* Pharma-Smart Khata Homepage Fintech Widget */}
+          <div className="px-3 sm:px-4 pt-3 max-w-7xl mx-auto w-full">
+            <PharmaKhataHomeWidget
+              summary={khataSummary}
+              onOpenHub={handleOpenKhataHub}
+              pharmacyName={pharmacyName}
             />
           </div>
 
@@ -772,6 +794,16 @@ export default function Home({
           </div>
         </>
       )}
+
+      {/* Pharma-Smart Khata Full Hub Drawer */}
+      <PharmaKhataHub
+        isOpen={isKhataHubOpen}
+        onClose={() => setIsKhataHubOpen(false)}
+        pharmacyName={pharmacyName}
+        orders={orders}
+        onOpenCart={onOpenCart}
+        initialTab={khataInitialTab}
+      />
     </div>
   );
 }

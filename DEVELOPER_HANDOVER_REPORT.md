@@ -2562,6 +2562,86 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
     - `npm run lint`: 0 errors.
     - `npm run build`: Production build succeeded.
 
+### TASK 111: Pharma-Smart Khata (ডিজিটাল ফার্মেসি হিসাব ও শর্ট খাতা) Module Implementation
+- **SUMMARY:**
+  - Designed and implemented a complete, lightweight, and deeply integrated **"Pharma-Smart Khata" (ডিজিটাল ফার্মেসি হিসাব ও শর্ট খাতা)** module inside the MediChain pharmacy application.
+  - **Zero Bottom Nav Bloating**:
+    - The bottom navigation bar remains completely untouched and pristine.
+    - Added a sleek **Homepage Fintech Widget** (`src/components/khata/PharmaKhataHomeWidget.tsx`) directly below the hero carousel banner on the homepage.
+  - **Homepage Fintech Widget (`src/components/khata/PharmaKhataHomeWidget.tsx`)**:
+    - **bKash-Style Privacy Balance Pill**: Tap-to-reveal button (`৳ ব্যালেন্স দেখুন`) that smoothly displays the net cash balance in hand (`৳১৪,৫২০`) with a 5-second countdown progress bar before auto-hiding.
+    - **6 Horizontal Quick Action Cards**: `নতুন বিক্রি` (New Sale), `শর্ট খাতা` (Short Book with 1-Click Order badge), `বাকি আদায়` (Due Collection), `ক্রয় লিখুন` (Log Purchase), `সাপ্লায়ার` (Supplier Ledger), and `ব্যয় লিখুন` (Log Daily Shop Expense).
+    - **3-Column Live Daily Summary Strip**: `মোট বিক্রি` (Green `৳০`), `ক্যাশ (বিক্রি + আদায়)` (Blue `৳০`), and `মোট বাকি` (Amber `৳০`).
+  - **Core Khata Hub & Views (`src/components/khata/PharmaKhataHub.tsx`)**:
+    - `PharmaKhataDashboard.tsx`: "আজকের হিসাব" dashboard with top Net Cash in Hand banner (`Cash In - Cash Out`), 2x3 interactive metrics grid (Sales, Cash, Dues, Expenses, Purchases, Customers count), and supplier ledger navigation.
+    - `PharmaKhataSaleModal.tsx`: Ultra-fast sale modal with `✅ সাধারণ নগদ বিক্রি (নাম ছাড়া)` default option for instant 2-second walk-in customer sales, customer search/picker, new customer quick-create, cash/due toggle, and 1-click WhatsApp payment reminder link (`তাগাদা`).
+    - `PharmaKhataSalesView.tsx`: Comprehensive sales and customer dues list with date filters, customer filtering, and summary badges.
+    - `PharmaKhataShortBook.tsx`: Out-of-stock medicine tracker with catalog autocomplete suggestions, quick quantity presets (5, 10, 20, 50, 100), pack size selector, and the **Killer Feature: `⚡ ১-ক্লিকে মেডিচেইনে অর্ডার করুন`** which matches short items to MediChain's wholesale catalog and adds them directly to the cart with cart count dispatch.
+    - `PharmaKhataSuppliers.tsx`: Supplier ledger with automatic sync of MediChain Wholesale and custom supplier entry.
+    - `PharmaKhataCustomersView.tsx`: Customer directory with due-only filter, balance tracking, and direct WhatsApp payment reminder link.
+    - `PharmaKhataExpenseModal.tsx` & `PharmaKhataPurchaseModal.tsx`: Overhead shop expenses and wholesale inventory purchase logging modals.
+  - **State Management & Offline-First Hook (`src/hooks/usePharmaKhata.ts`)**:
+    - Offline-first custom hook backed by Supabase with persistent `localStorage` fallback.
+    - Seed data in natural Bengali for initial demo/testing.
+    - Auto-syncs delivered MediChain orders (`Delivered`, `Completed`, `Out for Delivery`) into `khata_suppliers` and `khata_transactions`.
+    - Dispatches `window.dispatchEvent(new CustomEvent("cartUpdated"))` when 1-click ordering from the short book.
+  - **Database Migration (`supabase/migrations/20261027_pharma_smart_khata.sql` & `supabase-migrations/20_pharma_smart_khata.sql`)**:
+    - Tables: `khata_customers`, `khata_suppliers`, `khata_transactions`, `khata_short_book`.
+    - Foreign keys and RLS policies for pharmacy isolation.
+  - **UI/UX & Logic Polish (5 Live Review Enhancements)**:
+    1. **1-Click Badge Unclipped (`PharmaKhataHomeWidget.tsx`)**: Added `pt-2.5` to the horizontal action container and positioned the green `⚡ 1-Click` badge cleanly at `top-1 right-1` inside the card with `z-10` so it is 100% visible with zero top-edge clipping.
+    2. **Responsive Full-Width Quick Actions**: Added `flex-1 min-w-[84px] sm:grid sm:grid-cols-6` distributing the 6 quick-action cards evenly across the full container width without awkward trailing whitespace.
+    3. **Inline Customer Registration & Bengali Validation (`PharmaKhataSaleModal.tsx`)**: Replaced the stacked sub-modal with a smooth inline expandable customer registration card right inside the customer selection area. Added `noValidate` to remove all browser-native English popups, enforcing Bengali inline error messaging (`"কাস্টমারের নাম ও ১১ ডিজিটের মোবাইল নম্বর দিন"` and `"দয়া করে বিক্রির সঠিক মোট টাকার পরিমাণ লিখুন"`).
+    4. **Standardized `+ নতুন সাপ্লায়ার` Button Placement (`PharmaKhataSuppliers.tsx`)**: Removed the cramped header button and replaced it with a dedicated sticky bottom CTA (`+ নতুন সাপ্লায়ার যুক্ত করুন`) matching the `বিক্রি` tab's layout pattern.
+    5. **Strict Order Sync Status Guard & In-Cart Tracking (`usePharmaKhata.ts` & `PharmaKhataShortBook.tsx`)**:
+       - Restricted supplier ledger auto-sync strictly to orders with status `Delivered` or `Completed` (preventing `Out for Delivery` from prematurely creating supplier payables).
+       - When dispatching short items to MediChain's wholesale cart via 1-Click, items are marked as `In Cart` (`🛒 কার্টে যুক্ত`) with dedicated status badges and cart link rather than premature deletion or 'Ordered' status until checkout.
+- **VERIFICATION:**
+  - `npx tsx tests/pharmaKhata.test.ts`: Passed 100% (8/8 tests passed including order sync guard, In Cart state transition, and Bengali validation).
+  - Regression test suite (`tests/squareProductStock.test.ts`, `tests/deliverySchedule.test.ts`, `tests/pharmacyCopilot.test.ts`, `tests/accountsLedger.test.ts`): Passed 100%.
+  - `npm run lint` (`tsc --noEmit`): 0 errors.
+  - `npm run build`: Production build succeeded.
+
+### TASK 112: Critical Financial Logic & Architectural Edge-Case Fixes for Pharma-Smart Khata
+- **SUMMARY:**
+  - Implemented critical financial logic, COD auto-settlement, idempotent UUID upsert synchronization, and Short Book inventory validation for the Pharma-Smart Khata module.
+  - **Supplier Ledger Auto-Sync & COD Settlement (`src/hooks/usePharmaKhata.ts`)**:
+    - **Strict Status Guard**: Wholesale orders only auto-sync into the supplier ledger when status is strictly `'Delivered'` or `'Completed'`. Prevented premature ledger debt during `'Out for Delivery'`, `'Pending'`, or `'Processing'`.
+    - **COD & Paid Auto-Settlement**: Delivered orders with `'Cash on Delivery'` (COD) or `payment_status === 'PAID'` / `paymentStatus === 'Paid'` are automatically recorded with `paid_amount = total_amount` and `due_amount = 0`, ensuring `total_payable` (বাকি/দেনা) is NEVER increased. Only true unpaid credit orders accumulate supplier payable debt.
+    - **Deduplication Guard**: Tracked and indexed `linked_order_id` (matching `order.id`) on `khata_transactions` to guarantee orders are never double-synced upon re-renders.
+  - **Idempotent Offline-to-Online Sync (`src/hooks/usePharmaKhata.ts`)**:
+    - Deterministic client-side UUID v4 generation (`generateUUID()` via `crypto.randomUUID()` with RFC4122 compliant fallback) generated immediately before saving to `localStorage`.
+    - Upsert semantics (`.upsert(payload, { onConflict: 'id' })`) implemented across all Supabase write methods (`addSale`, `collectDue`, `addExpense`, `addPurchase`, `addCustomer`, `addSupplier`, `addShortItem`, `updateShortItemStatus`), guaranteeing zero duplicate entries or phantom balances on mobile network reconnects or page refreshes.
+  - **Short Book -> Cart Bridge Stock Validation & Checkout Hook (`src/components/khata/PharmaKhataShortBook.tsx`, `src/hooks/usePharmaKhata.ts`, `src/components/Checkout.tsx`)**:
+    - Live stock validation (`availableStock > 0` and stock checking) during 1-Click order dispatch: only items with available wholesale stock transition to `'In Cart'`. Out-of-stock items remain `'Pending'` with clear Bengali feedback (`"Xটি ওষুধ কার্টে যোগ হয়েছে, Yটি বর্তমানে স্টকে নেই"`).
+    - Added `orderCheckoutCompleted` CustomEvent listener in `usePharmaKhata.ts` triggered directly upon successful wholesale order placement in `Checkout.tsx`. Automatically promotes `'In Cart'` Short Book items to `'Ordered'` (`অর্ডার সম্পন্ন`) across both local and Supabase states.
+  - **Migration Directory Consolidation**:
+    - Consolidated canonical migrations into `/supabase/migrations/` (including migrations `00` through `20_pharma_smart_khata.sql`).
+    - Added `linked_order_id TEXT` and index `idx_khata_transactions_linked_order` to `khata_transactions`.
+    - Removed redundant `/supabase-migrations/` directory to maintain a single source of truth for database migrations.
+  - **VERIFICATION:**
+    - `npx tsx tests/pharmaSmartKhata.test.ts`: Passed 100% (11/11 tests passed).
+    - `npx tsx tests/pharmaKhata.test.ts`: Passed 100%.
+    - `tsc --noEmit`: 0 errors.
+    - `npm run build`: Production build succeeded.
+
+### TASK 113: Removal of Pre-Populated Demo Seed Data from Pharma-Smart Khata
+- **SUMMARY:**
+  - **Issue Reported**: On initial load, the Pharma-Smart Khata module displayed pre-populated amounts (`মোট বিক্রি ৳ ২,৩০০`, `ক্যাশ ৳ ৩,০৫০`, `মোট বাকি ৳ ৫,৫০০`, and `ব্যালেন্স ৳ ১৪,৫২০`) even though the user had not logged any sales, dues, or expenses.
+  - **Root Cause**: `getInitialSeedData` in `src/hooks/usePharmaKhata.ts` contained hardcoded seed customers, seed suppliers, and seed transactions for demonstration purposes, along with a `const baseFloat = 14520` opening float. These values were stored in the browser's `localStorage` under `medichain_pharma_khata_v3_`.
+  - **Resolution**:
+    1. **Clean Initial State**: Updated `getInitialSeedData` to return completely empty arrays for `seedCustomers`, `seedSuppliers`, `seedTransactions`, and `seedShortBook`. All financial counters (`totalSalesToday`, `cashCollectedToday`, `totalDueCustomers`, `totalExpensesToday`, `totalPurchasesToday`, `netCashInHand`) now strictly start at `৳০`.
+    2. **Zero Opening Float**: Changed `baseFloat` from `14520` to `0`, ensuring the bKash privacy pill balance starts at `৳ ০`.
+    3. **Browser Cache Sanitization & Key Upgrade**:
+       - Upgraded storage prefix to `medichain_pharma_khata_v4_`.
+       - Implemented proactive cleanup of legacy keys (`v1`, `v2`, `v3`) in `localStorage`.
+       - Added `MOCK_SEED_IDS` filter in `loadData()` to automatically sanitize and strip out any legacy mock entries cached in existing browser sessions.
+    4. **Unblocked Wholesale Order Auto-Sync**: Removed `suppliers.length === 0` exit guard from `useEffect` so that real delivered MediChain orders auto-sync into the supplier ledger even when the initial supplier list is empty.
+  - **VERIFICATION:**
+    - Added Test 12 to `tests/pharmaSmartKhata.test.ts` & `tests/pharmaKhata.test.ts`: Passed 100% (12/12 tests passing).
+    - `tsc --noEmit`: 0 errors.
+    - `npm run build`: Production build succeeded.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

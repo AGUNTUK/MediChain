@@ -53,6 +53,11 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
         ...({ deliveryAddress: pharmacy?.address || "Dhanmondi, Dhaka" } as any)
       } as any);
 
+      // Automatically transition matched Short Book items from 'In Cart' to 'Ordered'
+      window.dispatchEvent(new CustomEvent("orderCheckoutCompleted", {
+        detail: { orderId: data.orderId, items: cartSummary?.items }
+      }));
+
       onOrderPlaced(data.orderId);
     } catch (err: any) {
       if (err.fields) {
