@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Product } from "../types";
 import { CATEGORY_GROUPS } from "../constants/categories";
+import SearchableCategorySelect from "./SearchableCategorySelect";
 
 interface ProductEditModalProps {
   product?: Product | null;
@@ -403,22 +404,11 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
               <label className="text-slate-400 font-bold block uppercase text-[10px]">
                 Classification Category *
               </label>
-              <select
+              <SearchableCategorySelect
                 value={category}
-                onChange={(e) => setCategory(e.target.value as any)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-3 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                onChange={(val) => setCategory(val)}
                 required
-              >
-                {CATEGORY_GROUPS.map((group) => (
-                  <optgroup key={group.groupName} label={`${group.groupName} (${group.groupNameBn})`}>
-                    {group.items.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label} ({item.labelBn})
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
+              />
             </div>
           </div>
 

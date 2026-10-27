@@ -2642,6 +2642,41 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
     - `tsc --noEmit`: 0 errors.
     - `npm run build`: Production build succeeded.
 
+### TASK 114: Comprehensive Pharmacy Categories with Searchable Combobox in Admin Panel & Homepage Category Card Cleanup
+- **SUMMARY:**
+  - **Issue/Requirement 1 (Admin Product Add Category Parity & Searchable Select)**:
+    - Expanded `src/constants/categories.ts` with comprehensive DGDA/Bangladeshi pharmaceutical catalog classifications (Oral Solids, Liquids/Suspensions, Injectables/Infusions, Eye/Ear/Nasal, Topicals/Dermatologicals, Respiratory/Inhalers, Suppositories, Disease/Therapeutic Classes, Medical/Surgical Supplies, Consumer Healthcare & Personal Care) with bilingual English and Bengali translations (`CATEGORY_BN_MAP`, `getCategoryLabelBn`).
+    - Created `SearchableCategorySelect.tsx` (`src/components/SearchableCategorySelect.tsx`):
+      - Replaced static HTML `<select>` in `ProductEditModal.tsx` with a high-performance combobox.
+      - Provides live instant search filtering across English names, Bengali names, and Category Group headings.
+      - Automatically fetches and merges any extra dynamic categories from live database via `productService.getCategories()`.
+      - Supports selecting with click or Enter key, clearing selection, and custom category entry (`+ কাস্টম ক্যাটাগরি হিসেবে যোগ করুন`).
+  - **Issue/Requirement 2 (Homepage Category Card Cleanup)**:
+    - In `src/components/Home.tsx`, hid the Category Carousel Grid (`Category Carousel Grid`) section situated above the product catalog adjacent to the search bar.
+    - Streamlines the homepage flow so pharmacy owners transition smoothly from hero/widgets and the smart search bar directly into the live product catalog.
+- **VERIFICATION:**
+  - `npx tsx tests/adminCategorySearch.test.ts`: Passed 100% (Category parity, bilingual translations, search filter simulation).
+  - `npx tsx tests/pharmaSmartKhata.test.ts`: Passed 100% (12/12 tests passing).
+  - `compile_applet`: Production build succeeded with zero errors.
+
+### TASK 115: Enforce Exclusive List Style on App & Add Interactive Quantity Selector with Manual Input to List Card
+- **SUMMARY:**
+  - **Issue/Requirement 1 (Grid/List Switch Button Removal & Exclusive List Style)**:
+    - Removed the grid vs list switcher buttons (`LayoutGrid` and `ListFilter`) from the wholesale catalog header on the homepage (`src/components/Home.tsx`).
+    - Enforced exclusive list layout across the entire product catalog (`space-y-2.5` container with `ProductCard layout="horizontal"` and `ProductCardSkeleton layout="horizontal"`).
+  - **Issue/Requirement 2 (Interactive Quantity Selector with Manual Input in List Cards)**:
+    - Upgraded `src/components/ProductCard.tsx` (`layout="horizontal"` and `layout="grid"`):
+      - Added `-` decrement icon button, manual numeric text input field (`<input type="number" ... />`), and `+` increment icon button.
+      - **Pre-Cart Selection**: Pharmacy owners can now freely type any custom order quantity (e.g., 5, 20, 50, 100 boxes) or use the `-` / `+` step buttons, with automatic clamping between 1 and available wholesale stock (`maxStock = product.availableStock`). Clicking `"যোগ করুন"` adds that exact custom quantity into the wholesale cart.
+      - **In-Cart Adjustment**: When an item is in the cart, the list card displays active in-cart status along with the `-` button, the editable manual input field (allowing instant direct typing of new cart quantities), and the `+` button.
+      - Full event stop-propagation ensuring manual typing or quantity stepping never triggers accidental card click / product detail drawer opens.
+- **VERIFICATION:**
+  - `tests/productListStyleAndQtySelector.test.ts`: Passed 100% (verified removal of switch button, list-only layout enforcement, manual input typing simulation, stock bounds clamping, and in-cart delta updates).
+  - `tests/adminCategorySearch.test.ts`, `tests/pharmaSmartKhata.test.ts`, `tests/deliverySchedule.test.ts`: Passed 100% (Zero regressions).
+  - `npm run lint` (`tsc --noEmit`): 0 errors.
+  - `compile_applet`: Production build succeeded.
+
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).

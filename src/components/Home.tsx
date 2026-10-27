@@ -22,8 +22,6 @@ import {
   Mic,
   X,
   Percent,
-  LayoutGrid,
-  ListFilter,
   Award
 } from "lucide-react";
 import MediChainLogo from "./MediChainLogo";
@@ -111,7 +109,6 @@ export default function Home({
   const [selectedFilter, setSelectedFilter] = useState<"all" | "deals" | "frequent" | "low_stock">("all");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedManufacturer, setSelectedManufacturer] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
   const [catalogPage, setCatalogPage] = useState(1);
@@ -502,83 +499,7 @@ export default function Home({
               )}
             </div>
 
-            {/* Category Carousel Grid */}
-            <div className="space-y-2.5">
-              <div className="flex justify-between items-center px-0.5">
-                <h3 className="text-xs uppercase font-extrabold text-slate-400 tracking-wider flex items-center gap-1.5">
-                  <Package className="w-4 h-4 text-brand-purple" />
-                  ওষুধের ধরন ও ক্যাটাগরি
-                </h3>
-                {displayCategoryNames.length > 12 && (
-                  <button
-                    onClick={() => setShowAllCategories(!showAllCategories)}
-                    className="text-xs font-black text-brand-purple hover:underline cursor-pointer"
-                  >
-                    {showAllCategories ? "কম দেখুন" : "সব দেখুন"}
-                  </button>
-                )}
-              </div>
-              
-              {showAllCategories ? (
-                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2.5">
-                  {visibleCategoryNames.map(name => {
-                    const config = getCategoryConfig(name);
-                    const isSelected = selectedCategory === name;
-                    return (
-                      <button
-                        key={name}
-                        onClick={() => {
-                          setSelectedCategory(isSelected ? "All" : name);
-                          const el = document.getElementById("home-product-catalog");
-                          if (el) el.scrollIntoView({ behavior: "smooth" });
-                        }}
-                        className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border transition-all cursor-pointer ${
-                          isSelected
-                            ? "bg-purple-50 border-brand-purple shadow-md scale-105"
-                            : "bg-white border-slate-100/90 shadow-2xs hover:shadow-md hover:border-slate-200"
-                        }`}
-                      >
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-1.5 p-2.5 transition-transform ${config.bg} ${config.text} border ${config.border}`}>
-                          <CategoryIcon name={name} className="w-5.5 h-5.5" />
-                        </div>
-                        <span className="text-xs font-bold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis w-full text-center">
-                          {name}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="flex overflow-x-auto gap-2.5 pb-2 -mx-4 px-4 scrollbar-hide snap-x">
-                  {visibleCategoryNames.map(name => {
-                    const config = getCategoryConfig(name);
-                    const isSelected = selectedCategory === name;
-                    return (
-                      <button
-                        key={name}
-                        onClick={() => {
-                          setSelectedCategory(isSelected ? "All" : name);
-                          const el = document.getElementById("home-product-catalog");
-                          if (el) el.scrollIntoView({ behavior: "smooth" });
-                        }}
-                        className={`flex-shrink-0 snap-start flex flex-col items-center justify-center p-2.5 w-[90px] h-[96px] rounded-2xl border transition-all cursor-pointer ${
-                          isSelected
-                            ? "bg-purple-50 border-brand-purple shadow-md scale-105"
-                            : "bg-white border-slate-100/90 shadow-2xs hover:shadow-md hover:border-slate-200"
-                        }`}
-                      >
-                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-1.5 p-2.5 transition-transform ${config.bg} ${config.text} border ${config.border}`}>
-                          <CategoryIcon name={name} className="w-5 h-5" />
-                        </div>
-                        <span className="text-xs font-bold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis w-full text-center">
-                          {name}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            {/* Category Carousel Grid hidden from homepage as requested */}
 
             {/* FULL LIVE PRODUCT CATALOG SECTION ON HOMEPAGE */}
             <div id="home-product-catalog" className="pt-2 space-y-4 scroll-mt-20">
@@ -593,30 +514,6 @@ export default function Home({
                   <p className="text-xs text-slate-500 font-semibold mt-0.5">
                     সরাসরি ডিপো ইনভেন্টরি থেকে লাইভ রেটে ওষুধ নির্বাচন করুন
                   </p>
-                </div>
-
-                {/* View Mode Switcher */}
-                <div className="flex items-center gap-1 bg-white border border-slate-200/80 p-1.5 rounded-2xl shrink-0 self-start sm:self-auto shadow-2xs">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("grid")}
-                    className={`p-2 rounded-xl transition-colors cursor-pointer ${
-                      viewMode === "grid" ? "bg-brand-purple text-white shadow-xs" : "text-slate-500 hover:text-slate-800"
-                    }`}
-                    title="গ্রিড ভিউ"
-                  >
-                    <LayoutGrid className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("list")}
-                    className={`p-2 rounded-xl transition-colors cursor-pointer ${
-                      viewMode === "list" ? "bg-brand-purple text-white shadow-xs" : "text-slate-500 hover:text-slate-800"
-                    }`}
-                    title="তালিকা ভিউ"
-                  >
-                    <ListFilter className="w-4 h-4" />
-                  </button>
                 </div>
               </div>
 
@@ -722,11 +619,11 @@ export default function Home({
                 </button>
               </div>
 
-              {/* Products Rendering Grid or Horizontal List */}
+              {/* Products Rendering in Clean List Style */}
               {isLoadingCatalog && catalogProducts.length === 0 ? (
-                <div className={viewMode === "grid" ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3" : "space-y-2.5"}>
-                  {Array.from({ length: 12 }).map((_, i) => (
-                    <ProductCardSkeleton key={`home-cat-skel-${i}`} layout={viewMode === "grid" ? "grid" : "horizontal"} />
+                <div className="space-y-2.5">
+                  {Array.from({ length: 10 }).map((_, i) => (
+                    <ProductCardSkeleton key={`home-cat-skel-${i}`} layout="horizontal" />
                   ))}
                 </div>
               ) : catalogProducts.length === 0 ? (
@@ -752,7 +649,7 @@ export default function Home({
                   </button>
                 </div>
               ) : (
-                <div className={viewMode === "grid" ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3" : "space-y-2.5"}>
+                <div className="space-y-2.5">
                   {catalogProducts.map((product, idx) => {
                     const isLast = idx === catalogProducts.length - 1;
                     return (
@@ -762,7 +659,7 @@ export default function Home({
                       >
                         <ProductCard
                           product={product}
-                          layout={viewMode === "grid" ? "grid" : "horizontal"}
+                          layout="horizontal"
                           cartQuantity={cartQuantities[product.id] || 0}
                           onAddToCart={(id, qty) => onAddToCart(id, qty)}
                           onUpdateCartQty={(id, currentQty, delta) =>

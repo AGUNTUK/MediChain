@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus, Minus, ShoppingCart, Check, Tag, Building2, AlertTriangle, TrendingUp, Bell, Sparkles } from "lucide-react";
 import { Product } from "../types";
 import { formatProductPriceLabel } from "../lib/utils";
@@ -26,7 +26,9 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
   layout = "grid",
 }) => {
   const { triggerCartFeedback, triggerButtonFeedback, isButtonAdded } = useCartFeedback();
-  const [orderQty, setOrderQty] = useState(1);
+  const [orderQty, setOrderQty] = useState<number>(1);
+  const [orderQtyInput, setOrderQtyInput] = useState<string>("1");
+  const [cartInputVal, setCartInputVal] = useState<string>(String(cartQuantity || 1));
   const [isAdded, setIsAdded] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -34,6 +36,14 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
   const imageUrl = product.imageUrl || product.image_url;
   const isOutOfStock = (product.availableStock ?? 0) <= 0;
   const isLowStock = (product.availableStock ?? 0) > 0 && (product.availableStock ?? 0) <= 20;
+  const maxStock = (product.availableStock ?? 9999) > 0 ? (product.availableStock ?? 9999) : 9999;
+
+  // Sync cart input when cartQuantity changes from props
+  useEffect(() => {
+    if (cartQuantity > 0) {
+      setCartInputVal(String(cartQuantity));
+    }
+  }, [cartQuantity]);
 
   const hasBulkTiers = Boolean(product.tiers && product.tiers.length > 0);
   const maxTierDiscount = hasBulkTiers
@@ -77,12 +87,58 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
 
   const handleIncrementOrderQty = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setOrderQty((prev) => prev + 1);
+    setOrderQty((prev) => {
+      const next = Math.min(prev + 1, maxStock);
+      setOrderQtyInput(String(next));
+      return next;
+    });
   };
 
   const handleDecrementOrderQty = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setOrderQty((prev) => (prev > 1 ? prev - 1 : 1));
+    setOrderQty((prev) => {
+      const next = Math.max(1, prev - 1);
+      setOrderQtyInput(String(next));
+      return next;
+    });
+  };
+
+  const handleOrderQtyInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    const val = e.target.value;
+    setOrderQtyInput(val);
+    const parsed = parseInt(val, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      setOrderQty(Math.min(parsed, maxStock));
+    }
+  };
+
+  const handleOrderQtyInputBlur = () => {
+    const parsed = parseInt(orderQtyInput, 10);
+    if (isNaN(parsed) || parsed < 1) {
+      setOrderQty(1);
+      setOrderQtyInput("1");
+    } else {
+      const clamped = Math.min(parsed, maxStock);
+      setOrderQty(clamped);
+      setOrderQtyInput(String(clamped));
+    }
+  };
+
+  const handleCartInputCommit = (valStr: string) => {
+    const parsed = parseInt(valStr, 10);
+    if (isNaN(parsed) || parsed <= 0) {
+      if (onUpdateCartQty) {
+        onUpdateCartQty(product.id, cartQuantity, -cartQuantity);
+      }
+    } else {
+      const clamped = Math.min(parsed, maxStock);
+      setCartInputVal(String(clamped));
+      const delta = clamped - cartQuantity;
+      if (delta !== 0 && onUpdateCartQty) {
+        onUpdateCartQty(product.id, cartQuantity, delta);
+      }
+    }
   };
 
   const handleCardClick = () => {
@@ -169,75 +225,142 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
         </div>
 
         {/* Bottom Controls Row */}
-        <div className="pt-2 border-t border-slate-50 flex items-center justify-between gap-2">
+        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
           {cartQuantity > 0 ? (
             <div
               className="flex items-center justify-between gap-2 bg-brand-purple/5 border border-brand-purple/20 rounded-xl px-2.5 py-1.5 w-full"
               onClick={(e) => e.stopPropagation()}
             >
-              <span className="text-xs font-black text-brand-purple font-mono">
-                {cartQuantity} বক্স কার্টে আছে
-              </span>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span className="text-xs font-black text-brand-purple font-mono truncate">
+                  {cartQuantity} বক্স কার্টে আছে
+                </span>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     onUpdateCartQty?.(product.id, cartQuantity, -1);
                   }}
-                  className="w-6 h-6 bg-white text-brand-purple border border-brand-purple/30 hover:bg-brand-purple hover:text-white rounded-lg transition-colors flex items-center justify-center cursor-pointer"
+                  className="w-7 h-7 bg-white text-brand-purple border border-brand-purple/30 hover:bg-brand-purple hover:text-white rounded-lg transition-colors flex items-center justify-center cursor-pointer shadow-3xs"
+                  title="পরিমাণ কমান"
                 >
                   <Minus className="w-3.5 h-3.5" />
                 </button>
-                <span className="text-xs font-black text-brand-purple font-mono px-1">{cartQuantity}</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={maxStock}
+                  value={cartInputVal}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    setCartInputVal(e.target.value);
+                  }}
+                  onBlur={() => handleCartInputCommit(cartInputVal)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      (e.target as HTMLInputElement).blur();
+                    }
+                  }}
+                  className="w-12 text-center text-xs font-black text-brand-purple font-mono bg-white rounded-lg border border-brand-purple/30 py-1 px-0.5 outline-none focus:ring-1 focus:ring-brand-purple"
+                  title="ম্যানুয়াল পরিমাণ লিখুন"
+                />
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onUpdateCartQty?.(product.id, cartQuantity, 1);
+                    if (cartQuantity < maxStock) {
+                      onUpdateCartQty?.(product.id, cartQuantity, 1);
+                    }
                   }}
-                  className="w-6 h-6 bg-white text-brand-purple border border-brand-purple/30 hover:bg-brand-purple hover:text-white rounded-lg transition-colors flex items-center justify-center cursor-pointer"
+                  disabled={cartQuantity >= maxStock}
+                  className="w-7 h-7 bg-white text-brand-purple border border-brand-purple/30 hover:bg-brand-purple hover:text-white disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-brand-purple rounded-lg transition-colors flex items-center justify-center cursor-pointer shadow-3xs"
+                  title="পরিমাণ বাড়ান"
                 >
                   <Plus className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-between w-full gap-2">
-              <div className="text-xs font-bold text-slate-500 truncate">
+            <div className="flex items-center justify-between w-full gap-2" onClick={(e) => e.stopPropagation()}>
+              <div className="text-xs font-bold text-slate-500 truncate hidden xs:block">
                 পাইকারি রেট
               </div>
+
               {isOutOfStock ? (
-                <div onClick={(e) => e.stopPropagation()}>
+                <div onClick={(e) => e.stopPropagation()} className="ml-auto">
                   <StockAlertButton productId={product.id} productName={product.name} compact={true} />
                 </div>
               ) : (
-                <button
-                  type="button"
-                  onClick={handleAddToCart}
-                  disabled={isAdding}
-                  className={`py-2 px-4 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
-                    isAdded
-                      ? "bg-emerald-600 text-white shadow-md"
-                      : isAdding
-                      ? "bg-slate-100 text-slate-400 cursor-not-allowed"
-                      : "bg-brand-lime hover:bg-brand-lime-dark text-slate-950 shadow-xs hover:shadow-md"
-                  }`}
-                >
-                  {isAdded ? (
-                    <>
-                      <Check className="w-3.5 h-3.5" />
-                      <span>যোগ হয়েছে</span>
-                    </>
-                  ) : isAdding ? (
-                    <span>যোগ হচ্ছে...</span>
-                  ) : (
-                    <>
-                      <ShoppingCart className="w-3.5 h-3.5 text-slate-950" />
-                      <span>যোগ করুন</span>
-                    </>
-                  )}
-                </button>
+                <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto ml-auto">
+                  {/* Quantity Selector: - and + with manual quantity input */}
+                  <div className="flex items-center bg-slate-50 border border-slate-200/90 rounded-xl p-0.5 gap-1 shadow-2xs shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleDecrementOrderQty}
+                      className="w-7 h-7 bg-white text-slate-600 hover:text-brand-purple hover:bg-slate-100 rounded-lg transition-colors flex items-center justify-center cursor-pointer border border-slate-200/60 shadow-3xs"
+                      title="পরিমাণ কমান"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <input
+                      type="number"
+                      min={1}
+                      max={maxStock}
+                      value={orderQtyInput}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={handleOrderQtyInputChange}
+                      onBlur={handleOrderQtyInputBlur}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          (e.target as HTMLInputElement).blur();
+                        }
+                      }}
+                      className="w-12 text-center text-xs font-black text-slate-800 font-mono bg-white rounded-lg border border-slate-200/80 py-1 px-0.5 outline-none focus:ring-1 focus:ring-brand-purple"
+                      title="ম্যানুয়াল পরিমাণ লিখুন"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleIncrementOrderQty}
+                      disabled={orderQty >= maxStock}
+                      className="w-7 h-7 bg-white text-slate-600 hover:text-brand-purple hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-slate-600 rounded-lg transition-colors flex items-center justify-center cursor-pointer border border-slate-200/60 shadow-3xs"
+                      title="পরিমাণ বাড়ান"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Add to Cart Button */}
+                  <button
+                    type="button"
+                    onClick={handleAddToCart}
+                    disabled={isAdding}
+                    className={`py-2 px-3.5 sm:px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
+                      isAdded
+                        ? "bg-emerald-600 text-white shadow-md"
+                        : isAdding
+                        ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                        : "bg-brand-lime hover:bg-brand-lime-dark text-slate-950 shadow-xs hover:shadow-md"
+                    }`}
+                  >
+                    {isAdded ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>যোগ হয়েছে</span>
+                      </>
+                    ) : isAdding ? (
+                      <span>যোগ হচ্ছে...</span>
+                    ) : (
+                      <>
+                        <ShoppingCart className="w-3.5 h-3.5 text-slate-950" />
+                        <span>যোগ করুন</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -361,39 +484,78 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
                 onUpdateCartQty?.(product.id, cartQuantity, -1);
               }}
               className="w-7 h-7 bg-white text-brand-purple border border-brand-purple/20 hover:bg-brand-purple hover:text-white rounded-lg transition-colors flex items-center justify-center cursor-pointer shadow-2xs"
+              title="পরিমাণ কমান"
             >
               <Minus className="w-3.5 h-3.5" />
             </button>
-            <span className="text-xs font-black text-brand-purple font-mono">
-              {cartQuantity} বক্স কার্টে আছে
-            </span>
+            <input
+              type="number"
+              min={1}
+              max={maxStock}
+              value={cartInputVal}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => {
+                e.stopPropagation();
+                setCartInputVal(e.target.value);
+              }}
+              onBlur={() => handleCartInputCommit(cartInputVal)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              className="w-10 text-center text-xs font-black text-brand-purple font-mono bg-white rounded-lg border border-brand-purple/20 py-1 px-0.5 outline-none focus:ring-1 focus:ring-brand-purple"
+              title="ম্যানুয়াল পরিমাণ লিখুন"
+            />
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onUpdateCartQty?.(product.id, cartQuantity, 1);
+                if (cartQuantity < maxStock) {
+                  onUpdateCartQty?.(product.id, cartQuantity, 1);
+                }
               }}
-              className="w-7 h-7 bg-white text-brand-purple border border-brand-purple/20 hover:bg-brand-purple hover:text-white rounded-lg transition-colors flex items-center justify-center cursor-pointer shadow-2xs"
+              disabled={cartQuantity >= maxStock}
+              className="w-7 h-7 bg-white text-brand-purple border border-brand-purple/20 hover:bg-brand-purple hover:text-white disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-brand-purple rounded-lg transition-colors flex items-center justify-center cursor-pointer shadow-2xs"
+              title="পরিমাণ বাড়ান"
             >
               <Plus className="w-3.5 h-3.5" />
             </button>
           </div>
         ) : (
           <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-            {/* Quantity Selector Counter */}
+            {/* Quantity Selector Counter with Manual Input */}
             <div className="flex items-center border border-slate-200 bg-slate-50 rounded-xl overflow-hidden shrink-0">
               <button
                 type="button"
                 onClick={handleDecrementOrderQty}
                 className="w-6 h-7 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+                title="পরিমাণ কমান"
               >
                 <Minus className="w-3 h-3" />
               </button>
-              <span className="w-6 text-center text-xs font-bold text-slate-800 font-mono">{orderQty}</span>
+              <input
+                type="number"
+                min={1}
+                max={maxStock}
+                value={orderQtyInput}
+                onClick={(e) => e.stopPropagation()}
+                onChange={handleOrderQtyInputChange}
+                onBlur={handleOrderQtyInputBlur}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
+                className="w-9 text-center text-xs font-black text-slate-800 font-mono bg-transparent outline-none border-none py-1 px-0.5"
+                title="ম্যানুয়াল পরিমাণ লিখুন"
+              />
               <button
                 type="button"
                 onClick={handleIncrementOrderQty}
-                className="w-6 h-7 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+                disabled={orderQty >= maxStock}
+                className="w-6 h-7 flex items-center justify-center text-slate-600 hover:bg-slate-200 disabled:opacity-40 rounded-none transition-colors cursor-pointer"
+                title="পরিমাণ বাড়ান"
               >
                 <Plus className="w-3 h-3" />
               </button>
