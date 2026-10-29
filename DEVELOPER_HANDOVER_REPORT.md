@@ -2862,6 +2862,33 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - 100% pass across all unit and integration test suites.
   - `npm run lint` (`tsc --noEmit`): 0 errors.
   - `npm run build`: Production build succeeded.
+
+### TASK 126: Vercel Serverless Pharmacy Profile Recovery & Zero-Friction Existing User Auth Routing
+- **SUMMARY:**
+  - **Issue Reported**: Existing registered pharmacy owners (e.g. `sohelrana199813@gmail.com` / `City Pharma`) logging into production on Vercel (`medichainbd.vercel.app`) were redirected to the Pharmacy Onboarding Wizard (`<ProfileSetup>`) instead of their pharmacy dashboard, whereas on `localhost:3000` the flow routed straight to the pharmacy store.
+  - **Root Cause**:
+    1. **Serverless DB Cold-Start Timeout (`server.ts`)**: In `/api/auth/sync-session`, `dbService.getPharmacyProfile(user.id)` could encounter pool connection latency during serverless cold starts. Catching the error set `pharmacy = null`, which caused `needsSetup = !pharmacy` to evaluate to `true`.
+    2. **Raw Database Snake_Case Mismatch (`src/services/auth.ts`)**: The fallback recovery in `authService.login` and `syncActiveSession` queried `pharmacies` directly via Supabase client, returning raw PostgreSQL rows with `pharmacy_name` and `owner_name`.
+    3. **Strict CamelCase Checks in Frontend Guards (`src/App.tsx`)**: `handleLoginSuccess`, `renderMobileContent` (line 551), and Splash `onComplete` strictly checked `pharmacy.pharmacyName`. With `pharmacy_name` returned from raw queries, `pharmacy.pharmacyName` evaluated to `undefined`, causing line 551 to render `<ProfileSetup>` even when `appStep` was set to `"main"`.
+    4. **Uncertain Setup State Flash**: If `/api/pharmacy/profile` was still fetching or errored, `isProfileLoading` completed as false with null pharmacy, prematurely rendering the wizard.
+  - **Resolution**:
+    1. **Resilient Serverless Session Sync (`server.ts`)**:
+       - Added `pharmacyLookupFailed` detection in `/api/auth/sync-session`. If `dbService.getPharmacyProfile` throws, executes a lightweight fallback query on `pharmacies` matching both `user_id` and `user.pharmacy_id`.
+       - If both fail due to cold-start DB latency, returns `needsSetup: null` (uncertain) rather than hard-coding `true`.
+       - Enhanced `GET /api/pharmacy/profile` with the same secondary fallback query by `req.user.id` and `user.pharmacy_id`.
+    2. **Fallback Profile Field Normalization (`src/services/auth.ts`)**:
+       - In `authService.login` and `syncActiveSession`, enhanced direct Supabase recovery to look up by both `user.id` and `users.pharmacy_id`.
+       - Mapped raw columns to normalized camelCase (`pharmacyName: pharmData.pharmacy_name || pharmData.pharmacyName`, `ownerName`, `phone`, `address`, `city`, `verificationStatus`).
+    3. **Robust Multi-Key Verification & Smooth Loading (`src/App.tsx`)**:
+       - In `handleLoginSuccess`, normalized incoming pharmacy data and immediately routed special roles (`Admin`, `Depot Staff`, `Delivery Staff`) and confirmed pharmacies straight to `main`.
+       - If `needsSetup` is uncertain (`null`) or `true` without memory pharmacy, puts the UI into smooth `splash` state while awaiting `refreshPharmacyProfile()` before ever showing setup wizard.
+       - In `renderMobileContent` (line 551) and Splash `onComplete`, checked both camelCase and snake_case (`pharmacy.pharmacyName || (pharmacy as any).pharmacy_name`).
+       - In `refreshPharmacyProfile`, added direct client-side Supabase query fallback if `/api/pharmacy/profile` returns non-ok or empty, ensuring existing users never get stranded without their profile.
+- **VERIFICATION:**
+  - Verified Supabase database records for `sohelrana199813@gmail.com` confirming `City Pharma` profile is linked by both `user_id` and `pharmacy_id`.
+  - Verified TypeScript compilation (`npm run lint` / `tsc --noEmit`): 0 errors.
+  - Verified production build (`npm run build`): Completed in 9.47s.
+  - All existing test suites passing.
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).

@@ -177,14 +177,72 @@ export default function App() {
           try { localStorage.setItem("medichain_user", JSON.stringify(data.user)); } catch {}
         }
         if (data.pharmacy) {
-          setPharmacy(data.pharmacy);
-          try { localStorage.setItem("medichain_pharmacy", JSON.stringify(data.pharmacy)); } catch {}
-          if (data.pharmacy.phone) {
-            setPhone(data.pharmacy.phone);
-            try { localStorage.setItem("medichain_phone", data.pharmacy.phone); } catch {}
+          const normPharm = {
+            ...data.pharmacy,
+            pharmacyName: data.pharmacy.pharmacyName || data.pharmacy.pharmacy_name,
+            ownerName: data.pharmacy.ownerName || data.pharmacy.owner_name
+          };
+          setPharmacy(normPharm);
+          try { localStorage.setItem("medichain_pharmacy", JSON.stringify(normPharm)); } catch {}
+          if (normPharm.phone) {
+            setPhone(normPharm.phone);
+            try { localStorage.setItem("medichain_phone", normPharm.phone); } catch {}
           }
+          return normPharm;
         }
-        return data.pharmacy;
+      }
+
+      // Direct client-side Supabase query fallback if backend API was degraded or returned empty
+      if (isSupabaseConfigured && (!pharmacy || !pharmacy.pharmacyName)) {
+        try {
+          const { data: { user: sbUser } } = await supabase.auth.getUser();
+          if (sbUser) {
+            let { data: pharmData } = await supabase
+              .from("pharmacies")
+              .select("*")
+              .eq("user_id", sbUser.id)
+              .maybeSingle();
+
+            if (!pharmData) {
+              const { data: uRow } = await supabase
+                .from("users")
+                .select("pharmacy_id")
+                .eq("id", sbUser.id)
+                .maybeSingle();
+              if (uRow?.pharmacy_id) {
+                const { data: pById } = await supabase
+                  .from("pharmacies")
+                  .select("*")
+                  .eq("id", uRow.pharmacy_id)
+                  .maybeSingle();
+                pharmData = pById;
+              }
+            }
+
+            if (pharmData) {
+              const normPharm: any = {
+                id: pharmData.id,
+                pharmacyName: pharmData.pharmacy_name || pharmData.pharmacyName || "",
+                ownerName: pharmData.owner_name || pharmData.ownerName || "",
+                phone: pharmData.phone || "",
+                address: pharmData.address || "",
+                city: pharmData.city || "",
+                area: pharmData.city || "",
+                licenseNo: pharmData.license_no || "",
+                verificationStatus: pharmData.verification_status || "Approved"
+              };
+              setPharmacy(normPharm);
+              try { localStorage.setItem("medichain_pharmacy", JSON.stringify(normPharm)); } catch {}
+              if (normPharm.phone) {
+                setPhone(normPharm.phone);
+                try { localStorage.setItem("medichain_phone", normPharm.phone); } catch {}
+              }
+              return normPharm;
+            }
+          }
+        } catch (sbErr) {
+          console.warn("Direct Supabase pharmacy refresh fallback notice:", sbErr);
+        }
       }
     } catch (err) {
       console.error("Error refreshing pharmacy profile:", err);
@@ -386,7 +444,7 @@ export default function App() {
   const activeOrderToDeliver = orders.find(o => o.status !== "Delivered");
 
   // Authentication callbacks
-  const handleLoginSuccess = (user: any, needsSetup: boolean, incomingPharmacy?: any) => {
+  const handleLoginSuccess = async (user: any, needsSetup: boolean | null, incomingPharmacy?: any) => {
     const rawPhone = user.phone || incomingPharmacy?.phone || "";
     const cleanPhone = rawPhone && !rawPhone.includes("@") ? rawPhone : "";
     setPhone(cleanPhone);
@@ -404,27 +462,66 @@ export default function App() {
       }
     }
 
-    if (incomingPharmacy && incomingPharmacy.pharmacyName) {
-      setPharmacy(incomingPharmacy);
+    const activeIncomingName = incomingPharmacy?.pharmacyName || incomingPharmacy?.pharmacy_name;
+    if (incomingPharmacy && activeIncomingName) {
+      const normPharm = {
+        ...incomingPharmacy,
+        pharmacyName: activeIncomingName,
+        ownerName: incomingPharmacy.ownerName || incomingPharmacy.owner_name
+      };
+      setPharmacy(normPharm);
       try {
-        localStorage.setItem("medichain_pharmacy", JSON.stringify(incomingPharmacy));
+        localStorage.setItem("medichain_pharmacy", JSON.stringify(normPharm));
       } catch (e) {
         console.warn(e);
       }
     }
 
     const isSpecialRole = ["Admin", "Depot Staff", "Delivery Staff"].includes(user.role);
-    const hasExistingPharmacy = Boolean(
-      (incomingPharmacy && incomingPharmacy.pharmacyName) || 
-      (pharmacy && pharmacy.pharmacyName)
-    );
+    const hasIncomingPharmacy = Boolean(incomingPharmacy && activeIncomingName);
+    const hasLocalPharmacy = Boolean(pharmacy && (pharmacy.pharmacyName || (pharmacy as any)?.pharmacy_name));
 
-    if (needsSetup && !hasExistingPharmacy && !isSpecialRole) {
-      setAppStep("setup");
-    } else {
+    if (isSpecialRole) {
+      // Admin / Depot Staff / Delivery Staff always go to their role-specific dashboard
       setAppStep("main");
+      return;
     }
-    refreshPharmacyProfile();
+
+    if (hasIncomingPharmacy || hasLocalPharmacy) {
+      // We already have confirmed pharmacy data — go straight to main
+      setAppStep("main");
+      refreshPharmacyProfile();
+      return;
+    }
+
+    if (needsSetup === null || needsSetup === true) {
+      // Server was uncertain or said setup needed — verify once more from /api/pharmacy/profile
+      // Show loading screen while we confirm, so user does not see a flash of setup wizard
+      setAppStep("splash");
+      try {
+        const freshPharmacy = await refreshPharmacyProfile();
+        const freshName = freshPharmacy?.pharmacyName || freshPharmacy?.pharmacy_name;
+        if (freshPharmacy && freshName) {
+          // Confirmed pharmacy exists — go to main
+          setAppStep("main");
+        } else if (needsSetup === true) {
+          // Definitively no pharmacy — show setup wizard
+          setAppStep("setup");
+        } else {
+          // needsSetup was null (uncertain) and refresh also returned nothing.
+          // Be conservative: go to main to avoid wrongly showing setup.
+          setAppStep("main");
+        }
+      } catch (verifyErr) {
+        console.warn("Could not verify pharmacy during login:", verifyErr);
+        // Safe fallback: go to main, user can still use the app
+        setAppStep("main");
+      }
+    } else {
+      // needsSetup === false — confirmed no setup needed
+      setAppStep("main");
+      refreshPharmacyProfile();
+    }
   };
 
   const handleSetupComplete = () => {
@@ -512,7 +609,8 @@ export default function App() {
         if (isProfileLoading && !pharmacy) {
           return <LoadingScreen />;
         }
-        if (!pharmacy || !pharmacy.pharmacyName) {
+        const hasPharmacy = Boolean(pharmacy && (pharmacy.pharmacyName || (pharmacy as any).pharmacy_name));
+        if (!hasPharmacy) {
           return (
             <Suspense fallback={<LoadingScreen />}>
               <ProfileSetup phone={phone} onSetupComplete={handleSetupComplete} onBack={() => setAppStep("login")} />
@@ -541,7 +639,8 @@ export default function App() {
             onComplete={() => {
               if (currentUser) {
                 const isSpecialRole = ["Admin", "Depot Staff", "Delivery Staff"].includes(currentUser.role);
-                if (isSpecialRole || (pharmacy && pharmacy.pharmacyName) || isProfileLoading) {
+                const hasPharmacy = Boolean(pharmacy && (pharmacy.pharmacyName || (pharmacy as any).pharmacy_name));
+                if (isSpecialRole || hasPharmacy || isProfileLoading) {
                   setAppStep("main");
                 } else {
                   setAppStep("setup");

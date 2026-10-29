@@ -656,11 +656,50 @@ app.post("/api/auth/sync-session", loginLimiter, async (req, res) => {
     }
 
     let pharmacy = null;
+    let pharmacyLookupFailed = false;
     try {
       pharmacy = await dbService.getPharmacyProfile(user.id);
     } catch (e: any) {
       log.warn("WARNING: Failed to fetch pharmacy profile for session:", e.message || e);
+      pharmacyLookupFailed = true;
     }
+
+    // If the pharmacy lookup threw an exception (e.g. Vercel cold-start DB timeout)
+    // or returned empty, fall back to a lighter direct Supabase query to avoid wrongly showing setup wizard.
+    if ((pharmacyLookupFailed || !pharmacy) && user.id) {
+      try {
+        let { data: pharmFallback } = await supabaseAdmin
+          .from("pharmacies")
+          .select("id, pharmacy_name, owner_name, phone, address, city")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (!pharmFallback && user.pharmacy_id) {
+          const { data: pById } = await supabaseAdmin
+            .from("pharmacies")
+            .select("id, pharmacy_name, owner_name, phone, address, city")
+            .eq("id", user.pharmacy_id)
+            .maybeSingle();
+          pharmFallback = pById;
+        }
+
+        if (pharmFallback) {
+          pharmacy = {
+            id: pharmFallback.id,
+            pharmacyName: pharmFallback.pharmacy_name,
+            ownerName: pharmFallback.owner_name,
+            phone: pharmFallback.phone,
+            address: pharmFallback.address,
+            city: pharmFallback.city,
+            area: pharmFallback.city
+          } as any;
+          pharmacyLookupFailed = false;
+        }
+      } catch (fallbackErr: any) {
+        log.warn("WARNING: Fallback pharmacy Supabase query also failed:", fallbackErr?.message);
+      }
+    }
+
     const pharmacyId = pharmacy ? pharmacy.id : null;
     user.pharmacy_id = pharmacyId;
 
@@ -672,7 +711,10 @@ app.post("/api/auth/sync-session", loginLimiter, async (req, res) => {
       pharmacy_id: pharmacyId
     };
 
-    const needsSetup = !pharmacy || !pharmacy.pharmacyName;
+    // Only set needsSetup=true when we are confident the pharmacy does NOT exist.
+    // If both DB lookups failed (cold-start outage), return needsSetup=null so
+    // the client can re-verify independently without showing the setup wizard.
+    const needsSetup = pharmacyLookupFailed ? null : (!pharmacy || !pharmacy.pharmacyName);
 
     res.json({
       success: true,
@@ -712,7 +754,37 @@ app.get("/api/pharmacy/profile", requireAuth, async (req, res) => {
         phone: user.phone || ""
       };
     }
-    const pharmacy = await dbService.getPharmacyProfile(req.user.id).catch(() => null);
+    let pharmacy = await dbService.getPharmacyProfile(req.user.id).catch(() => null);
+    if (!pharmacy && req.user.id) {
+      try {
+        let { data: pFallback } = await supabaseAdmin
+          .from("pharmacies")
+          .select("id, pharmacy_name, owner_name, phone, address, city")
+          .eq("user_id", req.user.id)
+          .maybeSingle();
+        if (!pFallback && req.user.pharmacy_id) {
+          const { data: pById } = await supabaseAdmin
+            .from("pharmacies")
+            .select("id, pharmacy_name, owner_name, phone, address, city")
+            .eq("id", req.user.pharmacy_id)
+            .maybeSingle();
+          pFallback = pById;
+        }
+        if (pFallback) {
+          pharmacy = {
+            id: pFallback.id,
+            pharmacyName: pFallback.pharmacy_name,
+            ownerName: pFallback.owner_name,
+            phone: pFallback.phone,
+            address: pFallback.address,
+            city: pFallback.city,
+            area: pFallback.city
+          } as any;
+        }
+      } catch (e: any) {
+        log.warn("GET /api/pharmacy/profile direct fallback notice:", e.message || e);
+      }
+    }
     if (pharmacy?.phone && !user.phone) {
       user.phone = pharmacy.phone;
     }

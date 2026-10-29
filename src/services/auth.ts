@@ -117,7 +117,7 @@ export const authService = {
   /**
    * Logs in a user using email/password via Supabase (or falls back).
    */
-  async login(email: string, password: string): Promise<{ success: boolean; user: any; needsSetup: boolean; pharmacy?: any }> {
+  async login(email: string, password: string): Promise<{ success: boolean; user: any; needsSetup: boolean | null; pharmacy?: any }> {
     if (isSupabaseConfigured) {
       // 1. Supabase Auth Login
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -137,6 +137,7 @@ export const authService = {
       // 2. Fetch profile from Supabase users table
       let name = "";
       let role = "Pharmacy Owner";
+      let userProfile: any = null;
       
       try {
         const { data: profile, error: dbError } = await supabase
@@ -146,6 +147,7 @@ export const authService = {
           .single();
 
         if (!dbError && profile) {
+          userProfile = profile;
           name = profile.full_name || profile.name || "";
           role = profile.role || role;
         }
@@ -196,12 +198,33 @@ export const authService = {
       // load profile directly from Supabase so the user is never locked out.
       let pharmacy = null;
       try {
-        const { data: pharmData } = await supabase
+        let { data: pharmData } = await supabase
           .from("pharmacies")
           .select("*")
           .eq("user_id", user.id)
           .maybeSingle();
-        pharmacy = pharmData;
+
+        if (!pharmData && userProfile?.pharmacy_id) {
+          const { data: pById } = await supabase
+            .from("pharmacies")
+            .select("*")
+            .eq("id", userProfile.pharmacy_id)
+            .maybeSingle();
+          pharmData = pById;
+        }
+
+        if (pharmData) {
+          pharmacy = {
+            id: pharmData.id,
+            pharmacyName: pharmData.pharmacy_name || (pharmData as any).pharmacyName || "",
+            ownerName: pharmData.owner_name || (pharmData as any).ownerName || "",
+            phone: pharmData.phone || "",
+            address: pharmData.address || "",
+            city: pharmData.city || "",
+            area: pharmData.city || "",
+            verificationStatus: (pharmData as any).verification_status || "Approved"
+          };
+        }
       } catch (pErr) {
         console.warn("Could not load pharmacy profile during auth fallback:", pErr);
       }
@@ -283,7 +306,7 @@ export const authService = {
   /**
    * Synchronizes an active Supabase session with the server and loads the pharmacy profile.
    */
-  async syncActiveSession(token?: string, name?: string): Promise<{ success: boolean; user: any; needsSetup: boolean; pharmacy?: any }> {
+  async syncActiveSession(token?: string, name?: string): Promise<{ success: boolean; user: any; needsSetup: boolean | null; pharmacy?: any }> {
     const syncHeaders: Record<string, string> = { "Content-Type": "application/json" };
     if (token) {
       syncHeaders["Authorization"] = `Bearer ${token}`;
@@ -311,7 +334,24 @@ export const authService = {
         const { data: { user } } = await supabase.auth.getUser(token);
         if (user) {
           const { data: profile } = await supabase.from("users").select("*").eq("id", user.id).maybeSingle();
-          const { data: pharmacy } = await supabase.from("pharmacies").select("*").eq("user_id", user.id).maybeSingle();
+          let { data: pharmData } = await supabase.from("pharmacies").select("*").eq("user_id", user.id).maybeSingle();
+          if (!pharmData && profile?.pharmacy_id) {
+            const { data: pById } = await supabase.from("pharmacies").select("*").eq("id", profile.pharmacy_id).maybeSingle();
+            pharmData = pById;
+          }
+          let pharmacy = null;
+          if (pharmData) {
+            pharmacy = {
+              id: pharmData.id,
+              pharmacyName: pharmData.pharmacy_name || (pharmData as any).pharmacyName || "",
+              ownerName: pharmData.owner_name || (pharmData as any).ownerName || "",
+              phone: pharmData.phone || "",
+              address: pharmData.address || "",
+              city: pharmData.city || "",
+              area: pharmData.city || "",
+              verificationStatus: (pharmData as any).verification_status || "Approved"
+            };
+          }
           const userName = profile?.full_name || profile?.name || name || user.email?.split("@")[0] || "User";
           const userRole = profile?.role || "Pharmacy Owner";
 
