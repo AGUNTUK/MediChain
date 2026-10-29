@@ -6247,6 +6247,23 @@ app.post("/api/cron/expire-campaigns", async (req, res) => {
   return res.json(result);
 });
 
+// Handle unknown API endpoints with 404 JSON before falling back to frontend SPA
+app.all("/api/*", (req, res) => {
+  res.status(404).json({ error: "API route not found." });
+});
+
+// Global 4-argument Express error handler - registered after all routes and fallbacks
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error("Unhandled Server Error:", err);
+  if (res.headersSent) {
+    return next(err);
+  }
+  res.status(err.status || err.statusCode || 500).json({
+    error: "An unexpected server error occurred. Please contact MediChain Support.",
+    message: process.env.NODE_ENV === "production" ? undefined : (err.message || String(err)),
+  });
+});
+
 import { Server as SocketIOServer } from "socket.io";
 
 let serverInstance: any;
@@ -6260,11 +6277,6 @@ async function startServer() {
   } catch (err: any) {
     console.error(`[${new Date().toISOString()}] [CRITICAL] [Database] Connection diagnostic: FAILED! Supabase database is unreachable. Error:`, err.message || err);
   }
-
-  // Handle unknown API endpoints with 404 JSON before falling back to frontend SPA
-  app.all("/api/*", (req, res) => {
-    res.status(404).json({ error: "API route not found." });
-  });
 
   // Resilient Asset Bootstrapper & Static Fallback Route for Brand Assets (logo.png, favicon.png)
   // Ensures brand assets NEVER fail or return 404 even after daily container sandbox resets
@@ -6335,18 +6347,6 @@ async function startServer() {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
-
-  // Global 4-argument Express error handler - registered after all routes and fallbacks
-  app.use((err: any, req: any, res: any, next: any) => {
-    console.error("Unhandled Server Error:", err);
-    if (res.headersSent) {
-      return next(err);
-    }
-    res.status(err.status || err.statusCode || 500).json({
-      error: "An unexpected server error occurred. Please contact MediChain Support.",
-      message: process.env.NODE_ENV === "production" ? undefined : (err.message || String(err)),
-    });
-  });
 
   serverInstance = app.listen(PORT, "0.0.0.0", () => {
     log.info(`[${new Date().toISOString()}] [INFO] [System] MediChain Server running on port ${PORT} in ${process.env.NODE_ENV || "development"} mode.`);
@@ -6477,12 +6477,17 @@ async function startServer() {
 
 
 // In-process fallback scheduler (with concurrency & idempotency guard)
-cron.schedule("0 * * * *", async () => {
-  await expireEndedBulkCampaigns();
-});
+// Only active in long-running processes (never during Vercel serverless execution)
+if (!process.env.VERCEL && process.env.NODE_ENV !== "production") {
+  cron.schedule("0 * * * *", async () => {
+    await expireEndedBulkCampaigns();
+  });
+}
 
-if (!process.env.VERCEL) {
+// Only run app.listen in local development
+if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
   startServer();
 }
 
 export { app };
+export default app;

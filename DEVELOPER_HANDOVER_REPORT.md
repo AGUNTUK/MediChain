@@ -2677,10 +2677,30 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `compile_applet`: Production build succeeded.
 
 
+### TASK 116: Express.js Backend Migration from Render to Vercel Serverless Functions
+- **SUMMARY:**
+  - **Issue / Context**: The external Render instance (`medichain-kqgy.onrender.com`) exceeded its monthly compute limit and was suspended. MediChain's React 19 + Vite frontend and Supabase database were already operational, so the Express.js API was migrated directly to Vercel Serverless Functions within the unified project repository.
+  - **Refactored Express Entry Point (`server.ts`)**:
+    - Moved the catch-all unknown API route 404 handler (`app.all("/api/*")`) and global 4-argument error handler (`app.use((err, req, res, next) => ...)`) directly into the Express app configuration pipeline so they are active during serverless invocations.
+    - Wrapped `app.listen(PORT)` and dev-specific middleware in `startServer()`, conditionally executing only in local development (`if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL)`), preventing port binding errors in serverless execution environments.
+    - Exported `app` as default (`export default app;`) while maintaining named export (`export { app };`) for complete backward compatibility.
+    - Guarded in-process cron jobs (`cron.schedule`) so they only run in long-lived non-serverless environments.
+  - **Configured Vercel Serverless Function Entry Point (`api/index.ts`)**:
+    - Re-exported default `app` from `../server.js` (or `../server.ts`), enabling Vercel's Node runtime to automatically mount all Express `/api/*` routes.
+  - **Configured Vercel Rewrites (`vercel.json`)**:
+    - Replaced the deprecated Render proxy rewrites (`https://medichain-kqgy.onrender.com`) with clean internal serverless function routing:
+      - `{ "source": "/api/(.*)", "destination": "/api/index" }`
+      - `{ "source": "/(.*)", "destination": "/index.html" }`
+- **VERIFICATION:**
+  - Verified `api/index.ts` serverless module export in production mode (`NODE_ENV=production`).
+  - Unit tests for backend API routing, auth, catalog, and khata modules verified.
+  - `npm run lint` (`tsc --noEmit`): 0 errors.
+  - `compile_applet`: Production build succeeded.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
-**Architecture:** React SPA + Express.js backend (monolith deployment via `server.ts`).
-**Important files:** `server.ts` (all API routes), `src/App.tsx` (frontend router), `supabase-schema.sql` (database schema).
+**Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).
+**Important files:** `server.ts` (all API routes & Express app), `api/index.ts` (Vercel serverless entry), `vercel.json` (routing rewrites), `src/App.tsx` (frontend router), `supabase-schema.sql` (database schema).
 **Database:** Supabase PostgreSQL. RLS is active.
 Always update `server.ts` AND frontend components if adding a new feature.
 Do not introduce unnecessary routing libraries (react-router), it uses a custom state-based router.
