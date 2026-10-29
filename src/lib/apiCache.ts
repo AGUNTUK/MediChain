@@ -3,28 +3,91 @@ interface CacheEntry<T> {
   timestamp: number;
 }
 
+const STORAGE_PREFIX = "medichain_catalog_cache_v1_";
+
+function getFromStorage<T>(key: string): CacheEntry<T> | null {
+  if (typeof window === "undefined" || !window.localStorage) return null;
+  try {
+    const raw = localStorage.getItem(STORAGE_PREFIX + key);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function setToStorage<T>(key: string, entry: CacheEntry<T>): void {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  try {
+    localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(entry));
+  } catch (e) {
+    // Quota management: clear older catalog cache items
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(STORAGE_PREFIX) && k !== STORAGE_PREFIX + key) {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.slice(0, 10).forEach(k => localStorage.removeItem(k));
+      localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(entry));
+    } catch {}
+  }
+}
+
+function removeFromStorage(keyPattern: string | RegExp): void {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(STORAGE_PREFIX)) {
+        const cleanKey = k.replace(STORAGE_PREFIX, "");
+        if (typeof keyPattern === "string" ? cleanKey.includes(keyPattern) : keyPattern.test(cleanKey)) {
+          keysToRemove.push(k);
+        }
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+  } catch {}
+}
+
 class APICache {
   private cache = new Map<string, CacheEntry<any>>();
   private inFlight = new Map<string, Promise<any>>();
   private defaultTTL = 5 * 60 * 1000; // 5 minutes
-  private maxEntries = 250; // Cap cache size to prevent unbounded memory growth (J2)
+  private maxEntries = 250; // Cap cache size to prevent unbounded memory growth
 
   /**
    * Retrieves an item from the cache.
-   * Enforces TTL expiration (J1) - returns null if expired.
+   * If allowStale is true, returns cached data even if expired (great for 0ms initial render).
    */
-  get<T>(key: string): T | null {
-    const entry = this.cache.get(key);
+  get<T>(key: string, allowStale = false): T | null {
+    // 1. Check in-memory Map
+    let entry = this.cache.get(key);
+
+    // 2. Fallback to localStorage
+    if (!entry) {
+      const stored = getFromStorage<T>(key);
+      if (stored) {
+        entry = stored;
+        this.cache.set(key, stored);
+      }
+    }
+
     if (!entry) return null;
-    if (Date.now() > entry.timestamp) {
+
+    if (!allowStale && Date.now() > entry.timestamp) {
       this.cache.delete(key);
       return null;
     }
+
     return entry.data as T;
   }
 
   /**
-   * Sets an item in the cache with LRU entry eviction when capacity is exceeded (J2).
+   * Sets an item in both in-memory cache and localStorage with LRU eviction.
    */
   set<T>(key: string, data: T, ttl?: number): void {
     if (this.cache.has(key)) {
@@ -35,11 +98,22 @@ class APICache {
         this.cache.delete(oldestKey);
       }
     }
-    this.cache.set(key, { data, timestamp: Date.now() + (ttl || this.defaultTTL) });
+
+    const entry: CacheEntry<T> = {
+      data,
+      timestamp: Date.now() + (ttl || this.defaultTTL)
+    };
+
+    this.cache.set(key, entry);
+
+    // Persist catalog, product, and category responses to localStorage
+    if (key.startsWith("products") || key.startsWith("categories") || key.startsWith("product_")) {
+      setToStorage(key, entry);
+    }
   }
 
   /**
-   * Removes items matching the key pattern (string includes or regex).
+   * Removes items matching the key pattern from memory and localStorage.
    */
   invalidate(keyPattern: string | RegExp): void {
     if (typeof keyPattern === "string") {
@@ -55,6 +129,7 @@ class APICache {
         }
       }
     }
+    removeFromStorage(keyPattern);
   }
 
   /**
@@ -63,20 +138,40 @@ class APICache {
   clear(): void {
     this.cache.clear();
     this.inFlight.clear();
+    if (typeof window !== "undefined" && window.localStorage) {
+      try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(STORAGE_PREFIX)) {
+            keysToRemove.push(k);
+          }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+      } catch {}
+    }
   }
 
   /**
-   * Stale-While-Revalidate fetch wrapper.
-   * Features in-flight promise deduplication (thundering herd protection),
-   * safe background error handling without unhandled rejections,
-   * and bounded memory footprint (J2).
+   * Stale-While-Revalidate fetch wrapper with persistent storage.
+   * If cached data exists (even if stale), returns it INSTANTLY (0ms latency)
+   * while revalidating fresh data from the network in the background.
    */
   async swr<T>(
     key: string,
     fetcher: () => Promise<T>,
     ttl: number = this.defaultTTL
   ): Promise<T> {
-    const entry = this.cache.get(key);
+    // 1. Check in-memory or storage cache
+    let entry = this.cache.get(key);
+    if (!entry) {
+      const stored = getFromStorage<T>(key);
+      if (stored) {
+        entry = stored;
+        this.cache.set(key, stored);
+      }
+    }
+
     const isStale = !entry || Date.now() > entry.timestamp;
 
     if (isStale) {

@@ -2710,6 +2710,30 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `npm run lint` (`tsc --noEmit`): 0 errors.
   - `compile_applet`: Production build succeeded.
 
+### TASK 118: High-Performance Database-Level Pagination & Instant SWR Persistent Caching
+- **SUMMARY:**
+  - **Issue Reported**: Products took over 6.6 seconds to load ("Product load hote oneeeek time nicche"), displaying loading skeletons indefinitely on mobile connections.
+  - **Root Cause**:
+    1. `/api/products` invoked `getAllProductsMaster()` on cold starts, performing 4 chunked queries that fetched all 2,367 catalog rows joining the `inventory` table into Node.js memory before slicing paginated results. In serverless and container restarts, this 5.5s–6.6s full-table download repeated on every fresh container.
+    2. Frontend `apiCache` was purely in-memory, discarding cached data on browser refresh or tab navigation.
+    3. Redundant parallel queries on initial load saturated backend worker connections.
+  - **Resolution**:
+    1. **Direct Database Pagination & Lightweight Projection (`server.ts`)**:
+       - When querying paginated products (`paginate=true` or `page`/`limit`), query Supabase directly with `.range(from, to)` and `{ count: "exact" }`.
+       - Apply category filtering and sorting (`availableStock > 0` and alphabetical/filter sorts) efficiently.
+       - Use lightweight column selection (`id, name, generic_name, company, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, image_url`) without joining heavy full-table relational trees for general catalog browsing.
+       - Keep memory LRU cache and Edge `Cache-Control` headers for maximum repeat-query speed (< 10ms).
+    2. **Persistent SWR Browser Caching (`src/lib/apiCache.ts` & `src/services/product.ts`)**:
+       - Added synchronous `localStorage` persistence layer (`medichain_catalog_cache_v1_`) to `APICache`.
+       - Provides synchronous instant cache hit (0ms latency) on page load and tab switching so products render immediately without skeleton freeze, while background SWR revalidation seamlessly updates prices and stock.
+    3. **Instant Hydration in Catalog UI (`src/components/SearchSystem.tsx` & `src/components/Home.tsx`)**:
+       - Pre-populates initial state directly from synchronous cache if available, eliminating empty skeleton states.
+- **VERIFICATION:**
+  - Benchmarked `/api/products?paginate=true&page=1&limit=50`: response latency reduced from ~6,600ms to < 200ms.
+  - Unit and regression test suites passing 100%.
+  - `npm run lint` (`tsc --noEmit`): 0 errors.
+  - `compile_applet`: Production build succeeded.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).

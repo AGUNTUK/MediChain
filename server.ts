@@ -849,6 +849,9 @@ export function updateCachedProductStock(items: Array<{ productId: string; quant
 
 export const globalBuyingPriceStore = new Map<string, number | null>();
 
+// Binary in-memory image cache to offload heavy base64 strings from JSON API payloads
+export const base64ImageStore = new Map<string, { buffer: Buffer; mime: string }>();
+
 async function getAllProductsMaster(): Promise<any[]> {
   const now = Date.now();
   if (cachedAllProducts && now - lastAllProductsFetch < ALL_PRODUCTS_TTL) {
@@ -927,6 +930,24 @@ async function getAllProductsMaster(): Promise<any[]> {
             ? parseInt(p.stock_quantity, 10)
             : (p.availableStock !== undefined && p.availableStock !== null ? parseInt(p.availableStock, 10) : 0));
 
+      // Optimize image URL: If base64 data URI, offload to dedicated binary /api/products/:id/image endpoint
+      const rawImg = p.image_url || p.imageUrl;
+      let optimizedImg: string | undefined = undefined;
+      if (rawImg && typeof rawImg === "string") {
+        if (rawImg.startsWith("data:")) {
+          optimizedImg = `/api/products/${p.id}/image`;
+          const match = rawImg.match(/^data:([^;]+);base64,(.+)$/);
+          if (match) {
+            const mime = match[1] || "image/jpeg";
+            const buffer = Buffer.from(match[2], "base64");
+            base64ImageStore.set(String(p.id).trim(), { buffer, mime });
+            base64ImageStore.set(String(p.id).trim().toLowerCase(), { buffer, mime });
+          }
+        } else {
+          optimizedImg = rawImg;
+        }
+      }
+
       return {
         id: String(p.id || "").trim(),
         name: p.name || "Pharmaceutical Item",
@@ -946,8 +967,8 @@ async function getAllProductsMaster(): Promise<any[]> {
         soldStock: inv ? (inv.sold_stock ?? 0) : 0,
         batchNumber: p.batch_number || (inv ? (inv.batch_number || "") : "") || "B-MCH2026",
         expiryDate: p.expiry_date || (inv ? (inv.expiry_date || "") : "") || "2027-12-31",
-        imageUrl: p.image_url || p.imageUrl || undefined,
-        image_url: p.image_url || p.imageUrl || undefined
+        imageUrl: optimizedImg,
+        image_url: optimizedImg
       };
     });
 
@@ -1097,6 +1118,53 @@ app.get("/api/products", publicLimiter, async (req, res) => {
   } catch (err: any) {
     console.error("Products Fetch Error:", err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Dedicated high-speed binary image endpoint with 7-day browser caching
+app.get("/api/products/:id/image", async (req, res) => {
+  try {
+    const productId = String(req.params.id || "").trim();
+    if (!productId) return res.status(400).send("Product ID required");
+
+    // 1. Check in-memory store
+    const inMem = base64ImageStore.get(productId) || base64ImageStore.get(productId.toLowerCase());
+    if (inMem) {
+      res.setHeader("Content-Type", inMem.mime);
+      res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+      return res.send(inMem.buffer);
+    }
+
+    // 2. Query product from DB
+    const { data: p } = await supabaseAdmin
+      .from("products")
+      .select("image_url")
+      .eq("id", productId)
+      .limit(1)
+      .maybeSingle();
+
+    if (!p || !p.image_url) {
+      return res.status(404).send("Image not found");
+    }
+
+    if (p.image_url.startsWith("data:")) {
+      const match = p.image_url.match(/^data:([^;]+);base64,(.+)$/);
+      if (match) {
+        const mime = match[1] || "image/jpeg";
+        const buffer = Buffer.from(match[2], "base64");
+        base64ImageStore.set(productId, { buffer, mime });
+        res.setHeader("Content-Type", mime);
+        res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+        return res.send(buffer);
+      }
+    } else if (p.image_url.startsWith("http://") || p.image_url.startsWith("https://")) {
+      return res.redirect(302, p.image_url);
+    }
+
+    return res.status(404).send("Invalid image format");
+  } catch (err: any) {
+    console.error("Error serving product image:", err);
+    return res.status(500).send("Error serving image");
   }
 });
 
@@ -6352,6 +6420,7 @@ async function startServer() {
     log.info(`[${new Date().toISOString()}] [INFO] [System] MediChain Server running on port ${PORT} in ${process.env.NODE_ENV || "development"} mode.`);
     logTelegramConfigStatus();
     initDailyBannerScheduler();
+    getAllProductsMaster().catch(err => console.warn("Background product cache warmup error:", err));
   });
 
   // Initialize Socket.io

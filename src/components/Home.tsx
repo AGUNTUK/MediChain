@@ -110,11 +110,15 @@ export default function Home({
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedManufacturer, setSelectedManufacturer] = useState<string | null>(null);
 
-  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
+  const initialHomeCatalog = React.useMemo(() => {
+    return productService.getCachedProductsPaginated({ page: 1, limit: 24 });
+  }, []);
+
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>(() => initialHomeCatalog?.products || []);
   const [catalogPage, setCatalogPage] = useState(1);
-  const [catalogTotalPages, setCatalogTotalPages] = useState(1);
-  const [catalogTotalProducts, setCatalogTotalProducts] = useState(0);
-  const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
+  const [catalogTotalPages, setCatalogTotalPages] = useState(() => initialHomeCatalog?.pages || 1);
+  const [catalogTotalProducts, setCatalogTotalProducts] = useState(() => initialHomeCatalog?.total || 0);
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState(() => !initialHomeCatalog || initialHomeCatalog.products.length === 0);
 
   const DEFAULT_CATEGORIES = ALL_CATEGORY_VALUES;
 
@@ -210,7 +214,7 @@ export default function Home({
   const fetchCatalogProducts = async (isNewQuery: boolean = false) => {
     try {
       if (isNewQuery) {
-        setIsLoadingCatalog(true);
+        setIsLoadingCatalog(prev => catalogProducts.length === 0);
       }
 
       const currentPage = isNewQuery ? 1 : catalogPage;

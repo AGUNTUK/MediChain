@@ -65,16 +65,22 @@ export default function SearchSystem({
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isListening, setIsListening] = useState(false);
 
-  // Pagination
+  // Pagination & Initial Synchronous Cache Hydration
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalProducts, setTotalProducts] = useState(0);
 
-  // Loaded states
-  const [products, setProducts] = useState<Product[]>([]);
+  // Synchronous cache retrieval for 0ms instant display without skeleton freeze
+  const initialCache = React.useMemo(() => {
+    return productService.getCachedProductsPaginated({ page: 1, limit: 50 });
+  }, []);
+
+  const [totalPages, setTotalPages] = useState(() => initialCache?.pages || 1);
+  const [totalProducts, setTotalProducts] = useState(() => initialCache?.total || 0);
+
+  // Loaded states - hydrated instantly from cache if available
+  const [products, setProducts] = useState<Product[]>(() => initialCache?.products || []);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [correctedQuery, setCorrectedQuery] = useState<string | undefined>(undefined);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(() => !initialCache || initialCache.products.length === 0);
 
   // Quick Order & History
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
@@ -152,8 +158,8 @@ export default function SearchSystem({
     let isActive = true;
 
     const fetchResults = async () => {
-      // Only set loading if it's the first page to not flash empty screen on scroll
-      if (page === 1) setIsLoading(true);
+      // Only set loading if it's the first page and no products are already displayed from cache
+      if (page === 1) setIsLoading(prev => products.length === 0);
       try {
         const response = await productService.getProductsPaginated({
           search: debouncedSearch || undefined,

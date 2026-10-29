@@ -105,6 +105,54 @@ export const productService = {
   },
 
   /**
+   * Synchronously retrieves cached paginated products for 0ms initial render.
+   */
+  getCachedProductsPaginated(params: {
+    search?: string;
+    category?: string;
+    filter?: "deals" | "frequent" | "low_stock";
+    page?: number;
+    limit?: number;
+  }): {
+    products: Product[];
+    total: number;
+    page: number;
+    pageSize: number;
+    pages: number;
+    suggestions: string[];
+    originalQuery: string;
+    correctedQuery?: string;
+  } | null {
+    const q = new URLSearchParams();
+    if (params.search) q.append("search", params.search);
+    if (params.category) q.append("category", params.category);
+    if (params.filter) q.append("filter", params.filter);
+    if (params.page) q.append("page", params.page.toString());
+    if (params.limit) q.append("limit", params.limit.toString());
+    q.append("paginate", "true");
+
+    const queryStr = q.toString();
+    const cacheKey = `products_paginated_${queryStr}`;
+    return apiCache.get(cacheKey, true);
+  },
+
+  /**
+   * Synchronously retrieves cached products for 0ms initial render.
+   */
+  getCachedProducts(params?: { search?: string; category?: string; filter?: "deals" | "frequent" | "low_stock"; page?: number; limit?: number }): Product[] | null {
+    const q = new URLSearchParams();
+    if (params?.search) q.append("search", params.search);
+    if (params?.category) q.append("category", params.category);
+    if (params?.filter) q.append("filter", params.filter);
+    q.append("page", (params?.page || 1).toString());
+    q.append("limit", (params?.limit || 50).toString());
+
+    const queryStr = q.toString() ? `?${q.toString()}` : "";
+    const cacheKey = `products_${queryStr}`;
+    return apiCache.get<Product[]>(cacheKey, true);
+  },
+
+  /**
    * Toggles a product in the user's pharmacy's list of favorites/frequent procurements.
    */
   async toggleFavourite(productId: string): Promise<{ isFavourite: boolean }> {
