@@ -2734,6 +2734,27 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `npm run lint` (`tsc --noEmit`): 0 errors.
   - `compile_applet`: Production build succeeded.
 
+### TASK 119: Optimistic Cart Responsiveness, Manual Quantity Input & Password Visibility Toggles
+- **SUMMARY:**
+  - **Issue Reported**:
+    1. Cart quantity increment/decrement buttons were sluggish due to awaiting two sequential backend roundtrips (`orderService.updateCartItem` followed by full `fetchCart`) on every click.
+    2. Lack of manual numeric quantity input in cart rows forced users to click `+` repeatedly for large orders.
+    3. Password fields on Login and Signup lacked a show/hide eye toggle button.
+  - **Resolution**:
+    1. **Optimistic Cart State Management (`src/components/Cart.tsx`)**:
+       - Implemented instantaneous local state mutation with recalculation of line totals and cart counter on every `+`, `-`, or manual quantity change (0ms UI latency).
+       - Added debounced network synchronization (400ms debounce per item) to coalese rapid clicks into a single server update, with immediate flush on input blur.
+    2. **Manual Quantity Input with Stock Clamping (`src/components/Cart.tsx`)**:
+       - Added interactive numeric `<input type="number">` between stepper buttons.
+       - Enforced bounds clamping between `1` and `product.availableStock` (or max available) with smooth visual feedback.
+    3. **Password Show/Hide Eye Toggles (`src/components/Login.tsx`)**:
+       - Added interactive eye toggle buttons (`Eye` / `EyeOff` from `lucide-react`) to Password and Confirm Password inputs on both Login and Signup forms.
+- **VERIFICATION:**
+  - Added `tests/cartOptimisticAndManualQty.test.ts`.
+  - Regression test suites passed 100%.
+  - `npm run lint` (`tsc --noEmit`): 0 errors.
+  - `compile_applet`: Production build succeeded.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).

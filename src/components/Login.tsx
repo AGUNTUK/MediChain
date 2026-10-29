@@ -1,7 +1,7 @@
 import React, { useState, Suspense, lazy } from "react";
 import MediChainLogo from "./MediChainLogo";
 import { motion } from "motion/react";
-import { Mail, Lock, User, RefreshCw, AlertCircle, ArrowRight, ShieldCheck, UserPlus, LogIn } from "lucide-react";
+import { Mail, Lock, User, RefreshCw, AlertCircle, ArrowRight, ShieldCheck, UserPlus, LogIn, Eye, EyeOff } from "lucide-react";
 import { authService } from "../services";
 import type { LegalPolicyTab } from "./LegalPolicyModal";
 
@@ -29,13 +29,16 @@ const GoogleIcon = () => (
 );
 
 interface LoginProps {
-  onLoginSuccess: (user: any, needsSetup: boolean, pharmacy?: any) => void;
+  onLoginSuccess: (user: any, needsSetup?: boolean, pharmacy?: any) => void;
 }
 
 export default function Login({ onLoginSuccess }: LoginProps) {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -77,6 +80,11 @@ export default function Login({ onLoginSuccess }: LoginProps) {
 
     if (password.length < 6) {
       setError("Password must be at least 6 characters.");
+      return;
+    }
+
+    if (mode === "signup" && confirmPassword && password !== confirmPassword) {
+      setError("Passwords do not match. Please verify both password fields.");
       return;
     }
 
@@ -142,6 +150,8 @@ export default function Login({ onLoginSuccess }: LoginProps) {
               setMode("login");
               setError("");
               setSuccessMsg("");
+              setShowPassword(false);
+              setShowConfirmPassword(false);
             }}
             className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               mode === "login"
@@ -158,6 +168,8 @@ export default function Login({ onLoginSuccess }: LoginProps) {
               setMode("signup");
               setError("");
               setSuccessMsg("");
+              setShowPassword(false);
+              setShowConfirmPassword(false);
             }}
             className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               mode === "signup"
@@ -228,15 +240,50 @@ export default function Login({ onLoginSuccess }: LoginProps) {
             <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 focus-within:border-brand-purple focus-within:ring-1 focus-within:ring-brand-purple transition-all">
               <Lock className="text-slate-400 w-4 h-4 mr-2 flex-shrink-0" />
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full outline-none text-slate-800 font-semibold text-xs bg-transparent"
                 required
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="text-slate-400 hover:text-slate-600 focus:outline-none p-1 rounded transition-colors cursor-pointer"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
           </div>
+
+          {mode === "signup" && (
+            <div>
+              <label className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
+                Confirm Password
+              </label>
+              <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 focus-within:border-brand-purple focus-within:ring-1 focus-within:ring-brand-purple transition-all">
+                <Lock className="text-slate-400 w-4 h-4 mr-2 flex-shrink-0" />
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full outline-none text-slate-800 font-semibold text-xs bg-transparent"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                  className="text-slate-400 hover:text-slate-600 focus:outline-none p-1 rounded transition-colors cursor-pointer"
+                  aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          )}
 
 
 

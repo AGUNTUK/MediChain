@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { ShoppingBag, Trash2, Plus, Minus, Receipt, ArrowRight, ShieldCheck, ArrowLeft, Package, Sparkles } from "lucide-react";
 import { Product } from "../types";
 import { orderService } from "../services";
@@ -9,22 +9,30 @@ interface CartProps {
   onBack: () => void;
 }
 
+interface CartItemData {
+  product: Product;
+  quantity: number;
+  effectiveUnitPrice?: number;
+  itemSubtotal?: number;
+  tierSavings?: number;
+  activeTier?: { minQty: number; discountPercent: number } | null;
+  nextTier?: { minQty: number; discountPercent: number } | null;
+}
+
 export default function Cart({ onCheckoutTrigger, onRefreshCartCounter, onBack }: CartProps) {
   const [cartData, setCartData] = useState<{
-    items: Array<{
-      product: Product;
-      quantity: number;
-      effectiveUnitPrice?: number;
-      itemSubtotal?: number;
-      tierSavings?: number;
-      activeTier?: { minQty: number; discountPercent: number } | null;
-      nextTier?: { minQty: number; discountPercent: number } | null;
-    }>;
+    items: CartItemData[];
     totalMrp: number;
     totalAmount: number;
     totalSavings: number;
     totalTierSavings?: number;
   } | null>(null);
+
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  const [localInputs, setLocalInputs] = useState<Record<string, string>>({});
+  
+  // Pending debounced server sync timers per productId
+  const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
 
   const fetchCart = async () => {
     try {
@@ -37,31 +45,171 @@ export default function Cart({ onCheckoutTrigger, onRefreshCartCounter, onBack }
 
   useEffect(() => {
     fetchCart();
+    return () => {
+      // Flush or clear any active timers on unmount
+      Object.values(debounceTimers.current).forEach(t => clearTimeout(t));
+    };
   }, []);
 
-  const [updateError, setUpdateError] = useState<string | null>(null);
+  /**
+   * Recalculates item pricing, volume tiers, line subtotals, and overall cart totals
+   */
+  const calculateCartTotals = (items: CartItemData[]) => {
+    let totalMrp = 0;
+    let totalAmount = 0;
+    let totalTierSavings = 0;
 
-  const handleUpdateQty = async (productId: string, currentQty: number, change: number) => {
-    const newQty = currentQty + change;
-    try {
-      setUpdateError(null);
-      await orderService.updateCartItem(productId, newQty);
-      fetchCart();
-      onRefreshCartCounter();
-    } catch (err: any) {
-      console.error("Failed to update cart quantity:", err);
-      setUpdateError(err.message || "Cannot update cart quantity.");
-      setTimeout(() => setUpdateError(null), 3000);
+    const updatedItems = items.map(item => {
+      const p = item.product;
+      const qty = item.quantity;
+      const mrp = p.mrp || p.sellingPrice;
+
+      let effectiveUnitPrice = p.sellingPrice;
+      let activeTier: { minQty: number; discountPercent: number } | null = null;
+      let nextTier: { minQty: number; discountPercent: number } | null = null;
+      let tierSavings = 0;
+
+      if (p.tiers && Array.isArray(p.tiers) && p.tiers.length > 0) {
+        const sortedTiers = [...p.tiers].sort((a, b) => a.minQty - b.minQty);
+        activeTier = [...sortedTiers].reverse().find(t => qty >= t.minQty) || null;
+        nextTier = sortedTiers.find(t => t.minQty > qty) || null;
+
+        if (activeTier && activeTier.discountPercent > 0) {
+          effectiveUnitPrice = Math.round((mrp * (1 - activeTier.discountPercent / 100)) * 100) / 100;
+          tierSavings = Math.max(0, Math.round(((p.sellingPrice - effectiveUnitPrice) * qty) * 100) / 100);
+        }
+      }
+
+      const itemSubtotal = Math.round((effectiveUnitPrice * qty) * 100) / 100;
+      const lineMrp = mrp * qty;
+
+      totalMrp += lineMrp;
+      totalAmount += itemSubtotal;
+      totalTierSavings += tierSavings;
+
+      return {
+        ...item,
+        effectiveUnitPrice,
+        itemSubtotal,
+        tierSavings,
+        activeTier,
+        nextTier
+      };
+    });
+
+    const totalSavings = Math.max(0, Math.round((totalMrp - totalAmount) * 100) / 100);
+
+    return {
+      items: updatedItems,
+      totalMrp: Math.round(totalMrp * 100) / 100,
+      totalAmount: Math.round(totalAmount * 100) / 100,
+      totalSavings,
+      totalTierSavings: Math.round(totalTierSavings * 100) / 100
+    };
+  };
+
+  /**
+   * Instant optimistic update: Mutates local state in 0ms and schedules debounced server sync
+   */
+  const handleOptimisticQty = (productId: string, newQty: number) => {
+    if (!cartData) return;
+
+    if (newQty <= 0) {
+      handleRemoveItem(productId);
+      return;
+    }
+
+    // 1. Optimistically calculate new cart state
+    const currentItems = [...cartData.items];
+    const itemIndex = currentItems.findIndex(i => i.product.id === productId);
+    if (itemIndex === -1) return;
+
+    currentItems[itemIndex] = {
+      ...currentItems[itemIndex],
+      quantity: newQty
+    };
+
+    const newCartState = calculateCartTotals(currentItems);
+    setCartData(newCartState);
+    setLocalInputs(prev => ({ ...prev, [productId]: String(newQty) }));
+
+    // Notify parent cart counter
+    onRefreshCartCounter();
+
+    // 2. Debounce server synchronization (350ms) to coalesce rapid clicks
+    if (debounceTimers.current[productId]) {
+      clearTimeout(debounceTimers.current[productId]);
+    }
+
+    debounceTimers.current[productId] = setTimeout(async () => {
+      try {
+        setUpdateError(null);
+        await orderService.updateCartItem(productId, newQty);
+      } catch (err: any) {
+        console.error("Failed to sync cart item quantity:", err);
+        setUpdateError(err.message || "Failed to update item quantity in cart.");
+        fetchCart();
+        onRefreshCartCounter();
+        setTimeout(() => setUpdateError(null), 3500);
+      } finally {
+        delete debounceTimers.current[productId];
+      }
+    }, 350);
+  };
+
+  const handleStepQty = (productId: string, delta: number, maxStock: number) => {
+    const item = cartData?.items.find(i => i.product.id === productId);
+    if (!item) return;
+
+    const targetQty = item.quantity + delta;
+    const clampedQty = Math.min(Math.max(1, targetQty), maxStock);
+    handleOptimisticQty(productId, clampedQty);
+  };
+
+  const handleManualInputChange = (productId: string, rawValue: string, maxStock: number) => {
+    setLocalInputs(prev => ({ ...prev, [productId]: rawValue }));
+
+    if (rawValue.trim() === "") return;
+
+    const parsed = parseInt(rawValue, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      const clamped = Math.min(parsed, maxStock);
+      handleOptimisticQty(productId, clamped);
+    }
+  };
+
+  const handleInputBlur = (productId: string, maxStock: number) => {
+    const rawValue = localInputs[productId];
+    const parsed = parseInt(rawValue, 10);
+
+    if (isNaN(parsed) || parsed < 1) {
+      handleOptimisticQty(productId, 1);
+    } else if (parsed > maxStock) {
+      handleOptimisticQty(productId, maxStock);
     }
   };
 
   const handleRemoveItem = async (productId: string) => {
+    if (debounceTimers.current[productId]) {
+      clearTimeout(debounceTimers.current[productId]);
+      delete debounceTimers.current[productId];
+    }
+
+    // Optimistically remove from state
+    if (cartData) {
+      const remaining = cartData.items.filter(i => i.product.id !== productId);
+      setCartData(calculateCartTotals(remaining));
+      onRefreshCartCounter();
+    }
+
     try {
       await orderService.removeFromCart(productId);
       fetchCart();
       onRefreshCartCounter();
     } catch (err) {
-      console.error(err);
+      console.error("Failed to remove cart item:", err);
+      fetchCart();
+      onRefreshCartCounter();
     }
   };
 
@@ -123,6 +271,9 @@ export default function Cart({ onCheckoutTrigger, onRefreshCartCounter, onBack }
           const unitPrice = effectiveUnitPrice !== undefined ? effectiveUnitPrice : product.sellingPrice;
           const lineSubtotal = itemSubtotal !== undefined ? itemSubtotal : unitPrice * quantity;
           const hasTierDiscount = Boolean(activeTier && activeTier.discountPercent > 0);
+          const maxStock = (product.availableStock !== undefined && product.availableStock !== null && product.availableStock > 0)
+            ? product.availableStock
+            : 9999;
 
           return (
             <div
@@ -135,6 +286,7 @@ export default function Cart({ onCheckoutTrigger, onRefreshCartCounter, onBack }
               <button
                 onClick={() => handleRemoveItem(product.id)}
                 className="absolute top-3 right-3 text-slate-300 hover:text-rose-500 p-1 rounded-lg hover:bg-slate-50 transition-all cursor-pointer"
+                aria-label="Remove product"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -206,20 +358,38 @@ export default function Cart({ onCheckoutTrigger, onRefreshCartCounter, onBack }
                 )}
               </div>
 
-              {/* Vertical Increment/Decrement controller */}
-              <div className="flex flex-col justify-center items-center bg-slate-100 rounded-xl px-1.5 py-1.5 border border-slate-200/40">
+              {/* Vertical Increment/Decrement controller with manual numeric input */}
+              <div className="flex flex-col justify-center items-center bg-slate-100 rounded-xl px-1.5 py-1 border border-slate-200/50">
                 <button
-                  onClick={() => handleUpdateQty(product.id, quantity, 1)}
-                  className="text-slate-500 hover:text-brand-purple p-1 rounded hover:bg-white transition-all cursor-pointer"
+                  type="button"
+                  onClick={() => handleStepQty(product.id, 1, maxStock)}
+                  disabled={quantity >= maxStock}
+                  className="text-slate-500 hover:text-brand-purple active:scale-95 disabled:opacity-30 p-1 rounded hover:bg-white transition-all cursor-pointer"
+                  aria-label="Increase quantity"
                 >
                   <Plus className="w-3.5 h-3.5" />
                 </button>
-                <span className="w-6 text-center text-xs font-black text-slate-800 font-mono py-1">
-                  {quantity}
-                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={maxStock}
+                  value={localInputs[product.id] ?? quantity}
+                  onChange={(e) => handleManualInputChange(product.id, e.target.value, maxStock)}
+                  onBlur={() => handleInputBlur(product.id, maxStock)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      (e.target as HTMLInputElement).blur();
+                    }
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-11 text-center text-xs font-black text-slate-800 font-mono py-1 px-1 bg-white border border-slate-200 rounded my-1 outline-none focus:border-brand-purple focus:ring-1 focus:ring-brand-purple/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
                 <button
-                  onClick={() => handleUpdateQty(product.id, quantity, -1)}
-                  className="text-slate-500 hover:text-brand-purple p-1 rounded hover:bg-white transition-all cursor-pointer"
+                  type="button"
+                  onClick={() => handleStepQty(product.id, -1, maxStock)}
+                  disabled={quantity <= 1}
+                  className="text-slate-500 hover:text-rose-500 active:scale-95 disabled:opacity-30 p-1 rounded hover:bg-white transition-all cursor-pointer"
+                  aria-label="Decrease quantity"
                 >
                   <Minus className="w-3.5 h-3.5" />
                 </button>
