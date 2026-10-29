@@ -2889,6 +2889,23 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - Verified TypeScript compilation (`npm run lint` / `tsc --noEmit`): 0 errors.
   - Verified production build (`npm run build`): Completed in 9.47s.
   - All existing test suites passing.
+
+### TASK 127: Vercel Serverless Function Resolution & Bundle Packaging Fix (FUNCTION_INVOCATION_FAILED Elimination)
+- **SUMMARY:**
+  - **Issue Reported**: All backend endpoints (`/api/categories`, `/api/auth/sync-session`, `/api/products`, etc.) on `medichainbd.vercel.app` were returning HTTP 500 with plain-text `FUNCTION_INVOCATION_FAILED`, preventing the frontend from syncing sessions or authenticating with the backend.
+  - **Root Cause**:
+    1. **ESM Extensionless Module Resolution (`api/index.ts`)**: In `api/index.ts`, `import app from "../server"` omitted file extensions. Under Node.js ESM (`"type": "module"`), Node strictly requires explicit extensions, throwing a fatal `ERR_MODULE_NOT_FOUND: Cannot find module '../server'` during module link time before any function could execute.
+    2. **Express Lifecycle Wrapper Conflict**: Wrapping Express `app` inside a custom function handler `export default function handler(req, res) { return (app as any)(req, res); }` failed because Express does not return a Promise; returning `undefined` caused Vercel's runtime to prematurely terminate the invocation.
+    3. **Serverless Mode Flag Reset (`server.js`)**: `server.js` reset `process.env.VERCEL = ""` when `NOW_REGION` was unset, which tricked `isServerless` into evaluating to `false` and triggered `startServer()` (`app.listen(3000)`), throwing `EADDRINUSE` inside Lambda.
+    4. **NFT Omission of Bundled Server (`vercel.json`)**: Without explicit `includeFiles`, Vercel's Node File Trace could exclude the bundled `dist/server.cjs`.
+  - **Resolution**:
+    1. **Native Vercel Express Export (`api/index.ts`)**: Standardized to `import app from "../server.js"; export default app;` allowing `@vercel/node` to natively adapt Express without premature callback termination.
+    2. **Strict Serverless Environment Enforce (`server.js`)**: Set `process.env.VERCEL = "1"` unconditionally at top of `server.js` before loading `dist/server.cjs` to guarantee standalone HTTP listeners and cron schedulers are strictly bypassed.
+    3. **Explicit Serverless Function Packaging (`vercel.json`)**: Added `functions` block mapping `api/index.ts` with `includeFiles: "dist/**"` and `maxDuration: 30`.
+- **VERIFICATION:**
+  - Tested module loading with Node ESM: Verified `server.js` loads Express instance with `.handle` cleanly in 0ms without `EADDRINUSE`.
+  - Verified TypeScript compilation (`npm run lint` / `tsc --noEmit`): 0 errors.
+  - Verified production build (`npm run build`): 100% success.
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).

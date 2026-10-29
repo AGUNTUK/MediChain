@@ -1,4 +1,10 @@
 {
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "dist/**",
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/(.*)", "destination": "/index.html" }
