@@ -231,9 +231,17 @@ export default function App() {
     }
   };
 
-  const handleUpdateCartQty = async (productId: string, currentQty: number, change: number) => {
+  const handleUpdateCartQty = async (productId: string, currentQty: number, change: number, targetQty?: number) => {
     try {
-      const newQty = currentQty + change;
+      const newQty = targetQty !== undefined ? targetQty : currentQty + change;
+      setCartQuantities(prev => {
+        if (newQty <= 0) {
+          const next = { ...prev };
+          delete next[productId];
+          return next;
+        }
+        return { ...prev, [productId]: newQty };
+      });
       if (newQty <= 0) {
         await orderService.removeFromCart(productId);
       } else {

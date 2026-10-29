@@ -311,9 +311,29 @@ export function filterAndRankProducts(
     };
   }
 
+  // Strict Ordering when query is empty:
+  // 1. In-stock products ALWAYS appear first (availableStock > 0)
+  // 2. Specific filter sorts (deals, frequent, low_stock)
+  // 3. Default: Alphabetical order (A to Z) by medicine name
+  const sorted = [...list].sort((a, b) => {
+    const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
+    const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
+    if (aInStock !== bInStock) {
+      return bInStock - aInStock; // In-stock comes before out-of-stock
+    }
+    if (options?.filter === "deals") {
+      return (b.discountPercentage ?? 0) - (a.discountPercentage ?? 0);
+    } else if (options?.filter === "frequent") {
+      return (b.soldStock ?? 0) - (a.soldStock ?? 0);
+    } else if (options?.filter === "low_stock") {
+      return (a.availableStock ?? 0) - (b.availableStock ?? 0);
+    }
+    return (a.name || "").localeCompare(b.name || "", "en", { sensitivity: "base" });
+  });
+
   return {
-    products: list,
-    total: list.length,
+    products: sorted,
+    total: sorted.length,
     suggestions: [],
     correctedQuery: undefined
   };

@@ -111,9 +111,12 @@ describe("Universal Fuzzy Search & Typo Tolerance Engine", () => {
   });
 
   it("ranks in-stock products before out-of-stock products", () => {
-    // Both products match generic "Montelukast" or "Ascorbic" or search without query
     const result = filterAndRankProducts(mockProducts, "");
     assert.equal(result.products.length, 5);
+    // Monas 10mg has availableStock: 0, so it must be ranked after all in-stock products
+    assert.equal(result.products[4].name, "Monas 10mg");
+    assert.equal(result.products[4].availableStock, 0);
+    assert.ok((result.products[0].availableStock ?? 0) > 0);
   });
 });
 
@@ -130,6 +133,26 @@ describe("Safe JSON Response Gateway Error Protection", () => {
     assert.equal(result.data, null);
     assert.ok(result.error);
     assert.ok(result.error.includes("অপ্রত্যাশিত"));
+  });
+
+  it("safely intercepts Vercel plain text FUNCTION_INVOCATION_FAILED error without throwing SyntaxError: Unexpected token 'A'", async () => {
+    const vercelPlainText500 = "A server error has occurred\n\nFUNCTION_INVOCATION_FAILED\n\nbom1::6cbv9-1793304750523-fc23ee79974b";
+    const mockVercel500 = new Response(vercelPlainText500, {
+      status: 500,
+      statusText: "Internal Server Error",
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Vercel-Error": "FUNCTION_INVOCATION_FAILED"
+      }
+    });
+
+    const result = await safeJsonResponse(mockVercel500);
+    assert.equal(result.ok, false);
+    assert.equal(result.data, null);
+    assert.ok(result.error);
+    // Crucial check: Must not leak raw JavaScript parser SyntaxError "Unexpected token 'A'"
+    assert.equal(result.error.includes("Unexpected token"), false);
+    assert.ok(result.error.includes("সার্ভার") || result.error.includes("অনুপলব্ধ"));
   });
 
   it("parses valid JSON response normally", async () => {

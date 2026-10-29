@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ShoppingBag,
@@ -10,14 +10,12 @@ import {
   Truck,
   Sparkles,
   Package,
-  ArrowLeft,
   Tag
 } from "lucide-react";
 import { Product } from "../types";
 import StockAlertButton from "./StockAlertButton";
-import MediChainLogo from "./MediChainLogo";
 
-interface CartItemWithTier {
+export interface CartItemWithTier {
   product: Product;
   quantity: number;
   effectiveUnitPrice?: number;
@@ -27,7 +25,7 @@ interface CartItemWithTier {
   nextTier?: { minQty: number; discountPercent: number } | null;
 }
 
-interface CartDrawerProps {
+export interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   cartData: {
@@ -38,13 +36,71 @@ interface CartDrawerProps {
     totalTierSavings?: number;
   } | null;
   cartCount: number;
-  onUpdateCartQty: (productId: string, currentQty: number, change: number) => Promise<void>;
+  onUpdateCartQty: (productId: string, currentQty: number, change: number, targetQty?: number) => Promise<void>;
   onRemoveItem: (productId: string) => Promise<void>;
   onCheckoutTrigger: () => void;
   onBrowseCatalog?: () => void;
 }
 
 const DELIVERY_FEE = 40;
+
+/**
+ * Calculates in-memory cart totals, tier discounts, line subtotals, and savings in 0ms
+ */
+export const calculateCartTotals = (items: CartItemWithTier[]) => {
+  let totalMrp = 0;
+  let totalAmount = 0;
+  let totalTierSavings = 0;
+
+  const updatedItems = items.map(item => {
+    const p = item.product;
+    const qty = item.quantity;
+    const mrp = p.mrp || p.sellingPrice;
+
+    let effectiveUnitPrice = p.sellingPrice;
+    let activeTier: { minQty: number; discountPercent: number } | null = null;
+    let nextTier: { minQty: number; discountPercent: number } | null = null;
+    let tierSavings = 0;
+
+    if (p.tiers && Array.isArray(p.tiers) && p.tiers.length > 0) {
+      const sortedTiers = [...p.tiers].sort((a, b) => a.minQty - b.minQty);
+      activeTier = [...sortedTiers].reverse().find(t => qty >= t.minQty) || null;
+      nextTier = sortedTiers.find(t => t.minQty > qty) || null;
+
+      if (activeTier && activeTier.discountPercent > 0) {
+        effectiveUnitPrice = Math.round((mrp * (1 - activeTier.discountPercent / 100)) * 100) / 100;
+        tierSavings = Math.max(0, Math.round(((p.sellingPrice - effectiveUnitPrice) * qty) * 100) / 100);
+      }
+    }
+
+    const itemSubtotal = Math.round((effectiveUnitPrice * qty) * 100) / 100;
+    const lineMrp = mrp * qty;
+
+    totalMrp += lineMrp;
+    totalAmount += itemSubtotal;
+    totalTierSavings += tierSavings;
+
+    return {
+      ...item,
+      quantity: qty,
+      effectiveUnitPrice,
+      itemSubtotal,
+      tierSavings,
+      activeTier,
+      nextTier
+    };
+  });
+
+  const totalSavings = Math.max(0, Math.round((totalMrp - totalAmount) * 100) / 100);
+
+  return {
+    items: updatedItems,
+    totalMrp: Math.round(totalMrp * 100) / 100,
+    totalAmount: Math.round(totalAmount * 100) / 100,
+    totalSavings,
+    totalTierSavings: Math.round(totalTierSavings * 100) / 100
+  };
+};
 
 export default function CartDrawer({
   isOpen,
@@ -56,10 +112,171 @@ export default function CartDrawer({
   onCheckoutTrigger,
   onBrowseCatalog
 }: CartDrawerProps) {
-  const items = cartData?.items || [];
-  const totalAmount = cartData?.totalAmount || 0;
-  const totalSavings = cartData?.totalSavings || 0;
-  const totalMrp = cartData?.totalMrp || 0;
+  // 1. Local optimistic cart state for 0ms UI responsiveness
+  const [localCartData, setLocalCartData] = useState(cartData);
+  const [localInputs, setLocalInputs] = useState<Record<string, string>>({});
+  const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
+  const pendingTargets = useRef<Record<string, number>>({});
+
+  // Sync prop cartData to localCartData whenever it changes, unless debounces are actively in-flight
+  useEffect(() => {
+    const hasPending = Object.keys(debounceTimers.current).length > 0;
+    if (!hasPending) {
+      setLocalCartData(cartData);
+      if (cartData?.items) {
+        const inputMap: Record<string, string> = {};
+        cartData.items.forEach(item => {
+          inputMap[item.product.id] = String(item.quantity);
+        });
+        setLocalInputs(inputMap);
+      }
+    }
+  }, [cartData]);
+
+  // Clean up all debounce timers on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(debounceTimers.current).forEach(t => clearTimeout(t));
+    };
+  }, []);
+
+  // Flush all pending debounced updates immediately (e.g. before checkout)
+  const flushAllPending = async () => {
+    const promises: Promise<void>[] = [];
+    for (const [productId, timer] of Object.entries(debounceTimers.current)) {
+      clearTimeout(timer);
+      const target = pendingTargets.current[productId];
+      delete debounceTimers.current[productId];
+      delete pendingTargets.current[productId];
+      if (target !== undefined) {
+        promises.push(onUpdateCartQty(productId, 0, 0, target));
+      }
+    }
+    if (promises.length > 0) {
+      await Promise.all(promises);
+    }
+  };
+
+  /**
+   * Instant optimistic update: Mutates local state in 0ms and schedules debounced server sync
+   */
+  const handleOptimisticQty = (productId: string, newQty: number) => {
+    if (!localCartData) return;
+
+    if (newQty <= 0) {
+      handleRemoveItem(productId);
+      return;
+    }
+
+    const currentItems = [...localCartData.items];
+    const itemIndex = currentItems.findIndex(i => i.product.id === productId);
+    if (itemIndex === -1) return;
+
+    currentItems[itemIndex] = {
+      ...currentItems[itemIndex],
+      quantity: newQty
+    };
+
+    const newCartState = calculateCartTotals(currentItems);
+    setLocalCartData(newCartState);
+    setLocalInputs(prev => ({ ...prev, [productId]: String(newQty) }));
+
+    pendingTargets.current[productId] = newQty;
+    if (debounceTimers.current[productId]) {
+      clearTimeout(debounceTimers.current[productId]);
+    }
+
+    debounceTimers.current[productId] = setTimeout(async () => {
+      const target = pendingTargets.current[productId];
+      delete debounceTimers.current[productId];
+      delete pendingTargets.current[productId];
+      try {
+        if (target !== undefined) {
+          await onUpdateCartQty(productId, 0, 0, target);
+        }
+      } catch (err) {
+        console.error("Failed to sync cart drawer item quantity:", err);
+      }
+    }, 350);
+  };
+
+  const handleStepQty = (productId: string, delta: number, maxStock: number) => {
+    const item = localCartData?.items.find(i => i.product.id === productId);
+    if (!item) return;
+
+    const targetQty = item.quantity + delta;
+    const clampedQty = Math.min(Math.max(1, targetQty), maxStock);
+    handleOptimisticQty(productId, clampedQty);
+  };
+
+  const handleManualInputChange = (productId: string, rawValue: string, maxStock: number) => {
+    setLocalInputs(prev => ({ ...prev, [productId]: rawValue }));
+
+    if (rawValue.trim() === "") return;
+
+    const parsed = parseInt(rawValue, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      const clamped = Math.min(parsed, maxStock);
+      handleOptimisticQty(productId, clamped);
+    }
+  };
+
+  const handleInputBlur = (productId: string, maxStock: number) => {
+    const rawValue = localInputs[productId];
+    const parsed = parseInt(rawValue, 10);
+
+    let finalQty = parsed;
+    if (isNaN(parsed) || parsed < 1) {
+      finalQty = 1;
+    } else if (parsed > maxStock) {
+      finalQty = maxStock;
+    }
+
+    setLocalInputs(prev => ({ ...prev, [productId]: String(finalQty) }));
+    handleOptimisticQty(productId, finalQty);
+
+    // Immediate flush on blur if debounce was scheduled
+    if (debounceTimers.current[productId]) {
+      clearTimeout(debounceTimers.current[productId]);
+      delete debounceTimers.current[productId];
+      delete pendingTargets.current[productId];
+      onUpdateCartQty(productId, 0, 0, finalQty);
+    }
+  };
+
+  const handleRemoveItem = async (productId: string) => {
+    if (debounceTimers.current[productId]) {
+      clearTimeout(debounceTimers.current[productId]);
+      delete debounceTimers.current[productId];
+      delete pendingTargets.current[productId];
+    }
+
+    if (localCartData) {
+      const remaining = localCartData.items.filter(i => i.product.id !== productId);
+      setLocalCartData(calculateCartTotals(remaining));
+    }
+
+    try {
+      await onRemoveItem(productId);
+    } catch (err) {
+      console.error("Failed to remove cart drawer item:", err);
+    }
+  };
+
+  const handleProceedCheckout = async () => {
+    await flushAllPending();
+    onClose();
+    onCheckoutTrigger();
+  };
+
+  const items = localCartData?.items || [];
+  const totalAmount = localCartData?.totalAmount || 0;
+  const totalSavings = localCartData?.totalSavings || 0;
+  const totalMrp = localCartData?.totalMrp || 0;
+  const totalTierSavings = localCartData?.totalTierSavings || 0;
+
+  // Real-time optimistic count of total boxes
+  const currentTotalBoxes = items.reduce((acc, i) => acc + i.quantity, 0) || cartCount;
 
   // Default 40৳ delivery charge for all orders
   const finalPayable = totalAmount + (totalAmount === 0 ? 0 : DELIVERY_FEE);
@@ -94,9 +311,9 @@ export default function CartDrawer({
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-base font-black text-slate-900 tracking-tight">আপনার ক্রয়ের কার্ট</h3>
-                    {cartCount > 0 && (
+                    {currentTotalBoxes > 0 && (
                       <span className="text-[10px] font-black bg-brand-lime text-slate-950 px-2 py-0.5 rounded-full shadow-xs">
-                        {cartCount} বক্স
+                        {currentTotalBoxes} বক্স
                       </span>
                     )}
                   </div>
@@ -154,6 +371,9 @@ export default function CartDrawer({
                   {items.map((item) => {
                     const { product, quantity, effectiveUnitPrice, itemSubtotal, tierSavings, activeTier, nextTier } = item;
                     const isItemStockout = (product.availableStock !== undefined && product.availableStock <= 0);
+                    const maxStock = (product.availableStock !== undefined && product.availableStock > 0)
+                      ? product.availableStock
+                      : 9999;
                     const unitPrice = effectiveUnitPrice !== undefined ? effectiveUnitPrice : product.sellingPrice;
                     const lineSubtotal = itemSubtotal !== undefined ? itemSubtotal : unitPrice * quantity;
                     const hasTierDiscount = activeTier && activeTier.discountPercent > 0;
@@ -238,7 +458,7 @@ export default function CartDrawer({
 
                           {/* Remove Button */}
                           <button
-                            onClick={() => onRemoveItem(product.id)}
+                            onClick={() => handleRemoveItem(product.id)}
                             className="absolute top-3 right-3 text-slate-300 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
                             title="ওষুধটি বাদ দিন"
                           >
@@ -253,20 +473,40 @@ export default function CartDrawer({
                             <span className="text-[10px] text-slate-400">পরিমাণ: {quantity} বক্স</span>
                           )}
 
-                          {/* Quantity Controls */}
+                          {/* Fast 0ms Quantity Controls + Manual Numeric Input */}
                           <div className="flex items-center gap-1.5 bg-slate-100 rounded-xl p-1 border border-slate-200/60">
                             <button
-                              onClick={() => onUpdateCartQty(product.id, quantity, -1)}
-                              className="w-6 h-6 rounded-lg bg-white text-slate-600 hover:text-rose-600 flex items-center justify-center shadow-xs hover:bg-slate-50 transition-all cursor-pointer"
+                              onClick={() => handleStepQty(product.id, -1, maxStock)}
+                              disabled={quantity <= 1}
+                              className="w-6 h-6 rounded-lg bg-white text-slate-600 hover:text-rose-600 disabled:opacity-40 flex items-center justify-center shadow-xs hover:bg-slate-50 transition-all cursor-pointer"
+                              aria-label="Decrease quantity"
+                              title="১টি কমান"
                             >
                               <Minus className="w-3 h-3" />
                             </button>
-                            <span className="w-6 text-center text-xs font-black text-slate-800 font-mono">
-                              {quantity}
-                            </span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={maxStock}
+                              value={localInputs[product.id] ?? quantity}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => handleManualInputChange(product.id, e.target.value, maxStock)}
+                              onBlur={() => handleInputBlur(product.id, maxStock)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  (e.target as HTMLInputElement).blur();
+                                }
+                              }}
+                              className="w-12 text-center text-xs font-black text-slate-900 font-mono py-0.5 px-0.5 bg-white border border-slate-200/90 rounded-lg outline-none focus:border-brand-purple focus:ring-1 focus:ring-brand-purple/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              title="ম্যানুয়াল পরিমাণ লিখুন"
+                              aria-label="Product quantity"
+                            />
                             <button
-                              onClick={() => onUpdateCartQty(product.id, quantity, 1)}
-                              className="w-6 h-6 rounded-lg bg-brand-purple text-white hover:bg-brand-purple/90 flex items-center justify-center shadow-xs transition-all cursor-pointer"
+                              onClick={() => handleStepQty(product.id, 1, maxStock)}
+                              disabled={quantity >= maxStock}
+                              className="w-6 h-6 rounded-lg bg-brand-purple text-white hover:bg-brand-purple/90 disabled:opacity-40 flex items-center justify-center shadow-xs transition-all cursor-pointer"
+                              aria-label="Increase quantity"
+                              title="১টি বাড়ান"
                             >
                               <Plus className="w-3 h-3" />
                             </button>
@@ -307,14 +547,14 @@ export default function CartDrawer({
                       </div>
                     )}
 
-                    {(cartData?.totalTierSavings || 0) > 0 && (
+                    {totalTierSavings > 0 && (
                       <div className="flex justify-between text-purple-700 font-bold bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200/60 text-[11px]">
                         <span className="flex items-center gap-1">
                           <Sparkles className="w-3 h-3 text-purple-600" />
                           ভলিউম বাল্ক টিয়ার বোনাস সাশ্রয়
                         </span>
                         <span className="font-mono font-black text-purple-800">
-                          - ৳{(cartData?.totalTierSavings || 0).toLocaleString()}
+                          - ৳{totalTierSavings.toLocaleString()}
                         </span>
                       </div>
                     )}
@@ -335,10 +575,7 @@ export default function CartDrawer({
                   </div>
 
                   <button
-                    onClick={() => {
-                      onClose();
-                      onCheckoutTrigger();
-                    }}
+                    onClick={handleProceedCheckout}
                     className="w-full bg-brand-lime hover:bg-brand-lime/90 text-slate-950 py-3.5 px-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-brand-lime/25 active:scale-[0.99] transition-all cursor-pointer"
                   >
                     <span>অর্ডার করতে এগিয়ে যান</span>

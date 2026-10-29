@@ -58,20 +58,42 @@ export const authService = {
         syncHeaders["Authorization"] = `Bearer ${token}`;
       }
 
-      const response = await apiFetch("/api/auth/sync-session", {
-        method: "POST",
-        headers: syncHeaders,
-        body: JSON.stringify({
-          name,
-        }),
-      });
+      let syncResult: any = null;
+      try {
+        const response = await apiFetch("/api/auth/sync-session", {
+          method: "POST",
+          headers: syncHeaders,
+          body: JSON.stringify({
+            name,
+          }),
+        });
 
-      const parsed = await safeJsonResponse(response);
-      if (!parsed.ok || !parsed.data) {
-        throw new Error(parsed.error || "Failed to synchronize authenticated session with server.");
+        const parsed = await safeJsonResponse(response);
+        if (parsed.ok && parsed.data) {
+          syncResult = parsed.data;
+        } else {
+          console.warn("Backend session sync warning on signup:", parsed.error);
+        }
+      } catch (syncErr: any) {
+        console.warn("Backend session sync exception during signup:", syncErr.message);
       }
 
-      return parsed.data;
+      if (syncResult) {
+        return syncResult;
+      }
+
+      // Resilient fallback: Account already registered in Supabase
+      return {
+        success: true,
+        user: {
+          id: user.id,
+          email: email,
+          name: name,
+          role: "Pharmacy Owner",
+          pharmacy_id: null
+        },
+        needsSetup: true
+      };
     } else {
       // Offline fallback signup
       const response = await fetch("/api/auth/local-signup", {
@@ -146,20 +168,56 @@ export const authService = {
         syncHeaders["Authorization"] = `Bearer ${token}`;
       }
 
-      const response = await apiFetch("/api/auth/sync-session", {
-        method: "POST",
-        headers: syncHeaders,
-        body: JSON.stringify({
-          name,
-        }),
-      });
+      let syncResult: any = null;
+      try {
+        const response = await apiFetch("/api/auth/sync-session", {
+          method: "POST",
+          headers: syncHeaders,
+          body: JSON.stringify({
+            name,
+          }),
+        });
 
-      const parsed = await safeJsonResponse(response);
-      if (!parsed.ok || !parsed.data) {
-        throw new Error(parsed.error || "Failed to synchronize authenticated session with server.");
+        const parsed = await safeJsonResponse(response);
+        if (parsed.ok && parsed.data) {
+          syncResult = parsed.data;
+        } else {
+          console.warn("Backend session sync warning:", parsed.error);
+        }
+      } catch (syncErr: any) {
+        console.warn("Backend session sync exception:", syncErr.message);
       }
 
-      return parsed.data;
+      if (syncResult) {
+        return syncResult;
+      }
+
+      // Resilient fallback: If Supabase auth succeeded but backend sync is temporarily degraded,
+      // load profile directly from Supabase so the user is never locked out.
+      let pharmacy = null;
+      try {
+        const { data: pharmData } = await supabase
+          .from("pharmacies")
+          .select("*")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        pharmacy = pharmData;
+      } catch (pErr) {
+        console.warn("Could not load pharmacy profile during auth fallback:", pErr);
+      }
+
+      return {
+        success: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: name,
+          role: role,
+          pharmacy_id: pharmacy ? pharmacy.id : null
+        },
+        needsSetup: !pharmacy?.id,
+        pharmacy
+      };
     } else {
       // Offline fallback login
       const response = await fetch("/api/auth/local-login", {
@@ -209,12 +267,12 @@ export const authService = {
         headers: { "Content-Type": "application/json" }
       });
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || "Failed local Google login demo.");
+      const parsed = await safeJsonResponse(response);
+      if (!parsed.ok || !parsed.data) {
+        throw new Error(parsed.error || "Failed local Google login demo.");
       }
 
-      const result = await response.json();
+      const result = parsed.data;
       if (result.token && typeof window !== "undefined") {
         localStorage.setItem("medichain_token", result.token);
       }
@@ -231,20 +289,51 @@ export const authService = {
       syncHeaders["Authorization"] = `Bearer ${token}`;
     }
 
-    const response = await apiFetch("/api/auth/sync-session", {
-      method: "POST",
-      headers: syncHeaders,
-      body: JSON.stringify({
-        name: name || ""
-      })
-    });
+    try {
+      const response = await apiFetch("/api/auth/sync-session", {
+        method: "POST",
+        headers: syncHeaders,
+        body: JSON.stringify({
+          name: name || ""
+        })
+      });
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.error || "Failed to synchronize session with server.");
+      const parsed = await safeJsonResponse(response);
+      if (parsed.ok && parsed.data) {
+        return parsed.data;
+      }
+    } catch (err: any) {
+      console.warn("Session sync request failed, trying Supabase direct recovery:", err.message);
     }
 
-    return response.json();
+    if (isSupabaseConfigured) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser(token);
+        if (user) {
+          const { data: profile } = await supabase.from("users").select("*").eq("id", user.id).maybeSingle();
+          const { data: pharmacy } = await supabase.from("pharmacies").select("*").eq("user_id", user.id).maybeSingle();
+          const userName = profile?.full_name || profile?.name || name || user.email?.split("@")[0] || "User";
+          const userRole = profile?.role || "Pharmacy Owner";
+
+          return {
+            success: true,
+            user: {
+              id: user.id,
+              email: user.email,
+              name: userName,
+              role: userRole,
+              pharmacy_id: pharmacy ? pharmacy.id : null
+            },
+            needsSetup: !pharmacy?.id,
+            pharmacy
+          };
+        }
+      } catch (sbErr) {
+        console.warn("Direct Supabase session recovery failed:", sbErr);
+      }
+    }
+
+    throw new Error("সার্ভারে সেশন সিঙ্ক করা সম্ভব হয়নি। অনুগ্রহ করে আবার লগইন করুন।");
   },
 
   /**

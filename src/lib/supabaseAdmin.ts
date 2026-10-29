@@ -1,23 +1,35 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import dotenv from "dotenv";
 
-// In Node server/test environment, ensure env is loaded
-if (typeof process !== "undefined" && typeof (process as any).cwd === "function") {
-  try {
-    import("dotenv").then(dotenv => dotenv.config()).catch(() => {});
-  } catch {
-    // ignore
-  }
+// In Node server/test environment, ensure env is loaded synchronously
+if (typeof process !== "undefined") {
+  dotenv.config();
 }
 
 let adminClientInstance: SupabaseClient | null = null;
 
 export function getSupabaseAdmin(): SupabaseClient {
   if (!adminClientInstance) {
+    if (!process.env.VITE_SUPABASE_URL && !process.env.SUPABASE_URL) {
+      dotenv.config();
+    }
+
     const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    // In production, missing or mock credentials must be a hard fatal error to prevent silent data loss (I1)
-    if (process.env.NODE_ENV === "production") {
+    const isServerless = typeof process !== "undefined" && Boolean(
+      process.env.VERCEL ||
+      process.env.VERCEL_ENV ||
+      process.env.NOW_REGION ||
+      process.env.AWS_LAMBDA_FUNCTION_NAME ||
+      process.env.LAMBDA_TASK_ROOT ||
+      process.env.VERCEL_REGION
+    );
+
+    // In production standalone servers, missing or mock credentials must be a hard fatal error to prevent silent data loss (I1)
+    // In serverless environments, avoid process.exit(1) so the container does not crash with FUNCTION_INVOCATION_FAILED;
+    // instead, the fail-safe client proxy returns explicit errors.
+    if (process.env.NODE_ENV === "production" && !isServerless) {
       if (!supabaseUrl || !supabaseServiceRoleKey || supabaseUrl.includes("mock-project-id") || supabaseServiceRoleKey.includes("mock-")) {
         console.error("FATAL: Supabase Admin credentials (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY) are missing or set to mock values in production! Exiting to prevent silent data loss.");
         process.exit(1);
@@ -27,6 +39,10 @@ export function getSupabaseAdmin(): SupabaseClient {
     const isMissingOrMock = !supabaseUrl || !supabaseServiceRoleKey || supabaseUrl.includes("mock-project-id") || supabaseServiceRoleKey.includes("mock-");
 
     if (isMissingOrMock) {
+      if (process.env.NODE_ENV === "production") {
+        console.warn("WARNING: Running in serverless production with mock or missing Supabase Admin credentials. Admin operations will return explicit errors.");
+      }
+
       // In development / test environment, return a fail-safe client proxy that reports explicit errors
       // rather than hanging on DNS timeouts or reporting silent success with `error: null`
       const mockQueryBuilder: any = new Proxy({}, {

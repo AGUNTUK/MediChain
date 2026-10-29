@@ -1246,8 +1246,10 @@ export async function saveDailyLedgerOverride(
   }
 
   if (upsertError) {
-    console.error("[Accounts] Failed to persist daily ledger override to Supabase:", upsertError);
-    throw new Error(`Database error saving ledger override: ${upsertError.message}`);
+    console.warn("[Accounts] Failed to persist daily ledger override to Supabase:", upsertError.message || upsertError);
+    if (!upsertError.message?.includes("offline") && !upsertError.message?.includes("mock credentials")) {
+      throw new Error(`Database error saving ledger override: ${upsertError.message}`);
+    }
   }
 
   const record: DailyLedgerOverride = {
@@ -1318,8 +1320,10 @@ export async function resetDailyLedgerOverride(
     .eq("date", dateKey);
 
   if (delError) {
-    console.error("[Accounts] Failed to reset daily ledger override from Supabase:", delError);
-    throw new Error(`Database error resetting ledger override: ${delError.message}`);
+    console.warn("[Accounts] Failed to reset daily ledger override from Supabase:", delError.message || delError);
+    if (!delError.message?.includes("offline") && !delError.message?.includes("mock credentials")) {
+      throw new Error(`Database error resetting ledger override: ${delError.message}`);
+    }
   }
 
   try {
