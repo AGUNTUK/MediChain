@@ -6478,14 +6478,15 @@ async function startServer() {
 
 // In-process fallback scheduler (with concurrency & idempotency guard)
 // Only active in long-running processes (never during Vercel serverless execution)
-if (!process.env.VERCEL && process.env.NODE_ENV !== "production") {
+if (!process.env.VERCEL) {
   cron.schedule("0 * * * *", async () => {
     await expireEndedBulkCampaigns();
   });
 }
 
-// Only run app.listen in local development
-if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+// Start standalone HTTP server on Cloud Run, Docker, and local development
+// When running inside Vercel serverless functions, VERCEL is set and startServer() is skipped
+if (!process.env.VERCEL) {
   startServer();
 }
 

@@ -2697,6 +2697,19 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `npm run lint` (`tsc --noEmit`): 0 errors.
   - `compile_applet`: Production build succeeded.
 
+### TASK 117: Cloud Run & Vercel Serverless Dual Deployment Runtime Fix
+- **SUMMARY:**
+  - **Issue Reported**: The live Cloud Run service entered a failed state on container boot (`node dist/server.cjs`).
+  - **Root Cause**: In Task 116, the startup condition was set to `if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) { startServer(); }`. When deployed to Cloud Run or run via `npm start`, `NODE_ENV` is `"production"`, which caused `startServer()` to be skipped and `node dist/server.cjs` to exit immediately with code 0 without binding to `PORT`.
+  - **Resolution**:
+    - Refactored the entry condition in `server.ts` to `if (!process.env.VERCEL) { startServer(); }`. This ensures any long-lived container environment (Cloud Run on port 8080/3000, Docker, and local dev) starts the server and listens on `PORT`.
+    - In `api/index.ts`, explicitly set `process.env.VERCEL = process.env.VERCEL || "1"` before importing `server.js` so that in any Vercel Serverless environment, `startServer()` is strictly bypassed and `app` is cleanly exported without port binding conflicts.
+- **VERIFICATION:**
+  - Tested `NODE_ENV=production node dist/server.cjs` startup to verify port listening and healthy HTTP response on Cloud Run port.
+  - Tested `api/index.ts` serverless import to verify 0 port conflicts and clean request dispatch.
+  - `npm run lint` (`tsc --noEmit`): 0 errors.
+  - `compile_applet`: Production build succeeded.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).
