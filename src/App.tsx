@@ -3,7 +3,6 @@ import Splash from "./components/Splash";
 import Login from "./components/Login";
 import Home from "./components/Home";
 import CartDrawer from "./components/CartDrawer";
-import PharmacyCopilotModal from "./components/PharmacyCopilotModal";
 import { PWAInstallPrompt } from "./pwa/PWAInstallPrompt";
 import { CartFeedbackProvider } from "./context/FlyToCartContext";
 import SafeBoundary from "./components/SafeBoundary";
@@ -87,7 +86,6 @@ export default function App() {
   const [activeBulkCampaignId, setActiveBulkCampaignId] = useState<string | undefined>();
   const [showPhysiciansProductSheet, setShowPhysiciansProductSheet] = useState(false);
   const [showPhysiciansTooltip, setShowPhysiciansTooltip] = useState(false);
-  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
 
   const handlePhysiciansActionClick = () => {
     try {
@@ -710,7 +708,6 @@ export default function App() {
                   if (campaignId) setActiveBulkCampaignId(campaignId);
                   setAppStep("bulk_deals");
                 }}
-                onOpenCopilot={() => setIsCopilotOpen(true)}
               />
             );
         }
@@ -828,34 +825,6 @@ export default function App() {
           {showPhysiciansProductSheet && (
             <PhysiciansProductSheet onClose={() => setShowPhysiciansProductSheet(false)} />
           )}
-
-          {/* Floating MediChain AI Procurement Copilot Trigger */}
-          {appStep === "main" && (
-            <button
-              type="button"
-              onClick={() => setIsCopilotOpen(true)}
-              style={{ position: 'fixed', right: '20px', left: 'auto', bottom: '88px', zIndex: 45 }}
-              className="w-14 h-14 rounded-full bg-gradient-to-tr from-purple-700 via-purple-600 to-purple-500 hover:from-purple-800 hover:to-purple-600 text-white shadow-xl shadow-purple-900/30 border-2 border-white flex items-center justify-center cursor-pointer transition-all hover:scale-110 active:scale-95 group relative shrink-0"
-              title="MediChain AI Copilot (মেডিচেইন সহকারী)"
-            >
-              <MessageSquareText className="w-6 h-6 text-white group-hover:scale-110 transition-transform" />
-              <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#70C016] text-white flex items-center justify-center border-2 border-white shadow-2xs">
-                <Sparkles className="w-3 h-3 text-white animate-pulse" />
-              </span>
-            </button>
-          )}
-
-          {/* Pharmacy Procurement & Ordering Copilot Modal */}
-          <PharmacyCopilotModal
-            isOpen={isCopilotOpen}
-            onClose={() => setIsCopilotOpen(false)}
-            pharmacyName={pharmacy?.pharmacyName || currentUser?.name || "City Pharma"}
-            onAddToCart={handleAddToCart}
-            onOpenCart={() => {
-              refreshCartCounter();
-              setIsCartDrawerOpen(true);
-            }}
-          />
 
           {/* Bottom persistent Nav Bar */}
           {appStep === "main" && (

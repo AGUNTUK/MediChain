@@ -2755,6 +2755,54 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `npm run lint` (`tsc --noEmit`): 0 errors.
   - `compile_applet`: Production build succeeded.
 
+### TASK 120: Vercel Serverless Authentication Resolution & Universal Typo-Tolerant Search Engine
+- **SUMMARY:**
+  - **Issue Reported**:
+    1. Login on Vercel failed with: `Unexpected token '<', "<!doctype "... is not valid JSON`.
+    2. Search across the application was limited to rigid case-insensitive substring matches; misspellings or typos (e.g. "paracitamol", "napa xtra", "bexemco") returned 0 results.
+  - **Root Cause**:
+    1. `api/index.ts` contained `import app from "../server.js"`, but the file is `server.ts`. Vercel's serverless build failed to resolve the module, causing API routes (`/api/auth/sync-session`, etc.) to fall back to the SPA HTML rewrite (`index.html`), causing `res.json()` to parse HTML.
+    2. Search in `/api/products` and `/api/admin/products` checked only exact substrings.
+  - **Resolution**:
+    1. **Vercel Serverless Entry & Resilient Client**:
+       - Fixed `api/index.ts` with clean extensionless/typescript resolution `import app from "../server"`.
+       - Created root `server.js` proxy pointing to `dist/server.cjs` for 100% runtime module resolution compatibility.
+       - Enhanced `src/lib/apiFetch.ts` with safe JSON parsing that intercepts HTML responses and returns clean error messaging.
+    2. **Zero-Egress Typo-Tolerant Fuzzy Search Engine (`src/lib/fuzzySearch.ts` & `server.ts`)**:
+       - Implemented an in-memory fuzzy search algorithm executing directly on `cachedAllProducts` without additional database queries or Vercel egress.
+       - Supports search across Product Name (`name`), Generic Name (`genericName`), and Manufacturer/Company (`company`).
+       - Features Damerau-Levenshtein distance typo tolerance ($\le 2$ edit distance) and calculates closest `correctedQuery` suggestions.
+    3. **Universal Integration**:
+       - Active across main Medicine Catalog (`SearchSystem.tsx`), Homepage search (`Home.tsx`), and Admin product management (`AdminPanel.tsx` / `/api/admin/products`).
+- **VERIFICATION:**
+  - Added `tests/universalFuzzySearchAndAuth.test.ts`.
+  - Regression test suites passed 100%.
+  - `npm run lint` (`tsc --noEmit`): 0 errors.
+  - `compile_applet`: Production build succeeded.
+
+### TASK 121: Resolution of Cloud Run ES Module Deployment Error (`ReferenceError: module is not defined in ES module scope`)
+- **SUMMARY:**
+  - **Issue Reported**: Cloud Run container failed to start with `ReferenceError: module is not defined in ES module scope` at `file:///workspace/server.js:7:3`.
+  - **Root Cause**: `package.json` contains `"type": "module"`, instructing Node.js to treat all `.js` files as ES Modules. `server.js` was written with CommonJS syntax (`module.exports = require(...)`), which is unsupported in ES Modules scope and threw a fatal startup error.
+  - **Resolution**:
+    - Converted `server.js` to standard ES Module syntax using `node:module` `createRequire` (`createRequire(import.meta.url)`) and `export default`.
+    - Maintained dual compatibility for Vercel, Docker, and Cloud Run production runtime environments.
+- **VERIFICATION:**
+  - Verified ES Module import loading via Node.js runtime.
+  - `npm run lint` (`tsc --noEmit`): 0 errors.
+  - `compile_applet`: Production build succeeded.
+
+### TASK 122: Complete Removal of AI Chatting Assistant
+- **SUMMARY:**
+  - **User Request**: "Remove the ai chatting assistant"
+  - **Actions Taken**:
+    - Removed floating AI Procurement Copilot trigger button and `PharmacyCopilotModal` from `src/App.tsx`.
+    - Removed AI assistant trigger button and `onOpenCopilot` prop from `src/components/Home.tsx`.
+    - Deleted `src/components/PharmacyCopilotModal.tsx`.
+- **VERIFICATION:**
+  - `npm run lint` (`tsc --noEmit`): 0 errors.
+  - `compile_applet`: Production build succeeded.
+
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).

@@ -54,3 +54,38 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
 
   return response;
 }
+
+/**
+ * Safely parses JSON response from API. If the server returned an HTML error document
+ * (e.g. 404/500 rewrite or Vercel gateway timeout), provides a structured, user-friendly
+ * error rather than crashing with SyntaxError: Unexpected token '<'.
+ */
+export async function safeJsonResponse<T = any>(response: Response): Promise<{ ok: boolean; data: T | null; error?: string; fields?: Record<string, string> }> {
+  try {
+    const text = await response.text();
+    if (!text || text.trim() === "") {
+      return { ok: response.ok, data: null };
+    }
+    const trimmed = text.trim();
+    if (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<!doctype") || trimmed.startsWith("<html")) {
+      return {
+        ok: false,
+        data: null,
+        error: "সার্ভার থেকে অপ্রত্যাশিত রেসপন্স এসেছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।"
+      };
+    }
+    const data = JSON.parse(text) as T;
+    return {
+      ok: response.ok,
+      data,
+      error: !response.ok ? ((data as any)?.error || "অনুরোধটি সফল হয়নি।") : undefined,
+      fields: (data as any)?.fields
+    };
+  } catch (err: any) {
+    return {
+      ok: false,
+      data: null,
+      error: err.message || "Failed to parse response."
+    };
+  }
+}

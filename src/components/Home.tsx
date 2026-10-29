@@ -59,7 +59,6 @@ interface HomeProps {
   onOpenBulkDeals?: (campaignId?: string) => void;
   orders?: Order[];
   onTrackOrder?: (orderId: string) => void;
-  onOpenCopilot?: () => void;
 }
 
 export default function Home({
@@ -77,8 +76,7 @@ export default function Home({
   cartCount = 0,
   onOpenBulkDeals,
   orders = [],
-  onTrackOrder,
-  onOpenCopilot
+  onTrackOrder
 }: HomeProps) {
   // Deals, frequent, discount states
   const [bestDeals, setBestDeals] = useState<Product[]>([]);
@@ -118,6 +116,8 @@ export default function Home({
   const [catalogPage, setCatalogPage] = useState(1);
   const [catalogTotalPages, setCatalogTotalPages] = useState(() => initialHomeCatalog?.pages || 1);
   const [catalogTotalProducts, setCatalogTotalProducts] = useState(() => initialHomeCatalog?.total || 0);
+  const [catalogSuggestions, setCatalogSuggestions] = useState<string[]>([]);
+  const [catalogCorrectedQuery, setCatalogCorrectedQuery] = useState<string | undefined>();
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(() => !initialHomeCatalog || initialHomeCatalog.products.length === 0);
 
   const DEFAULT_CATEGORIES = ALL_CATEGORY_VALUES;
@@ -244,6 +244,8 @@ export default function Home({
 
       setCatalogTotalProducts(response.total);
       setCatalogTotalPages(response.pages || 1);
+      setCatalogSuggestions(response.suggestions || []);
+      setCatalogCorrectedQuery(response.correctedQuery);
     } catch (err) {
       console.error("Failed to load catalog products for home:", err);
     } finally {
@@ -452,7 +454,7 @@ export default function Home({
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="১০,০০০+ ওষুধ বা জেনেরিক নাম লিখে খুঁজুন..."
+                  placeholder="ওষুধের নাম, জেনেরিক বা কোম্পানি দিয়ে খুঁজুন..."
                   className="w-full bg-transparent text-xs sm:text-sm font-semibold text-slate-800 placeholder:text-slate-400 outline-none"
                 />
 
@@ -480,25 +482,47 @@ export default function Home({
                 >
                   <Mic className="w-4 h-4" />
                 </button>
-
-                {/* AI Procurement Copilot Trigger */}
-                {onOpenCopilot && (
-                  <button
-                    type="button"
-                    onClick={onOpenCopilot}
-                    title="মেডিচেইন এআই প্রকিউরমেন্ট সহকারী"
-                    className="p-2 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200/80 text-purple-700 flex items-center gap-1 transition-all cursor-pointer shrink-0 text-xs font-black shadow-2xs group"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-purple-600 animate-pulse group-hover:rotate-12 transition-transform" />
-                    <span className="hidden sm:inline">AI সহকারী</span>
-                  </button>
-                )}
               </div>
 
               {isListening && (
                 <div className="flex items-center gap-2 px-2 text-xs font-bold text-rose-600 animate-pulse">
                   <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
                   বলুন... আপনার ওষুধের নাম শুনছি
+                </div>
+              )}
+
+              {/* Auto-Correct & Spelling Suggestions Bar */}
+              {catalogCorrectedQuery && (
+                <div className="mt-1 text-[10.5px] text-slate-500 bg-brand-purple/5 border border-brand-purple/10 px-3 py-1.5 rounded-xl flex items-center justify-between">
+                  <span className="font-semibold">
+                    সঠিক বানান অনুসারে দেখানো হচ্ছে: <strong className="text-brand-purple font-black">{catalogCorrectedQuery}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearch(catalogCorrectedQuery);
+                      setCatalogCorrectedQuery(undefined);
+                    }}
+                    className="text-[9.5px] font-black text-brand-purple underline cursor-pointer"
+                  >
+                    এই বানানে খুঁজুন
+                  </button>
+                </div>
+              )}
+
+              {catalogSuggestions.length > 0 && !catalogCorrectedQuery && (
+                <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">পরামর্শ:</span>
+                  {catalogSuggestions.map((s, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setSearch(s)}
+                      className="bg-brand-purple/5 hover:bg-brand-purple/10 border border-brand-purple/10 text-brand-purple text-[10px] font-bold px-2 py-0.5 rounded-lg transition-all cursor-pointer"
+                    >
+                      {s}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>

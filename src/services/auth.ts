@@ -1,5 +1,5 @@
 import { isSupabaseConfigured, supabase } from "../lib/supabaseClient";
-import { apiFetch } from "../lib/apiFetch";
+import { apiFetch, safeJsonResponse } from "../lib/apiFetch";
 
 /**
  * MediChain Authentication Service
@@ -66,12 +66,12 @@ export const authService = {
         }),
       });
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || "Failed to synchronize authenticated session with server.");
+      const parsed = await safeJsonResponse(response);
+      if (!parsed.ok || !parsed.data) {
+        throw new Error(parsed.error || "Failed to synchronize authenticated session with server.");
       }
 
-      return response.json();
+      return parsed.data;
     } else {
       // Offline fallback signup
       const response = await fetch("/api/auth/local-signup", {
@@ -80,12 +80,15 @@ export const authService = {
         body: JSON.stringify({ email, password, name, role }),
       });
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        if (errData.fields) { throw { message: errData.error || "Validation failed", fields: errData.fields }; } throw new Error(errData.error || "Failed local offline registration.");
+      const parsed = await safeJsonResponse(response);
+      if (!parsed.ok || !parsed.data) {
+        if (parsed.fields) {
+          throw { message: parsed.error || "Validation failed", fields: parsed.fields };
+        }
+        throw new Error(parsed.error || "Failed local offline registration.");
       }
 
-      return response.json();
+      return parsed.data;
     }
   },
 
@@ -151,12 +154,12 @@ export const authService = {
         }),
       });
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || "Failed to synchronize authenticated session with server.");
+      const parsed = await safeJsonResponse(response);
+      if (!parsed.ok || !parsed.data) {
+        throw new Error(parsed.error || "Failed to synchronize authenticated session with server.");
       }
 
-      return response.json();
+      return parsed.data;
     } else {
       // Offline fallback login
       const response = await fetch("/api/auth/local-login", {
@@ -165,12 +168,15 @@ export const authService = {
         body: JSON.stringify({ email, password }),
       });
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        if (errData.fields) { throw { message: errData.error || "Validation failed", fields: errData.fields }; } throw new Error(errData.error || "Failed local offline login.");
+      const parsed = await safeJsonResponse(response);
+      if (!parsed.ok || !parsed.data) {
+        if (parsed.fields) {
+          throw { message: parsed.error || "Validation failed", fields: parsed.fields };
+        }
+        throw new Error(parsed.error || "Failed local offline login.");
       }
 
-      return response.json();
+      return parsed.data;
     }
   },
 

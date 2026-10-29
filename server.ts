@@ -43,6 +43,7 @@ import { initDailyBannerScheduler, getDailyBannerData, analyzeDailyWholesaleDisc
 import { pushNotificationService } from "./src/lib/pushNotificationService.js";
 import { LRUCache } from "./src/lib/lruCache.js";
 import { DEFAULT_CATEGORY_OPTIONS } from "./src/constants/categories.js";
+import { fuzzySearchProducts } from "./src/lib/fuzzySearch.js";
 import { processPharmacyCopilot } from "./src/lib/geminiCopilotService.js";
 import { sendOrderAlert, logTelegramConfigStatus, sendPhysiciansProductRequest } from "./src/lib/telegramService.js";
 import cron from "node-cron";
@@ -169,6 +170,7 @@ app.use(cookieSession({
 }) as any);
 
 import { authLimiter, orderLimiter, publicLimiter, schemas, validateBody } from "./src/lib/security.js";
+import { filterAndRankProducts } from "./src/lib/fuzzySearch.js";
 
 const loginLimiter = authLimiter;
 const importLimiter = authLimiter; // Reuse auth limiter for import for now
@@ -1026,53 +1028,23 @@ app.get("/api/products", publicLimiter, async (req, res) => {
     }
 
     const allProducts = await getAllProductsMaster();
-    let filtered = allProducts;
 
-    if (searchQuery) {
-      const searchTerms = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
-      filtered = filtered.filter(p => {
-        const n = (p.name || "").toLowerCase();
-        const g = (p.genericName || "").toLowerCase();
-        const c = (p.company || "").toLowerCase();
-        return searchTerms.every(term => n.includes(term) || g.includes(term) || c.includes(term));
-      });
-    }
-
-    if (category && category !== "All") {
-      const targetCat = (category as string).trim();
-      const isOphthalmicQuery = /^(ophthalmic|eye\s*drops?|eye\s*care)$/i.test(targetCat);
-      filtered = filtered.filter(p => {
-        if (isOphthalmicQuery) {
-          return p.category === "Ophthalmic" || /^(ophthalmic|eye\s*drops?|eye\s*care)$/i.test(p.category || "");
-        }
-        return p.category === targetCat;
-      });
-    }
-
-    if (filter === "low_stock") {
-      filtered = filtered.filter(p => (p.availableStock ?? 0) <= 150);
-    }
-
-    // Strict Ordering:
-    // 1. In-stock products ALWAYS appear first (availableStock > 0)
-    // 2. Default: Alphabetical order (A to Z) by medicine name
-    // 3. Or specific sort filter (deals, frequent, low_stock)
-    filtered = [...filtered].sort((a, b) => {
-      const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
-      const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
-      if (aInStock !== bInStock) {
-        return bInStock - aInStock; // In-stock comes before out-of-stock
-      }
-      if (filter === "deals") {
-        return (b.discountPercentage ?? 0) - (a.discountPercentage ?? 0);
-      } else if (filter === "frequent") {
-        return (b.soldStock ?? 0) - (a.soldStock ?? 0);
-      } else if (filter === "low_stock") {
-        return (a.availableStock ?? 0) - (b.availableStock ?? 0);
-      }
-      // Default: Alphabetical (A to Z)
-      return (a.name || "").localeCompare(b.name || "", "en", { sensitivity: "base" });
+    // High-performance zero-egress fuzzy search & typo-tolerance engine
+    const searchResult = filterAndRankProducts(allProducts, searchQuery, {
+      category: category as string,
+      filter: filter as string
     });
+
+    let filtered = searchResult.products;
+    const suggestions = searchResult.suggestions || [];
+    const correctedQuery = searchResult.correctedQuery;
+
+    // Apply special sorts if explicit deal or frequent filter was requested
+    if (filter === "deals") {
+      filtered = [...filtered].sort((a, b) => (b.discountPercentage ?? 0) - (a.discountPercentage ?? 0));
+    } else if (filter === "frequent") {
+      filtered = [...filtered].sort((a, b) => (b.soldStock ?? 0) - (a.soldStock ?? 0));
+    }
 
     const isPaginatedRequest = paginate === "true";
     let responseData: any;
@@ -1095,9 +1067,9 @@ app.get("/api/products", publicLimiter, async (req, res) => {
         page: pageNum,
         pageSize: limitNum,
         pages,
-        suggestions: [],
+        suggestions,
         originalQuery: searchQuery,
-        correctedQuery: undefined
+        correctedQuery
       };
     } else {
       responseData = filtered.map(p => {
@@ -4219,13 +4191,8 @@ app.get("/api/admin/products", requireRole(["Admin"]), async (req, res) => {
     let filtered = allProducts;
 
     if (searchQuery) {
-      const searchTerms = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
-      filtered = filtered.filter(p => {
-        const n = (p.name || "").toLowerCase();
-        const g = (p.genericName || "").toLowerCase();
-        const c = (p.company || "").toLowerCase();
-        return searchTerms.every(term => n.includes(term) || g.includes(term) || c.includes(term));
-      });
+      const searchRes = filterAndRankProducts(filtered, searchQuery);
+      filtered = searchRes.products;
     }
 
     if (category && category !== "All") {
