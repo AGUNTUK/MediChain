@@ -142,7 +142,7 @@ export const authService = {
       try {
         const { data: profile, error: dbError } = await supabase
           .from("users")
-          .select("*")
+          .select("id, name, full_name, email, role, phone, pharmacy_id")
           .eq("id", user.id)
           .maybeSingle();
 
@@ -202,14 +202,14 @@ export const authService = {
       try {
         let { data: pharmData } = await supabase
           .from("pharmacies")
-          .select("*")
+          .select("id, pharmacy_name, owner_name, phone, address, city, license_information, license_no, verification_status, created_at, user_id")
           .eq("user_id", user.id)
           .maybeSingle();
 
         if (!pharmData && userProfile?.pharmacy_id) {
           const { data: pById } = await supabase
             .from("pharmacies")
-            .select("*")
+            .select("id, pharmacy_name, owner_name, phone, address, city, license_information, license_no, verification_status, created_at, user_id")
             .eq("id", userProfile.pharmacy_id)
             .maybeSingle();
           pharmData = pById;
@@ -349,16 +349,16 @@ export const authService = {
         if (user) {
           let profile: any = null;
           try {
-            const { data: p } = await supabase.from("users").select("*").eq("id", user.id).maybeSingle();
+            const { data: p } = await supabase.from("users").select("id, name, full_name, email, role, phone, pharmacy_id").eq("id", user.id).maybeSingle();
             profile = p;
           } catch {}
 
           let pharmData: any = null;
           try {
-            const { data: ph } = await supabase.from("pharmacies").select("*").eq("user_id", user.id).maybeSingle();
+            const { data: ph } = await supabase.from("pharmacies").select("id, pharmacy_name, owner_name, phone, address, city, license_information, license_no, verification_status, created_at, user_id").eq("user_id", user.id).maybeSingle();
             pharmData = ph;
             if (!pharmData && profile?.pharmacy_id) {
-              const { data: pById } = await supabase.from("pharmacies").select("*").eq("id", profile.pharmacy_id).maybeSingle();
+              const { data: pById } = await supabase.from("pharmacies").select("id, pharmacy_name, owner_name, phone, address, city, license_information, license_no, verification_status, created_at, user_id").eq("id", profile.pharmacy_id).maybeSingle();
               pharmData = pById;
             }
           } catch {}

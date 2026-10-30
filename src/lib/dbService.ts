@@ -618,7 +618,7 @@ export async function syncSession(id: string, email: string, name: string, phone
     // Check if user already exists by email
     const { data: userByEmail } = await supabaseAdmin
       .from("users")
-      .select("*")
+      .select("id, email, name, role, phone")
       .eq("email", normalizedEmail)
       .maybeSingle();
 
@@ -632,7 +632,7 @@ export async function syncSession(id: string, email: string, name: string, phone
   // Check if user already exists
   const { data: existingUser } = await supabaseAdmin
     .from("users")
-    .select("*")
+    .select("id, email, name, role, phone")
     .eq("id", resolvedId)
     .maybeSingle();
 
@@ -661,7 +661,7 @@ export async function syncSession(id: string, email: string, name: string, phone
 export async function getUserById(id: string) {
   const { data } = await supabaseAdmin
     .from("users")
-    .select("*")
+    .select("id, email, name, full_name, role, phone, pharmacy_id, created_at")
     .eq("id", id)
     .maybeSingle();
   return data;
@@ -1191,12 +1191,31 @@ const mapProduct = (p: any): Product => {
   };
 };
 
-export async function getProductsRaw(limit = 1000): Promise<Product[]> {
+export async function getProductsRaw(limit = 100): Promise<Product[]> {
   try {
+    const safeLimit = Math.min(Math.max(1, limit), 100);
     let { data, error } = await supabaseAdmin
       .from("products")
       .select(`
-        *,
+        id,
+        name,
+        generic_name,
+        company,
+        category_name_fallback,
+        category_id,
+        strength,
+        pack_size,
+        mrp,
+        selling_price,
+        cost_price,
+        buying_price,
+        discount_percentage,
+        stock_quantity,
+        barcode,
+        is_antibiotic,
+        requires_prescription,
+        tax_rate,
+        status,
         inventory (
           available_stock,
           reserved_stock,
@@ -1205,16 +1224,19 @@ export async function getProductsRaw(limit = 1000): Promise<Product[]> {
           expiry_date
         )
       `)
-      .limit(limit);
+      .limit(safeLimit);
 
     if (error || !data) {
       console.warn("Products query with inventory join failed, falling back to products table:", error?.message);
-      const fallback = await supabaseAdmin.from("products").select("*").limit(limit);
+      const fallback = await supabaseAdmin
+        .from("products")
+        .select("id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, cost_price, buying_price, discount_percentage, stock_quantity, barcode, is_antibiotic, requires_prescription, tax_rate, status")
+        .limit(safeLimit);
       if (fallback.error || !fallback.data) {
         console.error("Products fallback query failed:", fallback.error?.message);
         return [];
       }
-      data = fallback.data;
+      data = fallback.data as any;
     }
 
     const mapped = data.map(mapProduct);
@@ -1232,7 +1254,7 @@ export async function getProductsRaw(limit = 1000): Promise<Product[]> {
 export async function getProductById(id: string): Promise<Product | null> {
   const { data: p, error } = await supabaseAdmin
     .from("products")
-    .select("*")
+    .select("id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, cost_price, buying_price, discount_percentage, stock_quantity, barcode, is_antibiotic, requires_prescription, tax_rate, status, image_url")
     .eq("id", id)
     .maybeSingle();
 
@@ -1453,7 +1475,7 @@ export async function updateInventoryStock(productId: string, qty: number, batch
 
   const { data: inv } = await supabaseAdmin
     .from("inventory")
-    .select("*")
+    .select("id, available_stock, reserved_stock, sold_stock, batch_number, expiry_date")
     .eq("product_id", productId)
     .maybeSingle();
 
@@ -1668,7 +1690,7 @@ export async function createOrderTransaction(
       // Fallback: Fetch products using supabaseAdmin (service role) to ensure RLS does not block product verification
       const { data: dbProducts, error: prodErr } = await supabaseAdmin
         .from('products')
-        .select('*')
+        .select('id, name, generic_name, company, selling_price, mrp, stock_quantity')
         .in('id', itemIds);
 
       if (prodErr) {
@@ -1700,7 +1722,7 @@ export async function createOrderTransaction(
     try {
       const { data: invData } = await supabaseAdmin
         .from('inventory')
-        .select('*')
+        .select('id, product_id, available_stock, reserved_stock, batch_number, expiry_date')
         .in('product_id', itemIds);
       if (invData) {
         for (const invItem of invData) {
@@ -2373,7 +2395,7 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
     // Resilient fallback query: fetch order directly, then order_items and products
     const { data: fallbackOrder, error: fallbackOrderErr } = await supabaseAdmin
       .from("orders")
-      .select("*")
+      .select("id, pharmacy_id, total_amount, subtotal, discount, delivery_charge, delivery_fee, status, payment_status, payment_method, created_at, updated_at, notes, order_number, invoice_number, invoice_id, delivery_schedule_day, delivery_window, wms_attributes, is_amended, final_amended_amount")
       .eq("id", orderId)
       .maybeSingle();
 
@@ -2385,7 +2407,7 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
     // Fetch items with product fallback
     const { data: fallbackItems } = await supabaseAdmin
       .from("order_items")
-      .select("*, products(*)")
+      .select("*, products(id, name, generic_name, company, selling_price, mrp, stock_quantity, category_name_fallback, pack_size, strength, image_url)")
       .eq("order_id", orderId);
 
     const fallbackData = {
@@ -2817,7 +2839,7 @@ export async function updateOrderStatus(
       for (const item of order.items) {
         const { data: inv } = await supabaseAdmin
           .from("inventory")
-          .select("*")
+          .select("id, available_stock, reserved_stock, sold_stock")
           .eq("product_id", item.productId)
           .maybeSingle();
 
@@ -2849,7 +2871,7 @@ export async function updateOrderStatus(
       for (const item of order.items) {
         const { data: inv } = await supabaseAdmin
           .from("inventory")
-          .select("*")
+          .select("id, available_stock, reserved_stock")
           .eq("product_id", item.productId)
           .maybeSingle();
 
@@ -3372,7 +3394,7 @@ export async function approveReturn(returnId: string, adminId: string) {
   // Restore inventory available stock
   const { data: inv } = await supabaseAdmin
     .from("inventory")
-    .select("*")
+    .select("id, available_stock, sold_stock")
     .eq("product_id", ret.product_id)
     .maybeSingle();
 
@@ -3637,7 +3659,7 @@ export async function getAdminRestockRequestsGrouped(filters?: {
         try {
           const { data: pharms } = await supabaseAdmin
             .from("pharmacies")
-            .select("*")
+            .select("id, pharmacy_name, owner_name, phone, address, city, license_no, verification_status")
             .in("id", requestedPharmacyIds);
           if (pharms) {
             pharms.forEach(ph => pharmacyMap.set(String(ph.id).trim(), mapPharmacy(ph)));

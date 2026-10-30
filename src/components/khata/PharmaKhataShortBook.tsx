@@ -77,7 +77,7 @@ export default function PharmaKhataShortBook({
       } finally {
         setIsSearching(false);
       }
-    }, 250);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [medicineQuery]);

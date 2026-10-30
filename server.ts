@@ -903,6 +903,9 @@ async function resolveRequestPharmacyId(req: any): Promise<string | null> {
   return null;
 }
 
+// In-memory 5-minute TTL cache for khata bundles
+const khataBundleCacheMap = new Map<string, { data: any; expires: number }>();
+
 app.get("/api/khata/bundle", requireAuth, async (req, res) => {
   try {
     const pharmacyId = await resolveRequestPharmacyId(req);
@@ -917,41 +920,52 @@ app.get("/api/khata/bundle", requireAuth, async (req, res) => {
       });
     }
 
+    // Check in-memory 5-minute cache
+    const cached = khataBundleCacheMap.get(pharmacyId);
+    if (cached && Date.now() < cached.expires) {
+      res.setHeader("Cache-Control", "private, no-cache");
+      return res.json(cached.data);
+    }
+
     const [shortBookRes, customersRes, suppliersRes, transactionsRes] = await Promise.all([
       supabaseAdmin
         .from("khata_short_book")
-        .select("*")
+        .select("id, pharmacy_id, product_id, medicine_name, generic_name, company, dosage_form, strength, required_qty, pack_size, estimated_price, status, notes, created_at")
         .eq("pharmacy_id", pharmacyId)
         .order("created_at", { ascending: false })
-        .limit(300),
+        .limit(100),
       supabaseAdmin
         .from("khata_customers")
-        .select("*")
+        .select("id, pharmacy_id, name, phone, address, total_due, credit_limit, created_at")
         .eq("pharmacy_id", pharmacyId)
         .order("created_at", { ascending: false })
-        .limit(200),
+        .limit(100),
       supabaseAdmin
         .from("khata_suppliers")
-        .select("*")
+        .select("id, pharmacy_id, name, company, phone, total_payable, is_medichain, notes, created_at")
         .eq("pharmacy_id", pharmacyId)
         .order("created_at", { ascending: false })
         .limit(100),
       supabaseAdmin
         .from("khata_transactions")
-        .select("*")
+        .select("id, pharmacy_id, type, customer_id, supplier_id, total_amount, paid_amount, due_amount, payment_method, category, note, linked_order_id, created_at")
         .eq("pharmacy_id", pharmacyId)
         .order("created_at", { ascending: false })
-        .limit(500)
+        .limit(150)
     ]);
 
-    res.json({
+    const result = {
       success: true,
       pharmacyId,
       shortBook: shortBookRes.data || [],
       customers: customersRes.data || [],
       suppliers: suppliersRes.data || [],
       transactions: transactionsRes.data || []
-    });
+    };
+
+    khataBundleCacheMap.set(pharmacyId, { data: result, expires: Date.now() + 300000 });
+    res.setHeader("Cache-Control", "private, no-cache");
+    res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message || "Failed to load khata bundle" });
   }
@@ -1014,6 +1028,7 @@ app.post("/api/khata/short-book", requireAuth, async (req, res) => {
       return res.status(500).json({ error: error.message });
     }
 
+    khataBundleCacheMap.delete(pharmacyId);
     res.json({ success: true, item: data || payload });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -1033,6 +1048,7 @@ app.delete("/api/khata/short-book/:id", requireAuth, async (req, res) => {
     const { error } = await query;
     if (error) return res.status(500).json({ error: error.message });
 
+    if (pharmacyId) khataBundleCacheMap.delete(pharmacyId);
     res.json({ success: true, id });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -1059,6 +1075,7 @@ app.post("/api/khata/short-book/bulk-status", requireAuth, async (req, res) => {
     const { error } = await query;
     if (error) return res.status(500).json({ error: error.message });
 
+    if (pharmacyId) khataBundleCacheMap.delete(pharmacyId);
     res.json({ success: true, updatedCount: ids.length });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -1097,6 +1114,7 @@ app.post("/api/khata/transactions", requireAuth, async (req, res) => {
       .maybeSingle();
 
     if (error) return res.status(500).json({ error: error.message });
+    khataBundleCacheMap.delete(pharmacyId);
     res.json({ success: true, transaction: data || payload });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -1127,6 +1145,7 @@ app.post("/api/khata/customers", requireAuth, async (req, res) => {
       .maybeSingle();
 
     if (error) return res.status(500).json({ error: error.message });
+    khataBundleCacheMap.delete(pharmacyId);
     res.json({ success: true, customer: data || payload });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -1158,6 +1177,7 @@ app.post("/api/khata/suppliers", requireAuth, async (req, res) => {
       .maybeSingle();
 
     if (error) return res.status(500).json({ error: error.message });
+    khataBundleCacheMap.delete(pharmacyId);
     res.json({ success: true, supplier: data || payload });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -1171,8 +1191,8 @@ let lastCategoryFetch = 0;
 
 app.get("/api/categories", async (req, res) => {
   try {
-    // 24-hour HTTP Cache header for browser and edge CDNs
-    res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+    // 24-hour HTTP Cache header for browser and Vercel Edge CDNs
+    res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800");
 
     if (cachedCategories && Date.now() - lastCategoryFetch < 86400000) {
       return res.json(cachedCategories);
@@ -1254,8 +1274,8 @@ async function getAllProductsMaster(): Promise<any[]> {
 
   inFlightAllProductsPromise = (async () => {
     try {
-    const selectWithCost = "id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, image_url, buying_price, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date, buying_price)";
-    const selectWithoutCost = "id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, image_url, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date)";
+    const selectWithCost = "id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, buying_price, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date, buying_price)";
+    const selectWithoutCost = "id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date)";
 
     // Fetch products in 1000-row chunks in parallel to cover full catalog (2,338+ items)
     let [c1, c2, c3, c4]: any[] = await Promise.all([
@@ -1319,23 +1339,8 @@ async function getAllProductsMaster(): Promise<any[]> {
             ? parseInt(p.stock_quantity, 10)
             : (p.availableStock !== undefined && p.availableStock !== null ? parseInt(p.availableStock, 10) : 0));
 
-      // Optimize image URL: If base64 data URI, offload to dedicated binary /api/products/:id/image endpoint
-      const rawImg = p.image_url || p.imageUrl;
-      let optimizedImg: string | undefined = undefined;
-      if (rawImg && typeof rawImg === "string") {
-        if (rawImg.startsWith("data:")) {
-          optimizedImg = `/api/products/${p.id}/image`;
-          const match = rawImg.match(/^data:([^;]+);base64,(.+)$/);
-          if (match) {
-            const mime = match[1] || "image/jpeg";
-            const buffer = Buffer.from(match[2], "base64");
-            base64ImageStore.set(String(p.id).trim(), { buffer, mime });
-            base64ImageStore.set(String(p.id).trim().toLowerCase(), { buffer, mime });
-          }
-        } else {
-          optimizedImg = rawImg;
-        }
-      }
+      // Offload images to dedicated binary endpoint to prevent base64 PostgREST egress
+      const optimizedImg = `/api/products/${p.id}/image`;
 
       return {
         id: String(p.id || "").trim(),
@@ -1389,90 +1394,185 @@ async function getAllProductsMaster(): Promise<any[]> {
   return inFlightAllProductsPromise;
 }
 
+// 5-minute in-memory API cache for product queries (Edge & Node memory)
+const apiProductsCacheMap = new Map<string, { data: any; expires: number }>();
+
 app.get("/api/products", publicLimiter, async (req, res) => {
   const { search, category, filter, page, limit, paginate } = req.query;
 
-  const pageNum = parseInt(page as string) || 1;
+  const pageNum = Math.max(1, parseInt(page as string) || 1);
   const limitNum = parseInt(limit as string) || 50;
+  // Enforce strict pagination ceiling (hard limit 40 on catalog loads)
+  const safeLimit = Math.min(Math.max(1, limitNum), 40);
   const searchQuery = ((search as string) || "").trim();
   const hasSearch = searchQuery.length > 0;
-  const cacheKey = `${filter || "all"}_${category || "all"}_${pageNum}_${limitNum}_${paginate || "false"}`;
+  const cacheKey = `p_${filter || "all"}_${category || "all"}_${searchQuery}_${pageNum}_${safeLimit}_${paginate || "false"}`;
 
   try {
-    // Strategy 5: HTTP Edge cache header (only for bounded non-search catalog browsing)
-    if (!hasSearch) {
-      res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=3600");
-    } else {
-      res.setHeader("Cache-Control", "private, no-cache");
+    // 1. Check 5-minute in-memory cache first
+    const cachedEntry = apiProductsCacheMap.get(cacheKey);
+    if (cachedEntry && Date.now() < cachedEntry.expires) {
+      res.setHeader("Cache-Control", hasSearch ? "public, s-maxage=60, stale-while-revalidate=120" : "public, s-maxage=300, stale-while-revalidate=600");
+      return res.json(cachedEntry.data);
     }
 
-    // Strategy 1: In-memory LRU Cache check (only for bounded catalog browsing, never for free-text search)
-    if (!hasSearch) {
-      const cached = productLRUCache.get(cacheKey);
-      if (cached) {
-        return res.json(cached);
+    const lightweightCols = "id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, image_url";
+
+    // 2. High-speed On-Demand Search (never download entire catalog into memory!)
+    if (hasSearch) {
+      const cleanQ = searchQuery.replace(/[%_]/g, "").trim();
+      const searchLimit = Math.min(safeLimit, 15);
+
+      let query = supabaseAdmin
+        .from("products")
+        .select(lightweightCols)
+        .or(`name.ilike.%${cleanQ}%,generic_name.ilike.%${cleanQ}%,company.ilike.%${cleanQ}%`)
+        .limit(searchLimit);
+
+      if (category && category !== "All") {
+        query = query.or(`category_name_fallback.eq.${category},category_id.eq.${category}`);
+      }
+
+      const { data: matched, error: searchErr } = await query;
+      if (searchErr) throw searchErr;
+
+      const mapped = (matched || []).map((p: any) => {
+        const mrpVal = p.mrp ? parseFloat(p.mrp) : 0;
+        const sellingVal = p.selling_price ? parseFloat(p.selling_price) : mrpVal;
+        const rawImg = p.image_url;
+        const safeImg = (rawImg && typeof rawImg === "string" && !rawImg.startsWith("data:")) ? rawImg : `/api/products/${p.id}/image`;
+        return {
+          id: String(p.id).trim(),
+          name: p.name || "Pharmaceutical Item",
+          genericName: p.generic_name || "Generic Medicine",
+          company: p.company || "MediChain Partner",
+          category: p.category_name_fallback || p.category_id || "Tablet",
+          strength: p.strength || "N/A",
+          packSize: p.pack_size || "10x10 Box",
+          mrp: mrpVal,
+          sellingPrice: sellingVal,
+          discountPercentage: p.discount_percentage ? parseFloat(p.discount_percentage) : (mrpVal > 0 ? Math.round(((mrpVal - sellingVal) / mrpVal) * 100) : 0),
+          availableStock: p.stock_quantity ? parseInt(p.stock_quantity, 10) : 100,
+          imageUrl: safeImg,
+          image_url: safeImg
+        };
+      });
+
+      const responseData = {
+        products: mapped,
+        total: mapped.length,
+        page: 1,
+        pageSize: searchLimit,
+        pages: 1,
+        suggestions: [],
+        originalQuery: searchQuery
+      };
+
+      apiProductsCacheMap.set(cacheKey, { data: responseData, expires: Date.now() + 60000 });
+      res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=120");
+      return res.json(responseData);
+    }
+
+    // 3. Bounded Catalog Browsing with Strict Pagination & Edge Caching
+    let responseData: any;
+
+    // Fast path: if allProducts is already resident in server memory, slice it directly
+    if (cachedAllProducts && cachedAllProducts.length > 0) {
+      let filtered = cachedAllProducts;
+      if (category && category !== "All") {
+        filtered = filtered.filter(p => p.category === category || p.category_id === category);
+      }
+      if (filter === "deals") {
+        filtered = [...filtered].sort((a, b) => (b.discountPercentage ?? 0) - (a.discountPercentage ?? 0));
+      } else if (filter === "frequent") {
+        filtered = [...filtered].sort((a, b) => (b.soldStock ?? 0) - (a.soldStock ?? 0));
+      }
+
+      const total = filtered.length;
+      const pages = Math.ceil(total / safeLimit) || 1;
+      const from = (pageNum - 1) * safeLimit;
+      const pagedItems = filtered.slice(from, from + safeLimit);
+
+      if (paginate === "true" || page || limit) {
+        responseData = {
+          products: pagedItems,
+          total,
+          page: pageNum,
+          pageSize: safeLimit,
+          pages,
+          suggestions: [],
+          originalQuery: ""
+        };
+      } else {
+        responseData = pagedItems;
+      }
+    } else {
+      // On-demand bounded Supabase query (max 40 items per request, zero full-table egress!)
+      const from = (pageNum - 1) * safeLimit;
+      const to = from + safeLimit - 1;
+
+      let query = supabaseAdmin
+        .from("products")
+        .select(lightweightCols, { count: "exact" });
+
+      if (category && category !== "All") {
+        query = query.or(`category_name_fallback.eq.${category},category_id.eq.${category}`);
+      }
+
+      if (filter === "deals") {
+        query = query.order("discount_percentage", { ascending: false });
+      } else if (filter === "frequent") {
+        query = query.order("stock_quantity", { ascending: false });
+      } else {
+        query = query.order("name", { ascending: true });
+      }
+
+      const { data: rawItems, count, error: pageErr } = await query.range(from, to);
+      if (pageErr) throw pageErr;
+
+      const mapped = (rawItems || []).map((p: any) => {
+        const mrpVal = p.mrp ? parseFloat(p.mrp) : 0;
+        const sellingVal = p.selling_price ? parseFloat(p.selling_price) : mrpVal;
+        const rawImg = p.image_url;
+        const safeImg = (rawImg && typeof rawImg === "string" && !rawImg.startsWith("data:")) ? rawImg : `/api/products/${p.id}/image`;
+        return {
+          id: String(p.id).trim(),
+          name: p.name || "Pharmaceutical Item",
+          genericName: p.generic_name || "Generic Medicine",
+          company: p.company || "MediChain Partner",
+          category: p.category_name_fallback || p.category_id || "Tablet",
+          strength: p.strength || "N/A",
+          packSize: p.pack_size || "10x10 Box",
+          mrp: mrpVal,
+          sellingPrice: sellingVal,
+          discountPercentage: p.discount_percentage ? parseFloat(p.discount_percentage) : (mrpVal > 0 ? Math.round(((mrpVal - sellingVal) / mrpVal) * 100) : 0),
+          availableStock: p.stock_quantity ? parseInt(p.stock_quantity, 10) : 100,
+          imageUrl: safeImg,
+          image_url: safeImg
+        };
+      });
+
+      const total = count || mapped.length;
+      const pages = Math.ceil(total / safeLimit) || 1;
+
+      if (paginate === "true" || page || limit) {
+        responseData = {
+          products: mapped,
+          total,
+          page: pageNum,
+          pageSize: safeLimit,
+          pages,
+          suggestions: [],
+          originalQuery: ""
+        };
+      } else {
+        responseData = mapped;
       }
     }
 
-    const allProducts = await getAllProductsMaster();
-
-    // High-performance zero-egress fuzzy search & typo-tolerance engine
-    const searchResult = filterAndRankProducts(allProducts, searchQuery, {
-      category: category as string,
-      filter: filter as string
-    });
-
-    let filtered = searchResult.products;
-    const suggestions = searchResult.suggestions || [];
-    const correctedQuery = searchResult.correctedQuery;
-
-    // Apply special sorts if explicit deal or frequent filter was requested
-    if (filter === "deals") {
-      filtered = [...filtered].sort((a, b) => (b.discountPercentage ?? 0) - (a.discountPercentage ?? 0));
-    } else if (filter === "frequent") {
-      filtered = [...filtered].sort((a, b) => (b.soldStock ?? 0) - (a.soldStock ?? 0));
-    }
-
-    const isPaginatedRequest = paginate === "true";
-    let responseData: any;
-    if (isPaginatedRequest || page || limit) {
-      const total = filtered.length;
-      const pages = Math.ceil(total / limitNum) || 1;
-      const from = (pageNum - 1) * limitNum;
-      const pagedItems = filtered.slice(from, from + limitNum);
-
-      responseData = {
-        products: pagedItems.map(p => {
-          const sanitized = { ...p };
-          delete sanitized.buyingPrice;
-          delete sanitized.buying_price;
-          delete sanitized.unitGrossProfit;
-          delete sanitized.grossMarginPercent;
-          return sanitized;
-        }),
-        total,
-        page: pageNum,
-        pageSize: limitNum,
-        pages,
-        suggestions,
-        originalQuery: searchQuery,
-        correctedQuery
-      };
-    } else {
-      responseData = filtered.map(p => {
-        const sanitized = { ...p };
-        delete sanitized.buyingPrice;
-        delete sanitized.buying_price;
-        delete sanitized.unitGrossProfit;
-        delete sanitized.grossMarginPercent;
-        return sanitized;
-      });
-    }
-
-    if (!hasSearch) {
-      productLRUCache.set(cacheKey, responseData, 300000);
-    }
-    
+    // Save in in-memory cache and emit Vercel Edge caching header (s-maxage=300)
+    apiProductsCacheMap.set(cacheKey, { data: responseData, expires: Date.now() + 300000 });
+    res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=600");
     return res.json(responseData);
   } catch (err: any) {
     console.error("Products Fetch Error:", err);
@@ -1821,14 +1921,14 @@ async function hydrateCampaignProduct(campaign: any) {
 app.get("/api/bulk-deals/live", async (req, res) => {
   const now = Date.now();
   if (cachedLiveCampaign !== null && now - lastLiveCampaignFetch < BULK_CAMPAIGN_TTL) {
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=600");
     return res.json(cachedLiveCampaign);
   }
 
   try {
     const { data, error } = await supabaseAdmin
       .from("bulk_campaigns")
-      .select("*")
+      .select("id, title, subtitle, badge_text, discount_text, status, starts_at, expires_at, created_at, updated_at")
       .eq("status", "Live")
       .order("updated_at", { ascending: false })
       .limit(1)
@@ -1842,7 +1942,7 @@ app.get("/api/bulk-deals/live", async (req, res) => {
     if (!data) {
       cachedLiveCampaign = null;
       lastLiveCampaignFetch = now;
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=600");
       return res.json(null);
     }
 
@@ -1851,7 +1951,7 @@ app.get("/api/bulk-deals/live", async (req, res) => {
 
     cachedLiveCampaign = parsed;
     lastLiveCampaignFetch = now;
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Cache-Control", "public, s-maxage=300, stale-while-revalidate=600");
     res.json(cachedLiveCampaign);
   } catch (err: any) {
     console.warn("[Bulk Deals] Live campaign error:", err.message);
@@ -2463,7 +2563,7 @@ app.get("/api/cart", requireAuth, async (req, res) => {
       
       const { data: dbProducts, error } = await dbService.supabaseAdmin
         .from('products')
-        .select('*, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date)')
+        .select('id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, discount_percentage, stock_quantity, image_url, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date)')
         .in('id', productIds);
         
       if (!error && dbProducts && dbProducts.length > 0) {
@@ -2893,7 +2993,7 @@ app.post("/api/orders", requireAuth, orderLimiter, validateBody(schemas.orderCre
     // Use supabaseAdmin (service role client) to ensure RLS does not block product verification
     let { data: products, error } = await supabaseAdmin
       .from('products')
-      .select('*')
+      .select('id, name, generic_name, company, selling_price, mrp, stock_quantity')
       .in('id', itemIds);
 
     if (error) {
@@ -6774,7 +6874,6 @@ async function startServer() {
     log.info(`[${new Date().toISOString()}] [INFO] [System] MediChain Server running on port ${PORT} in ${process.env.NODE_ENV || "development"} mode.`);
     logTelegramConfigStatus();
     initDailyBannerScheduler();
-    getAllProductsMaster().catch(err => console.warn("Background product cache warmup error:", err));
   });
 
   // Initialize Socket.io

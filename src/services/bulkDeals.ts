@@ -29,8 +29,9 @@ export const bulkDealsService = {
 
       const { data, error } = await supabase
         .from("bulk_campaigns")
-        .select("*")
-        .order("created_at", { ascending: false });
+        .select("id, title, tag, subtext, status, end_time, created_at, updated_at")
+        .order("created_at", { ascending: false })
+        .limit(10);
       
       if (error) {
         console.error("Error fetching bulk campaigns:", error);
@@ -60,7 +61,7 @@ export const bulkDealsService = {
 
       const { data, error } = await supabase
         .from("bulk_campaigns")
-        .select("*")
+        .select("id, title, tag, subtext, status, end_time, created_at, updated_at")
         .eq("status", "Live")
         .order("updated_at", { ascending: false })
         .limit(1)
@@ -154,7 +155,7 @@ export const bulkDealsService = {
 
       const { data, error } = await supabase
         .from("bulk_campaigns")
-        .select("*")
+        .select("id, title, tag, subtext, status, end_time, created_at, updated_at")
         .eq("id", id)
         .maybeSingle();
       
@@ -182,7 +183,7 @@ export const bulkDealsService = {
 
       const { data: campaignProducts, error } = await supabase
         .from("bulk_campaign_products")
-        .select("*")
+        .select("id, campaign_id, product_id, deal_price, discount_percent, min_quantity, max_quantity, total_pool_qty, locked_qty, sold_qty, progress_percent, status, created_at")
         .eq("campaign_id", campaignId);
       
       if (error) {

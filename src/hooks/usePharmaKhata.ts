@@ -20,6 +20,11 @@ interface UsePharmaKhataProps {
 
 const STORAGE_PREFIX = "medichain_pharma_khata_v4_";
 
+// Module-level timestamp guard: limit remote Supabase/API fetches to once every 5 minutes per session
+const KHATA_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const lastKhataFetchMap = new Map<string, number>();
+let lastDeliveredOrdersSignature = "";
+
 /**
  * Robust Client-Side UUID v4 Generator
  * Guarantees RFC4122 compliance before saving to localStorage or upserting to Supabase
@@ -136,6 +141,13 @@ export function usePharmaKhata({ pharmacyId: rawPharmacyId, pharmacyName = "City
       setIsLoading(false);
     }
 
+    // 5-minute cooldown guard: serve from localStorage if fetched recently within this session
+    const lastFetch = lastKhataFetchMap.get(activePharmacyId) || 0;
+    if (Date.now() - lastFetch < KHATA_CACHE_TTL) {
+      setIsSyncing(false);
+      return;
+    }
+
     // Remote database synchronization
     try {
       setIsSyncing(true);
@@ -143,6 +155,7 @@ export function usePharmaKhata({ pharmacyId: rawPharmacyId, pharmacyName = "City
       const parsed = await safeJsonResponse(res);
 
       if (parsed.ok && parsed.data) {
+        lastKhataFetchMap.set(activePharmacyId, Date.now());
         const data = parsed.data as any;
         if (Array.isArray(data.shortBook)) {
           setShortBook(prev => {
@@ -167,11 +180,13 @@ export function usePharmaKhata({ pharmacyId: rawPharmacyId, pharmacyName = "City
       } else if (isSupabaseConfigured && supabase && isUUID(activePharmacyId)) {
         const { data: dbShorts } = await supabase
           .from("khata_short_book")
-          .select("*")
+          .select("id, pharmacy_id, product_id, medicine_name, generic_name, company, dosage_form, strength, required_qty, pack_size, estimated_price, status, notes, created_at")
           .eq("pharmacy_id", activePharmacyId)
-          .order("created_at", { ascending: false });
+          .order("created_at", { ascending: false })
+          .limit(100);
 
         if (Array.isArray(dbShorts)) {
+          lastKhataFetchMap.set(activePharmacyId, Date.now());
           setShortBook(prev => {
             const dbIds = new Set(dbShorts.map(s => s.id));
             const localOnly = prev.filter(s => !dbIds.has(s.id));
@@ -245,20 +260,49 @@ export function usePharmaKhata({ pharmacyId: rawPharmacyId, pharmacyName = "City
   }, [storageKey]);
 
   // 1. Auto-sync MediChain delivered orders into Khata Suppliers & Purchases
-  // STRICT STATUS FILTER & COD AUTO-SETTLEMENT LOGIC
-  useEffect(() => {
-    if (!orders || orders.length === 0) return;
+  // STRICT STATUS FILTER, COD AUTO-SETTLEMENT & LOOP-PREVENTION SIGNATURE GUARD
+  const deliveredOrdersSig = useMemo(() => {
+    if (!orders || !Array.isArray(orders)) return "";
+    return orders
+      .filter(o => o.status === "Delivered" || o.status === "Completed")
+      .map(o => `${o.id}_${o.status}_${o.totalAmount}`)
+      .sort()
+      .join(";");
+  }, [orders]);
 
-    // Strict status filter: Strictly Delivered or Completed (Never Out for Delivery, Pending, Processing)
-    const deliveredOrders = orders.filter(o => 
+  useEffect(() => {
+    if (!deliveredOrdersSig || deliveredOrdersSig === lastDeliveredOrdersSignature) return;
+    lastDeliveredOrdersSignature = deliveredOrdersSig;
+
+    const deliveredOrders = (orders || []).filter(o => 
       o.status === "Delivered" || o.status === "Completed"
     );
-
     if (deliveredOrders.length === 0) return;
 
+    let currentSuppliers: KhataSupplier[] = [];
+    let currentTransactions: KhataTransaction[] = [];
+    let currentCustomers: KhataCustomer[] = [];
+    let currentShortBook: KhataShortItem[] = [];
+
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed.suppliers)) currentSuppliers = parsed.suppliers;
+        if (Array.isArray(parsed.transactions)) currentTransactions = parsed.transactions;
+        if (Array.isArray(parsed.customers)) currentCustomers = parsed.customers;
+        if (Array.isArray(parsed.shortBook)) currentShortBook = parsed.shortBook;
+      }
+    } catch (_) {}
+
+    if (currentSuppliers.length === 0) currentSuppliers = [...suppliers];
+    if (currentTransactions.length === 0) currentTransactions = [...transactions];
+    if (currentCustomers.length === 0) currentCustomers = [...customers];
+    if (currentShortBook.length === 0) currentShortBook = [...shortBook];
+
     let hasChanges = false;
-    let updatedTransactions = [...transactions];
-    let updatedSuppliers = [...suppliers];
+    let updatedTransactions = [...currentTransactions];
+    let updatedSuppliers = [...currentSuppliers];
 
     let medichainSupplier = updatedSuppliers.find(s => s.is_medichain || s.name.includes("MediChain"));
 
@@ -335,22 +379,10 @@ export function usePharmaKhata({ pharmacyId: rawPharmacyId, pharmacyName = "City
     if (hasChanges) {
       setSuppliers(updatedSuppliers);
       setTransactions(updatedTransactions);
-
-      let currentShortBook = shortBook;
-      try {
-        const raw = localStorage.getItem(storageKey);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed.shortBook) && parsed.shortBook.length > currentShortBook.length) {
-            currentShortBook = parsed.shortBook;
-          }
-        }
-      } catch (_) {}
-
-      persistState(customers, updatedSuppliers, updatedTransactions, currentShortBook);
+      persistState(currentCustomers, updatedSuppliers, updatedTransactions, currentShortBook);
       window.dispatchEvent(new CustomEvent("khataUpdated"));
     }
-  }, [orders, suppliers, transactions, customers, shortBook, activePharmacyId, persistState, storageKey]);
+  }, [deliveredOrdersSig, pharmacyId, storageKey, persistState]);
 
   // 2. Checkout Completion Hook:
   // Automatically transition Short Book items currently marked 'In Cart' to 'Ordered' upon successful checkout
@@ -368,8 +400,8 @@ export function usePharmaKhata({ pharmacyId: rawPharmacyId, pharmacyName = "City
 
         if (isSupabaseConfigured && supabase) {
           try {
-            updated
-              .filter(s => s.status === "Ordered")
+            prev
+              .filter(s => s.status === "In Cart")
               .forEach(s => {
                 supabase.from("khata_short_book").upsert([{ id: s.id, status: "Ordered" }], { onConflict: "id" }).then();
               });
@@ -999,31 +1031,18 @@ export function usePharmaKhata({ pharmacyId: rawPharmacyId, pharmacyName = "City
     const addedItemIds: string[] = [];
 
     try {
-      // 1. Fetch live products from catalog to find matching products
-      const catalogRes = await productService.getProductsPaginated({ limit: 150 });
-      const catalog = catalogRes.products || [];
-
+      // On-demand targeted lookup for short items (never fetch 150 items into memory)
       for (const item of itemsToOrder) {
         let targetProduct: any = null;
 
         // Try direct ID match if available
         if (item.product_id) {
-          targetProduct = catalog.find(p => p.id === item.product_id);
+          targetProduct = await productService.getProductById(item.product_id);
         }
 
-        // Try exact name match or generic match
+        // On-demand debounced search for product
         if (!targetProduct) {
-          const q = item.medicine_name.toLowerCase().trim();
-          targetProduct = catalog.find(p => 
-            p.name.toLowerCase() === q ||
-            p.name.toLowerCase().includes(q) ||
-            (item.generic_name && p.genericName.toLowerCase().includes(item.generic_name.toLowerCase()))
-          );
-        }
-
-        // Fallback: search product service
-        if (!targetProduct) {
-          const searchRes = await productService.getProducts({ search: item.medicine_name, limit: 3 });
+          const searchRes = await productService.getProducts({ search: item.medicine_name.trim(), limit: 3 });
           if (searchRes && searchRes.length > 0) {
             targetProduct = searchRes[0];
           }

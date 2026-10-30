@@ -154,7 +154,8 @@ export async function getPurchases(filter?: {
     let query = supabaseAdmin
       .from("purchases")
       .select("*")
-      .order("purchase_date", { ascending: false });
+      .order("purchase_date", { ascending: false })
+      .limit(200);
 
     if (filter?.startDate) query = query.gte("purchase_date", filter.startDate);
     if (filter?.endDate) query = query.lte("purchase_date", filter.endDate);
@@ -303,7 +304,8 @@ export async function getCollections(filter?: {
     let query = supabaseAdmin
       .from("collections")
       .select("*")
-      .order("collection_date", { ascending: false });
+      .order("collection_date", { ascending: false })
+      .limit(200);
 
     if (filter?.startDate) query = query.gte("collection_date", filter.startDate);
     if (filter?.endDate) query = query.lte("collection_date", filter.endDate);
@@ -440,7 +442,8 @@ export async function getExpenses(filter?: {
     let query = supabaseAdmin
       .from("expenses")
       .select("*")
-      .order("expense_date", { ascending: false });
+      .order("expense_date", { ascending: false })
+      .limit(200);
 
     if (filter?.startDate) query = query.gte("expense_date", filter.startDate);
     if (filter?.endDate) query = query.lte("expense_date", filter.endDate);
@@ -592,7 +595,8 @@ export async function getCapitalTransactions(filter?: {
     let query = supabaseAdmin
       .from("capital_transactions")
       .select("*")
-      .order("transaction_date", { ascending: false });
+      .order("transaction_date", { ascending: false })
+      .limit(200);
 
     if (filter?.startDate) query = query.gte("transaction_date", filter.startDate);
     if (filter?.endDate) query = query.lte("transaction_date", filter.endDate);
@@ -667,7 +671,29 @@ function mapCapital(row: any): CapitalTransaction {
 // ==========================================
 
 export async function saveCustomInvoiceToLedger(invData: CustomInvoiceData, masterProducts?: any[]): Promise<CustomInvoiceData> {
-  const masterProds = masterProducts || await dbService.getProductsRaw(5000);
+  let masterProds = masterProducts;
+  if (!masterProds) {
+    const itemIds = (invData.items || [])
+      .map(itm => itm.productId)
+      .filter((id): id is string => Boolean(id));
+
+    if (itemIds.length > 0) {
+      try {
+        const { data: prods } = await supabaseAdmin
+          .from("products")
+          .select("id, name, generic_name, company, cost_price, buying_price, selling_price, mrp")
+          .in("id", itemIds);
+        masterProds = (prods || []).map(p => ({
+          ...p,
+          buyingPrice: p.buying_price !== undefined && p.buying_price !== null ? parseFloat(p.buying_price) : (p.cost_price !== undefined && p.cost_price !== null ? parseFloat(p.cost_price) : null)
+        }));
+      } catch {
+        masterProds = [];
+      }
+    } else {
+      masterProds = [];
+    }
+  }
   const prodMap = new Map<string, any>();
   for (const p of masterProds) {
     if (p.id) prodMap.set(String(p.id).toLowerCase(), p);
@@ -788,7 +814,8 @@ export async function getSavedCustomInvoices(filter?: {
     let query = supabaseAdmin
       .from("custom_invoices_ledger")
       .select("*")
-      .order("invoice_date", { ascending: false });
+      .order("invoice_date", { ascending: false })
+      .limit(200);
 
     if (filter?.startDate) query = query.gte("invoice_date", filter.startDate);
     if (filter?.endDate) query = query.lte("invoice_date", filter.endDate);
@@ -1437,7 +1464,7 @@ export async function getInventoryValuation(): Promise<{
     totalValuation: number | null;
   }>;
 }> {
-  const products = await dbService.getProductsRaw(5000);
+  const products = await dbService.getProductsRaw(200);
   let totalValuation = 0;
   let knownCount = 0;
   let unknownCount = 0;

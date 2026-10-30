@@ -148,8 +148,8 @@ export default function Home({
         setDbCategories(DEFAULT_CATEGORIES);
       }
 
-      // 1. Fetch Deals
-      const dataDeals = await productService.getProducts({ filter: "deals", limit: 60 });
+      // 1. Fetch Deals (strictly bounded to 20 items to prevent egress burn)
+      const dataDeals = await productService.getProducts({ filter: "deals", limit: 20 });
       const inStockDeals = [...dataDeals].sort((a, b) => {
         const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
         const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
@@ -159,8 +159,8 @@ export default function Home({
       setBestDeals(inStockDeals.slice(0, 3));
       setHighestDiscounts(inStockDeals.slice(0, 4));
 
-      // 2. Fetch Frequently ordered
-      const dataFreq = await productService.getProducts({ filter: "frequent", limit: 30 });
+      // 2. Fetch Frequently ordered (strictly bounded to 15 items)
+      const dataFreq = await productService.getProducts({ filter: "frequent", limit: 15 });
       const inStockFreq = [...dataFreq].sort((a, b) => {
         const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
         const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;

@@ -23,10 +23,10 @@ export const productService = {
     if (params?.search) q.append("search", params.search);
     if (params?.category) q.append("category", params.category);
     if (params?.filter) q.append("filter", params.filter);
-    
+
     // Always enforce pagination limits to prevent payload overflow
     q.append("page", (params?.page || 1).toString());
-    q.append("limit", (params?.limit || 50).toString());
+    q.append("limit", (params?.limit || 40).toString());
 
     const queryStr = q.toString() ? `?${q.toString()}` : "";
     const cacheKey = `products_${queryStr}`;
@@ -145,7 +145,7 @@ export const productService = {
     if (params?.category) q.append("category", params.category);
     if (params?.filter) q.append("filter", params.filter);
     q.append("page", (params?.page || 1).toString());
-    q.append("limit", (params?.limit || 50).toString());
+    q.append("limit", (params?.limit || 40).toString());
 
     const queryStr = q.toString() ? `?${q.toString()}` : "";
     const cacheKey = `products_${queryStr}`;

@@ -199,7 +199,7 @@ export default function App() {
           if (sbUser) {
             let { data: pharmData } = await supabase
               .from("pharmacies")
-              .select("*")
+              .select("id, pharmacy_name, owner_name, phone, address, city, license_information, license_no, verification_status, created_at, user_id")
               .eq("user_id", sbUser.id)
               .maybeSingle();
 
@@ -212,7 +212,7 @@ export default function App() {
               if (uRow?.pharmacy_id) {
                 const { data: pById } = await supabase
                   .from("pharmacies")
-                  .select("*")
+                  .select("id, pharmacy_name, owner_name, phone, address, city, license_information, license_no, verification_status, created_at, user_id")
                   .eq("id", uRow.pharmacy_id)
                   .maybeSingle();
                 pharmData = pById;
