@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { ChevronLeft, Package, Clock, Filter, ShoppingCart, Minus, Plus } from "lucide-react";
 import { bulkDealsService } from "../services";
-import { BulkCampaign, BulkCampaignProduct } from "../types";
+import { BulkCampaign, BulkCampaignProduct, Product } from "../types";
 import { formatProductPriceLabel } from "../lib/utils";
 
 interface BulkDealsLandingProps {
   onBack: () => void;
-  onAddToCart: (productId: string, qty: number) => Promise<boolean>;
+  onAddToCart: (productId: string, qty: number, product?: Product) => Promise<boolean>;
   cartQuantities: Record<string, number>;
   onUpdateCartQty?: (productId: string, currentQty: number, change: number) => Promise<void>;
   campaignId?: string;
@@ -183,7 +183,7 @@ export default function BulkDealsLanding({
                   setCartAdding(prev => ({ ...prev, [product.id]: true }));
                   // Default to first tier min quantity if adding new
                   const addQty = ascendingTiers.length > 0 ? ascendingTiers[0].minQty : 5;
-                  await onAddToCart(product.id, addQty);
+                  await onAddToCart(product.id, addQty, product);
                   setCartAdding(prev => ({ ...prev, [product.id]: false }));
                 };
 

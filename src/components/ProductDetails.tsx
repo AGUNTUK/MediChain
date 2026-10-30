@@ -10,7 +10,7 @@ import StockAlertButton from "./StockAlertButton";
 interface ProductDetailsProps {
   product: Product | null;
   onClose: () => void;
-  onAddToCart: (productId: string, qty: number) => void;
+  onAddToCart: (productId: string, qty: number, product?: Product) => void;
   onSelectProduct?: (product: Product) => void;
 }
 
@@ -88,7 +88,7 @@ export default function ProductDetails({ product, onClose, onAddToCart, onSelect
   const handleQuickAdd = (qty: number, e?: React.MouseEvent<HTMLElement>) => {
     triggerCartFeedback();
     triggerButtonFeedback(product.id);
-    onAddToCart(product.id, qty);
+    onAddToCart(product.id, qty, product);
     onClose();
   };
 
@@ -442,7 +442,7 @@ export default function ProductDetails({ product, onClose, onAddToCart, onSelect
                         disabled={alt.availableStock <= 0}
                         onClick={(e) => {
                           e.stopPropagation();
-                          onAddToCart(alt.id, 1);
+                          onAddToCart(alt.id, 1, alt);
                           triggerCartFeedback();
                         }}
                         className={`px-3 py-1.5 rounded-lg text-[10px] font-extrabold transition-all shrink-0 cursor-pointer ${

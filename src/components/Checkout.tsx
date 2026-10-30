@@ -43,6 +43,17 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
     setLoading(true);
     setError("");
 
+    if (!pharmacy) {
+      setError("ফার্মেসি প্রোফাইল পাওয়া যায়নি। অনুগ্রহ করে আপনার ফার্মেসি অ্যাকাউন্টে লগইন করুন বা প্রোফাইল সম্পন্ন করুন।");
+      return;
+    }
+
+    const st = (pharmacy.verificationStatus || (pharmacy as any).verification_status || "").toString().toLowerCase();
+    if (st !== "approved" && st !== "verified") {
+      setError("আপনার ফার্মেসি ভেরিফিকেশন এখনও প্রক্রিয়াধীন রয়েছে। MediChain টিম ড্রাগ লাইসেন্স যাচাই করার পর অর্ডার সম্পন্ন করতে পারবেন।");
+      return;
+    }
+
     try {
       const finalNotes = notes ? `Instructions: ${notes}` : "";
 
@@ -50,6 +61,10 @@ export default function Checkout({ onBackToCart, onOrderPlaced, pharmacy }: Chec
         paymentMethod: "Cash on Delivery",
         notes: finalNotes,
         paymentStatus: "Pending",
+        items: cartSummary?.items?.map((item: any) => ({
+          productId: item.productId || item.product?.id,
+          quantity: item.quantity
+        })),
         ...({ deliveryAddress: pharmacy?.address || "Dhanmondi, Dhaka" } as any)
       } as any);
 

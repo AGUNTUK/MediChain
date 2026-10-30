@@ -2553,14 +2553,9 @@ app.post("/api/notifications/test-push", requireAuth, async (req, res) => {
 
 // --- PROCUREMENT CART (Stateless DB Synced) ---
 
-app.get("/api/cart", async (req, res) => {
+app.get("/api/cart", requireAuth, async (req, res) => {
   try {
-    const user = await authenticateRequest(req);
-    const userId = user ? user.id : (req.session?.guestCartId || (req.headers["x-guest-id"] as string));
-    if (!userId) {
-      return res.json({ items: [], totalAmount: 0, totalSavings: 0, totalMrp: 0, totalTierSavings: 0 });
-    }
-
+    const userId = req.user.id;
     const cartItemsInDb = await dbService.getCart(userId);
     const cartItems: any[] = [];
     
@@ -2743,20 +2738,13 @@ app.get("/api/cart", async (req, res) => {
   }
 });
 
-app.post("/api/cart/add", async (req, res) => {
+app.post("/api/cart/add", requireAuth, async (req, res) => {
   const { productId, quantity } = req.body;
   if (!productId) {
     return res.status(400).json({ error: "Product ID is required." });
   }
 
-  const user = await authenticateRequest(req);
-  let userId = user ? user.id : (req.session?.guestCartId || (req.headers["x-guest-id"] as string));
-  if (!userId) {
-    userId = `guest_${crypto.randomUUID()}`;
-    if (req.session) {
-      req.session.guestCartId = userId;
-    }
-  }
+  const userId = req.user.id;
 
   try {
     const product = await dbService.getProductById(productId);
@@ -2782,13 +2770,9 @@ app.post("/api/cart/add", async (req, res) => {
   }
 });
 
-app.post("/api/cart/update", async (req, res) => {
+app.post("/api/cart/update", requireAuth, async (req, res) => {
   const { productId, quantity } = req.body;
-  const user = await authenticateRequest(req);
-  const userId = user ? user.id : (req.session?.guestCartId || (req.headers["x-guest-id"] as string));
-  if (!userId) {
-    return res.json({ success: true });
-  }
+  const userId = req.user.id;
 
   try {
     const dbCart = await dbService.getCart(userId);
@@ -2813,13 +2797,9 @@ app.post("/api/cart/update", async (req, res) => {
   }
 });
 
-app.post("/api/cart/remove", async (req, res) => {
+app.post("/api/cart/remove", requireAuth, async (req, res) => {
   const { productId } = req.body;
-  const user = await authenticateRequest(req);
-  const userId = user ? user.id : (req.session?.guestCartId || (req.headers["x-guest-id"] as string));
-  if (!userId) {
-    return res.json({ success: true });
-  }
+  const userId = req.user.id;
 
   try {
     const dbCart = await dbService.getCart(userId);
@@ -2831,15 +2811,13 @@ app.post("/api/cart/remove", async (req, res) => {
   }
 });
 
-app.post("/api/cart/clear", async (req, res) => {
-  const user = await authenticateRequest(req);
-  const userId = user ? user.id : (req.session?.guestCartId || (req.headers["x-guest-id"] as string));
-  if (userId) {
-    try {
-      await dbService.saveCart(userId, []);
-    } catch {}
+app.post("/api/cart/clear", requireAuth, async (req, res) => {
+  try {
+    await dbService.saveCart(req.user.id, []);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
-  res.json({ success: true });
 });
 
 app.get("/api/analytics", requireAuth, async (req, res) => {
@@ -3002,7 +2980,10 @@ app.post("/api/orders", requireAuth, orderLimiter, validateBody(schemas.orderCre
   const { notes, deliveryAddress, estimatedDelivery, estimated_delivery, deliveryScheduleLabel, deliveryDate } = req.body;
 
   try {
-    const cartItems = await dbService.getCart(req.user.id);
+    const bodyItems = (req.body.items && Array.isArray(req.body.items) && req.body.items.length > 0)
+      ? req.body.items
+      : null;
+    const cartItems = bodyItems || await dbService.getCart(req.user.id);
     if (!cartItems || cartItems.length === 0) {
       return res.status(400).json({ error: "Your cart is empty." });
     }
@@ -3057,12 +3038,14 @@ app.post("/api/orders", requireAuth, orderLimiter, validateBody(schemas.orderCre
 
     const pharmacy = await dbService.getPharmacyProfile(req.user.id);
     if (!pharmacy) {
-      return res.status(400).json({ error: "Pharmacy verification profile not found." });
+      return res.status(400).json({ error: "ফার্মেসি প্রোফাইল পাওয়া যায়নি। অর্ডার করতে ফার্মেসি প্রোফাইল সম্পন্ন করুন।" });
     }
 
-    const st = (pharmacy.verificationStatus || "").toString().toLowerCase();
-    if (st === "suspended" || st === "rejected") {
-      return res.status(403).json({ error: "Your account is suspended or rejected. Please contact support." });
+    const st = (pharmacy.verificationStatus || (pharmacy as any).verification_status || "").toString().toLowerCase();
+    if (st !== "verified" && st !== "approved") {
+      return res.status(403).json({ 
+        error: "আপনার ফার্মেসি ভেরিফিকেশন এখনও প্রক্রিয়াধীন বা সম্পন্ন হয়নি। ভেরিফায়েড ফার্মেসি প্রোফাইল ব্যতীত অর্ডার প্লেস করা যাবে না।" 
+      });
     }
 
     // Cash on Delivery is strictly mandated platform-wide.
@@ -4008,7 +3991,7 @@ app.post("/api/orders/:id/reorder", requireAuth, async (req, res) => {
     }
 
     await dbService.saveCart(req.user.id, newCart);
-    res.json({ success: true, cartCount: newCart.reduce((acc, c) => acc + c.quantity, 0) });
+    res.json({ success: true, cartCount: newCart.reduce((acc, c) => acc + c.quantity, 0), items: newCart });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

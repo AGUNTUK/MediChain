@@ -9,7 +9,7 @@ import StockAlertButton from "./StockAlertButton";
 interface ProductCardProps {
   product: Product;
   cartQuantity?: number;
-  onAddToCart?: (productId: string, quantity: number) => Promise<boolean | void> | void;
+  onAddToCart?: (productId: string, quantity: number, product?: Product) => Promise<boolean | void> | void;
   onUpdateCartQty?: (productId: string, currentQty: number, delta: number) => Promise<boolean | void> | void;
   onOpenDetails?: (product: Product) => void;
   className?: string;
@@ -70,7 +70,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
 
     try {
       if (onAddToCart) {
-        await onAddToCart(product.id, orderQty);
+        await onAddToCart(product.id, orderQty, product);
       } else if (onUpdateCartQty) {
         await onUpdateCartQty(product.id, cartQuantity, orderQty);
       }

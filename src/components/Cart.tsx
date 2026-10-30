@@ -32,7 +32,7 @@ export default function Cart({ onCheckoutTrigger, onRefreshCartCounter, onBack }
   const [localInputs, setLocalInputs] = useState<Record<string, string>>({});
   
   // Pending debounced server sync timers per productId
-  const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
+
 
   const fetchCart = async () => {
     try {
@@ -46,8 +46,8 @@ export default function Cart({ onCheckoutTrigger, onRefreshCartCounter, onBack }
   useEffect(() => {
     fetchCart();
     return () => {
-      // Flush or clear any active timers on unmount
-      Object.values(debounceTimers.current).forEach(t => clearTimeout(t));
+
+
     };
   }, []);
 
@@ -136,25 +136,8 @@ export default function Cart({ onCheckoutTrigger, onRefreshCartCounter, onBack }
     // Notify parent cart counter
     onRefreshCartCounter();
 
-    // 2. Debounce server synchronization (350ms) to coalesce rapid clicks
-    if (debounceTimers.current[productId]) {
-      clearTimeout(debounceTimers.current[productId]);
-    }
-
-    debounceTimers.current[productId] = setTimeout(async () => {
-      try {
-        setUpdateError(null);
-        await orderService.updateCartItem(productId, newQty);
-      } catch (err: any) {
-        console.error("Failed to sync cart item quantity:", err);
-        setUpdateError(err.message || "Failed to update item quantity in cart.");
-        fetchCart();
-        onRefreshCartCounter();
-        setTimeout(() => setUpdateError(null), 3500);
-      } finally {
-        delete debounceTimers.current[productId];
-      }
-    }, 350);
+    // 2. Synchronous update to localStorage active cart (0ms, 0 DB egress)
+    orderService.updateCartItem(productId, newQty);
   };
 
   const handleStepQty = (productId: string, delta: number, maxStock: number) => {
@@ -190,11 +173,6 @@ export default function Cart({ onCheckoutTrigger, onRefreshCartCounter, onBack }
   };
 
   const handleRemoveItem = async (productId: string) => {
-    if (debounceTimers.current[productId]) {
-      clearTimeout(debounceTimers.current[productId]);
-      delete debounceTimers.current[productId];
-    }
-
     // Optimistically remove from state
     if (cartData) {
       const remaining = cartData.items.filter(i => i.product.id !== productId);
@@ -202,15 +180,9 @@ export default function Cart({ onCheckoutTrigger, onRefreshCartCounter, onBack }
       onRefreshCartCounter();
     }
 
-    try {
-      await orderService.removeFromCart(productId);
-      fetchCart();
-      onRefreshCartCounter();
-    } catch (err) {
-      console.error("Failed to remove cart item:", err);
-      fetchCart();
-      onRefreshCartCounter();
-    }
+    orderService.removeFromCart(productId);
+    fetchCart();
+    onRefreshCartCounter();
   };
 
   if (!cartData || cartData.items.length === 0) {

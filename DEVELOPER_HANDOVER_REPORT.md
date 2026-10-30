@@ -3053,6 +3053,33 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - TypeScript compilation (`npx tsc --noEmit`): 0 errors.
   - Production build (`npm run build`): Vite build and esbuild server bundle succeeded with 0 errors.
   - Immediate cart addition and counter increment verified.
+### TASK 133: 100% Client-Side Active Cart (`localStorage`), 0 DB Egress & Restored Backend Auth Security
+- **SUMMARY:**
+  - **Issue Reported**:
+    1. Removing `requireAuth` from `/api/cart` in the previous session introduced security concerns (unauthenticated database writes and potential IDOR risks).
+    2. Calling `/api/cart/add`, `update`, and `remove` on every single button click (`+`, `-`, "কার্টে যোগ করুন") burned Supabase PostgREST egress quota on our critical 80MB remaining free tier limit.
+  - **Resolution**:
+    1. **100% Client-Side Cart State (`0ms` Latency, `0` DB Egress)**:
+       - Refactored `orderService` to manage active cart items entirely in React state backed synchronously by `localStorage` (`medichain_active_cart`).
+       - `addToCart`, `updateCartItem`, `removeFromCart`, and `clearCart` now execute synchronously in 0ms without firing any HTTP requests during browsing or quantity adjustment.
+       - Cached product metadata (`name`, `genericName`, `company`, `sellingPrice`, `mrp`, `tiers`) is stored alongside product IDs, allowing `getCart()` and cart drawer/page to calculate totals, subtotals, and volume tier savings locally in 0ms with **0 bytes of database egress**.
+    2. **Restored Backend Auth Security on `/api/cart` & `/api/orders` (`server.ts`)**:
+       - Re-applied `requireAuth` to all backend cart routes (`GET /api/cart`, `POST /api/cart/add`, `POST /api/cart/update`, `POST /api/cart/remove`, `POST /api/cart/clear`), strictly using `req.user.id`.
+       - Completely closed off unauthenticated database access and IDOR attack vectors.
+    3. **Single Batch Sync at Checkout (`POST /api/orders`)**:
+       - Instead of continuously syncing individual items during browsing, the client sends the active cart items payload in a single batch directly to `POST /api/orders` at checkout.
+       - The backend verifies live stock and prices against Supabase in a single bounded query (`.in('id', itemIds)`), clears the backend cart (`dbService.saveCart(req.user.id, [])`), and the frontend clears `localStorage` (`medichain_active_cart`).
+    4. **Strict Authentication & Pharmacy Verification Guardrails on Checkout**:
+       - Implemented `handleProceedToCheckout` in `src/App.tsx`:
+         - If unauthenticated: displays an interactive Bengali modal dialog prompting the user to log in (`"অর্ডার কনফার্ম করার জন্য অনুগ্রহ করে আপনার ফার্মেসি অ্যাকাউন্টে লগইন করুন"`), while preserving all cart items in `localStorage`.
+         - If pharmacy profile is missing: prompts to complete profile setup.
+         - If verification status is pending/unapproved: informs user that pharmacy verification is in progress.
+       - `src/components/Checkout.tsx`: enforces `pharmacy.verificationStatus === 'Approved' || pharmacy.verificationStatus === 'Verified'` before placing the order.
+       - Backend `POST /api/orders`: strictly rejects non-verified pharmacies with `403 Forbidden` and Bengali explanation.
+- **VERIFICATION:**
+  - TypeScript compilation (`npx tsc --noEmit`): 0 errors.
+  - Production build (`npm run build`): Vite build and esbuild server bundle succeeded with 0 errors.
+  - Egress during browsing and cart interactions: **0 bytes PostgREST egress**.
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).

@@ -6,22 +6,29 @@ import { apiFetch } from "../lib/apiFetch";
  * 
  * Manages active order workflows, real-time item reservations, re-ordering, and returns.
  */
-const LOCAL_CART_KEY = "medichain_local_cart_items";
+const ACTIVE_CART_KEY = "medichain_active_cart";
+const LEGACY_CART_KEY = "medichain_local_cart_items";
 
-export function getLocalCartItems(): Array<{ productId: string; quantity: number }> {
+export interface LocalCartItem {
+  productId: string;
+  quantity: number;
+  product?: any;
+}
+
+export function getLocalCartItems(): LocalCartItem[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(LOCAL_CART_KEY);
+    const raw = localStorage.getItem(ACTIVE_CART_KEY) || localStorage.getItem(LEGACY_CART_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
   }
 }
 
-export function saveLocalCartItems(items: Array<{ productId: string; quantity: number }>) {
+export function saveLocalCartItems(items: LocalCartItem[]) {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(LOCAL_CART_KEY, JSON.stringify(items));
+    localStorage.setItem(ACTIVE_CART_KEY, JSON.stringify(items));
     window.dispatchEvent(new CustomEvent("cartUpdated"));
     window.dispatchEvent(new CustomEvent("cart-updated"));
   } catch {}
@@ -61,127 +68,139 @@ export const orderService = {
 
   /**
    * Places a new procurement order based on the pharmacy's active shopping cart items.
+   * Sends items in a single batch sync to the backend at checkout.
    */
-  async createOrder(orderData: { paymentMethod: string; notes?: string }): Promise<any> {
+  async createOrder(orderData: { paymentMethod: string; notes?: string; items?: any[]; deliveryAddress?: string }): Promise<any> {
+    const localItems = getLocalCartItems().map(i => ({ productId: i.productId, quantity: i.quantity }));
+    const payload = {
+      ...orderData,
+      items: (orderData.items && orderData.items.length > 0) ? orderData.items : localItems
+    };
+
     const response = await apiFetch("/api/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(orderData),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
-      if (errData.fields) { throw { message: errData.error || "Validation failed", fields: errData.fields }; } throw new Error(errData.error || "Failed to finalize checkout and place order.");
+      if (errData.fields) {
+        throw { message: errData.error || "Validation failed", fields: errData.fields };
+      }
+      throw new Error(errData.error || "Failed to finalize checkout and place order.");
     }
+
+    // Clear client-side active cart upon successful order
+    saveLocalCartItems([]);
 
     return response.json();
   },
 
   /**
    * Retrieves the current items, subtotal, and savings in the user's active shopping cart.
-   * Resilient hybrid: Server Cart -> LocalStorage Fallback.
+   * 100% Client-Side from localStorage in 0ms (0 bytes Supabase DB egress).
    */
   async getCart(): Promise<{ items: any[]; totalAmount: number; totalSavings: number; totalMrp: number; totalTierSavings?: number }> {
-    try {
-      const res = await apiFetch("/api/cart");
-      if (res.ok) {
-        const data = await res.json();
-        if (data && Array.isArray(data.items) && data.items.length > 0) {
-          // Sync server items to local storage
-          const syncedLocal = data.items.map((i: any) => ({
-            productId: i.productId || i.product?.id,
-            quantity: i.quantity
-          })).filter((i: any) => Boolean(i.productId));
-          saveLocalCartItems(syncedLocal);
-          return data;
-        }
-      }
-    } catch (err) {
-      console.warn("Failed to load backend cart, falling back to local storage:", err);
-    }
-
-    // Fallback: build cart from local storage
     const local = getLocalCartItems();
     if (local.length === 0) {
       return { items: [], totalAmount: 0, totalSavings: 0, totalMrp: 0, totalTierSavings: 0 };
     }
 
-    try {
-      const { productService } = await import("./product.js");
-      const cartItems: any[] = [];
-      let totalAmount = 0;
-      let totalMrp = 0;
+    // Determine if any items are missing cached product details
+    const missingProductIds = local
+      .filter(item => !item.product || !item.product.name)
+      .map(item => item.productId);
 
-      for (const item of local) {
-        try {
-          const product = await productService.getProductById(item.productId);
-          if (product) {
-            const mrp = Number(product.mrp) || Number(product.sellingPrice) || 0;
-            const selling = Number(product.sellingPrice) || mrp;
-            const subtotal = Math.round(selling * item.quantity * 100) / 100;
-            totalAmount += subtotal;
-            totalMrp += Math.round(mrp * item.quantity * 100) / 100;
-            cartItems.push({
-              product,
-              productId: product.id,
-              quantity: item.quantity,
-              effectiveUnitPrice: selling,
-              itemSubtotal: subtotal,
-              tierSavings: 0
-            });
-          }
-        } catch {}
+    const fetchedMap = new Map<string, any>();
+    if (missingProductIds.length > 0) {
+      try {
+        const { productService } = await import("./product.js");
+        for (const pid of missingProductIds) {
+          const prod = await productService.getProductById(pid);
+          if (prod) fetchedMap.set(pid, prod);
+        }
+      } catch (err) {
+        console.warn("Could not fetch missing product details:", err);
       }
-
-      const totalSavings = Math.max(0, Math.round((totalMrp - totalAmount) * 100) / 100);
-      return {
-        items: cartItems,
-        totalAmount: Math.round(totalAmount * 100) / 100,
-        totalSavings,
-        totalMrp: Math.round(totalMrp * 100) / 100,
-        totalTierSavings: 0
-      };
-    } catch {
-      return { items: [], totalAmount: 0, totalSavings: 0, totalMrp: 0, totalTierSavings: 0 };
     }
+
+    const cartItems: any[] = [];
+    let totalAmount = 0;
+    let totalMrp = 0;
+    let totalTierSavings = 0;
+
+    for (const item of local) {
+      const product = item.product || fetchedMap.get(item.productId);
+      if (product) {
+        const mrp = Number(product.mrp) || Number(product.sellingPrice) || 0;
+        let effectiveUnitPrice = Number(product.sellingPrice) || mrp;
+        let activeTier: any = null;
+        let nextTier: any = null;
+        let tierSavings = 0;
+
+        if (product.tiers && Array.isArray(product.tiers) && product.tiers.length > 0) {
+          const sortedTiers = [...product.tiers].sort((a: any, b: any) => a.minQty - b.minQty);
+          activeTier = [...sortedTiers].reverse().find((t: any) => item.quantity >= t.minQty) || null;
+          nextTier = sortedTiers.find((t: any) => item.quantity < t.minQty) || null;
+
+          if (activeTier && activeTier.discountPercent > 0) {
+            effectiveUnitPrice = Math.round((mrp * (1 - activeTier.discountPercent / 100)) * 100) / 100;
+            tierSavings = Math.max(0, Math.round(((Number(product.sellingPrice) - effectiveUnitPrice) * item.quantity) * 100) / 100);
+          }
+        }
+
+        const subtotal = Math.round(effectiveUnitPrice * item.quantity * 100) / 100;
+        totalAmount += subtotal;
+        totalMrp += Math.round(mrp * item.quantity * 100) / 100;
+        totalTierSavings += tierSavings;
+
+        cartItems.push({
+          product,
+          productId: product.id || item.productId,
+          quantity: item.quantity,
+          effectiveUnitPrice,
+          itemSubtotal: subtotal,
+          tierSavings,
+          activeTier,
+          nextTier
+        });
+      }
+    }
+
+    const totalSavings = Math.max(0, Math.round((totalMrp - totalAmount) * 100) / 100);
+    return {
+      items: cartItems,
+      totalAmount: Math.round(totalAmount * 100) / 100,
+      totalSavings,
+      totalMrp: Math.round(totalMrp * 100) / 100,
+      totalTierSavings: Math.round(totalTierSavings * 100) / 100
+    };
   },
 
   /**
-   * Adds a product and quantity to the active cart immediately with local persistence and background server sync.
+   * Adds a product and quantity to the active cart 100% client-side (0ms latency, 0 DB egress).
    */
-  async addToCart(productId: string, quantity: number): Promise<{ success: boolean }> {
+  addToCart(productId: string, quantity: number, product?: any): { success: boolean } {
     const qtyNum = Math.max(1, Number(quantity) || 1);
-
-    // 1. Instant 0ms Local Storage update
     const local = getLocalCartItems();
     const existing = local.find(i => i.productId === productId);
     if (existing) {
       existing.quantity += qtyNum;
+      if (product && !existing.product) {
+        existing.product = product;
+      }
     } else {
-      local.push({ productId, quantity: qtyNum });
+      local.push({ productId, quantity: qtyNum, product });
     }
     saveLocalCartItems(local);
-
-    // 2. Background server sync
-    try {
-      const res = await apiFetch("/api/cart/add", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId, quantity: qtyNum }),
-      });
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (err) {
-      console.warn("Backend cart sync notice (persisted in local cart):", err);
-    }
     return { success: true };
   },
 
   /**
-   * Updates the exact quantity of a product currently in the cart.
+   * Updates product quantity in the client-side cart (0ms latency, 0 DB egress).
    */
-  async updateCartItem(productId: string, quantity: number): Promise<{ success: boolean }> {
+  updateCartItem(productId: string, quantity: number): { success: boolean } {
     const local = getLocalCartItems();
     const existing = local.find(i => i.productId === productId);
     if (quantity <= 0) {
@@ -193,42 +212,23 @@ export const orderService = {
       local.push({ productId, quantity });
       saveLocalCartItems(local);
     }
-
-    try {
-      const res = await apiFetch("/api/cart/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId, quantity }),
-      });
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (err) {
-      console.warn("Backend cart update notice (persisted in local cart):", err);
-    }
     return { success: true };
   },
 
   /**
-   * Deletes a product from the active cart.
+   * Removes a product from the client-side cart (0ms latency, 0 DB egress).
    */
-  async removeFromCart(productId: string): Promise<{ success: boolean }> {
+  removeFromCart(productId: string): { success: boolean } {
     const local = getLocalCartItems().filter(i => i.productId !== productId);
     saveLocalCartItems(local);
-
-    try {
-      const res = await apiFetch("/api/cart/remove", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId }),
-      });
-      if (res.ok) {
-        return await res.json();
-      }
-    } catch (err) {
-      console.warn("Backend cart remove notice (persisted in local cart):", err);
-    }
     return { success: true };
+  },
+
+  /**
+   * Empties the client-side active shopping cart.
+   */
+  clearCart(): void {
+    saveLocalCartItems([]);
   },
 
   /**
@@ -244,7 +244,11 @@ export const orderService = {
       throw new Error(err.error || "Failed to duplicate this order into your cart.");
     }
 
-    return res.json();
+    const data = await res.json();
+    if (data && Array.isArray(data.items)) {
+      saveLocalCartItems(data.items);
+    }
+    return data;
   },
 
   /**

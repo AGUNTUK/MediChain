@@ -7,7 +7,7 @@ import { PWAInstallPrompt } from "./pwa/PWAInstallPrompt";
 import { CartFeedbackProvider } from "./context/FlyToCartContext";
 import SafeBoundary from "./components/SafeBoundary";
 import { Product, Pharmacy, Order, Notification, User } from "./types";
-import { Home as HomeIcon, Search as SearchIcon, Package as PackageIcon, FileText as FileIcon, ClipboardList as ListIcon, User as UserIcon, Shield, Smartphone, ShoppingBag, Camera, X, Sparkles, MessageSquareText } from "lucide-react";
+import { Home as HomeIcon, Search as SearchIcon, Package as PackageIcon, FileText as FileIcon, ClipboardList as ListIcon, User as UserIcon, Shield, Smartphone, ShoppingBag, Camera, X, Sparkles, MessageSquareText, AlertCircle } from "lucide-react";
 import { authService, productService, orderService, profileService, notificationService } from "./services";
 import { apiFetch } from "./lib/apiFetch";
 import { isSupabaseConfigured, supabase } from "./lib/supabaseClient";
@@ -162,6 +162,12 @@ export default function App() {
     totalAmount: number;
     totalSavings: number;
     totalTierSavings?: number;
+  } | null>(null);
+  const [checkoutAuthPrompt, setCheckoutAuthPrompt] = useState<{
+    title: string;
+    message: string;
+    actionText?: string;
+    actionStep?: "login" | "setup";
   } | null>(null);
 
   // Sync products and credentials
@@ -555,25 +561,58 @@ export default function App() {
     }
   };
 
-  // Add to cart proxy callback with 0ms instant optimistic UI updates
-  const handleAddToCart = async (productId: string, qty: number): Promise<boolean> => {
+  // Add to cart proxy callback with 100% client-side 0ms instant optimistic UI updates & 0 DB egress
+  const handleAddToCart = async (productId: string, qty: number, productObj?: Product): Promise<boolean> => {
     const addQty = Math.max(1, qty || 1);
 
-    // 1. Shathe shathe cart a add (0ms Instant Optimistic UI Update)
+    // 1. Synchronously update local active cart in localStorage (0ms latency, 0 DB egress)
+    orderService.addToCart(productId, addQty, productObj);
+
+    // 2. Shathe shathe cart a add (0ms Instant Optimistic UI Update)
     setCartCount(prev => prev + addQty);
     setCartQuantities(prev => ({
       ...prev,
       [productId]: (prev[productId] || 0) + addQty
     }));
 
-    try {
-      await orderService.addToCart(productId, addQty);
-      await refreshCartCounter();
-      return true;
-    } catch (err) {
-      console.warn("Cart backend sync warning (persisted locally):", err);
-      return true;
+    // 3. Refresh cart state in-memory
+    await refreshCartCounter();
+    return true;
+  };
+
+  // Enforces authentication and pharmacy verification before proceeding to checkout
+  const handleProceedToCheckout = () => {
+    if (!currentUser) {
+      setCheckoutAuthPrompt({
+        title: "লগইন আবশ্যক",
+        message: "অর্ডার কনফার্ম করার জন্য অনুগ্রহ করে আপনার ফার্মেসি অ্যাকাউন্টে লগইন করুন। আপনার কার্টের সব ওষুধ সুরক্ষিত থাকবে।",
+        actionText: "লগইন করুন",
+        actionStep: "login"
+      });
+      return;
     }
+
+    const hasPharmacy = Boolean(pharmacy && (pharmacy.pharmacyName || (pharmacy as any).pharmacy_name));
+    if (!hasPharmacy) {
+      setCheckoutAuthPrompt({
+        title: "ফার্মেসি প্রোফাইল প্রয়োজন",
+        message: "অর্ডার কনফার্ম করতে আপনার ফার্মেসির ড্রাগ লাইসেন্স ও ঠিকানা সেটআপ করা প্রয়োজন।",
+        actionText: "প্রোফাইল সেটআপ করুন",
+        actionStep: "setup"
+      });
+      return;
+    }
+
+    const st = (pharmacy.verificationStatus || (pharmacy as any).verification_status || "").toString().toLowerCase();
+    if (st !== "approved" && st !== "verified") {
+      setCheckoutAuthPrompt({
+        title: "ফার্মেসি ভেরিফিকেশন প্রক্রিয়াধীন",
+        message: "আপনার ফার্মেসি ভেরিফিকেশন এখনও প্রক্রিয়াধীন রয়েছে। MediChain টিম ড্রাগ লাইসেন্স যাচাই সম্পন্ন করার পর অর্ডার প্লেস করতে পারবেন।"
+      });
+      return;
+    }
+
+    setAppStep("checkout");
   };
 
   // Custom Operations cockpit triggers
@@ -688,7 +727,7 @@ export default function App() {
           <Suspense fallback={<LoadingScreen />}>
             <Cart
               onBack={() => setAppStep("main")}
-              onCheckoutTrigger={() => setAppStep("checkout")}
+              onCheckoutTrigger={handleProceedToCheckout}
               onRefreshCartCounter={refreshCartCounter}
             />
           </Suspense>
@@ -944,7 +983,7 @@ export default function App() {
             }}
             onCheckoutTrigger={() => {
               setIsCartDrawerOpen(false);
-              setAppStep("checkout");
+              handleProceedToCheckout();
             }}
             onBrowseCatalog={() => {
               setActiveTab("search");
@@ -956,6 +995,50 @@ export default function App() {
           {/* Physicians Product Sheet */}
           {showPhysiciansProductSheet && (
             <PhysiciansProductSheet onClose={() => setShowPhysiciansProductSheet(false)} />
+          )}
+
+          {/* Checkout Auth & Verification Prompt Dialog */}
+          {checkoutAuthPrompt && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[999] select-none animate-fade-in">
+              <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 space-y-4 animate-scale-up">
+                <div className="w-12 h-12 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 mx-auto">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <div className="text-center space-y-1">
+                  <h3 className="text-base font-black text-slate-900">{checkoutAuthPrompt.title}</h3>
+                  <p className="text-xs text-slate-600 leading-relaxed">{checkoutAuthPrompt.message}</p>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  {checkoutAuthPrompt.actionStep && checkoutAuthPrompt.actionText ? (
+                    <>
+                      <button
+                        onClick={() => setCheckoutAuthPrompt(null)}
+                        className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                      >
+                        পরে করব
+                      </button>
+                      <button
+                        onClick={() => {
+                          const target = checkoutAuthPrompt.actionStep;
+                          setCheckoutAuthPrompt(null);
+                          if (target) setAppStep(target);
+                        }}
+                        className="flex-1 py-2.5 px-3 rounded-xl bg-brand-purple hover:bg-brand-purple/90 text-white text-xs font-black shadow-md transition-all cursor-pointer"
+                      >
+                        {checkoutAuthPrompt.actionText}
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setCheckoutAuthPrompt(null)}
+                      className="w-full py-2.5 px-3 rounded-xl bg-brand-purple hover:bg-brand-purple/90 text-white text-xs font-black shadow-md transition-all cursor-pointer"
+                    >
+                      বুঝেছি
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Bottom persistent Nav Bar */}
