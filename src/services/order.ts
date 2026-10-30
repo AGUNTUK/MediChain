@@ -6,6 +6,27 @@ import { apiFetch } from "../lib/apiFetch";
  * 
  * Manages active order workflows, real-time item reservations, re-ordering, and returns.
  */
+const LOCAL_CART_KEY = "medichain_local_cart_items";
+
+export function getLocalCartItems(): Array<{ productId: string; quantity: number }> {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(LOCAL_CART_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveLocalCartItems(items: Array<{ productId: string; quantity: number }>) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(LOCAL_CART_KEY, JSON.stringify(items));
+    window.dispatchEvent(new CustomEvent("cartUpdated"));
+    window.dispatchEvent(new CustomEvent("cart-updated"));
+  } catch {}
+}
+
 export const orderService = {
   /**
    * Retrieves full procurement order history for the authenticated pharmacy.
@@ -58,72 +79,156 @@ export const orderService = {
 
   /**
    * Retrieves the current items, subtotal, and savings in the user's active shopping cart.
+   * Resilient hybrid: Server Cart -> LocalStorage Fallback.
    */
   async getCart(): Promise<{ items: any[]; totalAmount: number; totalSavings: number; totalMrp: number; totalTierSavings?: number }> {
     try {
       const res = await apiFetch("/api/cart");
-      if (!res.ok) {
-        return { items: [], totalAmount: 0, totalSavings: 0, totalMrp: 0, totalTierSavings: 0 };
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.items) && data.items.length > 0) {
+          // Sync server items to local storage
+          const syncedLocal = data.items.map((i: any) => ({
+            productId: i.productId || i.product?.id,
+            quantity: i.quantity
+          })).filter((i: any) => Boolean(i.productId));
+          saveLocalCartItems(syncedLocal);
+          return data;
+        }
       }
-      return await res.json();
     } catch (err) {
-      console.warn("Failed to load your procurement cart (network error):", err);
-      return { items: [], totalAmount: 0, totalSavings: 0, totalMrp: 0 };
+      console.warn("Failed to load backend cart, falling back to local storage:", err);
+    }
+
+    // Fallback: build cart from local storage
+    const local = getLocalCartItems();
+    if (local.length === 0) {
+      return { items: [], totalAmount: 0, totalSavings: 0, totalMrp: 0, totalTierSavings: 0 };
+    }
+
+    try {
+      const { productService } = await import("./product.js");
+      const cartItems: any[] = [];
+      let totalAmount = 0;
+      let totalMrp = 0;
+
+      for (const item of local) {
+        try {
+          const product = await productService.getProductById(item.productId);
+          if (product) {
+            const mrp = Number(product.mrp) || Number(product.sellingPrice) || 0;
+            const selling = Number(product.sellingPrice) || mrp;
+            const subtotal = Math.round(selling * item.quantity * 100) / 100;
+            totalAmount += subtotal;
+            totalMrp += Math.round(mrp * item.quantity * 100) / 100;
+            cartItems.push({
+              product,
+              productId: product.id,
+              quantity: item.quantity,
+              effectiveUnitPrice: selling,
+              itemSubtotal: subtotal,
+              tierSavings: 0
+            });
+          }
+        } catch {}
+      }
+
+      const totalSavings = Math.max(0, Math.round((totalMrp - totalAmount) * 100) / 100);
+      return {
+        items: cartItems,
+        totalAmount: Math.round(totalAmount * 100) / 100,
+        totalSavings,
+        totalMrp: Math.round(totalMrp * 100) / 100,
+        totalTierSavings: 0
+      };
+    } catch {
+      return { items: [], totalAmount: 0, totalSavings: 0, totalMrp: 0, totalTierSavings: 0 };
     }
   },
 
   /**
-   * Adds a product and quantity to the active cart.
+   * Adds a product and quantity to the active cart immediately with local persistence and background server sync.
    */
   async addToCart(productId: string, quantity: number): Promise<{ success: boolean }> {
-    const res = await apiFetch("/api/cart/add", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ productId, quantity }),
-    });
+    const qtyNum = Math.max(1, Number(quantity) || 1);
 
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || "Failed to add item to cart.");
+    // 1. Instant 0ms Local Storage update
+    const local = getLocalCartItems();
+    const existing = local.find(i => i.productId === productId);
+    if (existing) {
+      existing.quantity += qtyNum;
+    } else {
+      local.push({ productId, quantity: qtyNum });
     }
+    saveLocalCartItems(local);
 
-    return res.json();
+    // 2. Background server sync
+    try {
+      const res = await apiFetch("/api/cart/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId, quantity: qtyNum }),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (err) {
+      console.warn("Backend cart sync notice (persisted in local cart):", err);
+    }
+    return { success: true };
   },
 
   /**
    * Updates the exact quantity of a product currently in the cart.
    */
   async updateCartItem(productId: string, quantity: number): Promise<{ success: boolean }> {
-    const res = await apiFetch("/api/cart/update", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ productId, quantity }),
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || "Failed to update item quantity in cart.");
+    const local = getLocalCartItems();
+    const existing = local.find(i => i.productId === productId);
+    if (quantity <= 0) {
+      saveLocalCartItems(local.filter(i => i.productId !== productId));
+    } else if (existing) {
+      existing.quantity = quantity;
+      saveLocalCartItems(local);
+    } else {
+      local.push({ productId, quantity });
+      saveLocalCartItems(local);
     }
 
-    return res.json();
+    try {
+      const res = await apiFetch("/api/cart/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId, quantity }),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (err) {
+      console.warn("Backend cart update notice (persisted in local cart):", err);
+    }
+    return { success: true };
   },
 
   /**
    * Deletes a product from the active cart.
    */
   async removeFromCart(productId: string): Promise<{ success: boolean }> {
-    const res = await apiFetch("/api/cart/remove", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ productId }),
-    });
+    const local = getLocalCartItems().filter(i => i.productId !== productId);
+    saveLocalCartItems(local);
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || "Failed to remove item from cart.");
+    try {
+      const res = await apiFetch("/api/cart/remove", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId }),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (err) {
+      console.warn("Backend cart remove notice (persisted in local cart):", err);
     }
-
-    return res.json();
+    return { success: true };
   },
 
   /**

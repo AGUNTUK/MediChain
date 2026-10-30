@@ -62,7 +62,11 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
     e.stopPropagation();
     if (isOutOfStock || isAdding) return;
 
+    // Instant 0ms visual and animation feedback
     setIsAdding(true);
+    setIsAdded(true);
+    triggerCartFeedback();
+    triggerButtonFeedback(product.id);
 
     try {
       if (onAddToCart) {
@@ -70,18 +74,13 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({
       } else if (onUpdateCartQty) {
         await onUpdateCartQty(product.id, cartQuantity, orderQty);
       }
-
-      triggerCartFeedback();
-      triggerButtonFeedback(product.id);
-
-      setIsAdded(true);
-      setTimeout(() => {
-        setIsAdded(false);
-      }, 1500);
     } catch (error) {
       console.error("Failed to add to cart:", error);
     } finally {
       setIsAdding(false);
+      setTimeout(() => {
+        setIsAdded(false);
+      }, 1200);
     }
   };
 

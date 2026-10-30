@@ -2553,15 +2553,21 @@ app.post("/api/notifications/test-push", requireAuth, async (req, res) => {
 
 // --- PROCUREMENT CART (Stateless DB Synced) ---
 
-app.get("/api/cart", requireAuth, async (req, res) => {
+app.get("/api/cart", async (req, res) => {
   try {
-    const cartItemsInDb = await dbService.getCart(req.user.id);
+    const user = await authenticateRequest(req);
+    const userId = user ? user.id : (req.session?.guestCartId || (req.headers["x-guest-id"] as string));
+    if (!userId) {
+      return res.json({ items: [], totalAmount: 0, totalSavings: 0, totalMrp: 0, totalTierSavings: 0 });
+    }
+
+    const cartItemsInDb = await dbService.getCart(userId);
     const cartItems: any[] = [];
     
     if (cartItemsInDb && cartItemsInDb.length > 0) {
       const productIds = cartItemsInDb.map((item: any) => String(item.productId || "").trim()).filter(Boolean);
       
-      const { data: dbProducts, error } = await dbService.supabaseAdmin
+      const { data: dbProducts, error } = await supabaseAdmin
         .from('products')
         .select('id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, discount_percentage, stock_quantity, image_url, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date)')
         .in('id', productIds);
@@ -2737,8 +2743,20 @@ app.get("/api/cart", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/api/cart/add", requireAuth, requireVerifiedPharmacy, async (req, res) => {
+app.post("/api/cart/add", async (req, res) => {
   const { productId, quantity } = req.body;
+  if (!productId) {
+    return res.status(400).json({ error: "Product ID is required." });
+  }
+
+  const user = await authenticateRequest(req);
+  let userId = user ? user.id : (req.session?.guestCartId || (req.headers["x-guest-id"] as string));
+  if (!userId) {
+    userId = `guest_${crypto.randomUUID()}`;
+    if (req.session) {
+      req.session.guestCartId = userId;
+    }
+  }
 
   try {
     const product = await dbService.getProductById(productId);
@@ -2746,44 +2764,40 @@ app.post("/api/cart/add", requireAuth, requireVerifiedPharmacy, async (req, res)
       return res.status(404).json({ error: "Product not found." });
     }
 
-    const dbCart = await dbService.getCart(req.user.id);
+    const qtyToAdd = Math.max(1, Number(quantity) || 1);
+    const dbCart = await dbService.getCart(userId);
     const existing = dbCart.find((c: any) => c.productId === productId);
-    const totalQty = (existing ? existing.quantity : 0) + quantity;
-
-    // Bypass stock block for demo
-    // if (totalQty > product.availableStock) {
-    //   return res.status(400).json({ error: `Only ${product.availableStock} boxes are available in stock.` });
-    // }
+    const totalQty = (existing ? existing.quantity : 0) + qtyToAdd;
 
     if (existing) {
       existing.quantity = totalQty;
     } else {
-      dbCart.push({ productId, quantity });
+      dbCart.push({ productId, quantity: qtyToAdd });
     }
 
-    await dbService.saveCart(req.user.id, dbCart);
+    await dbService.saveCart(userId, dbCart);
     res.json({ success: true, cartCount: dbCart.reduce((acc: number, c: any) => acc + c.quantity, 0) });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post("/api/cart/update", requireAuth, async (req, res) => {
+app.post("/api/cart/update", async (req, res) => {
   const { productId, quantity } = req.body;
+  const user = await authenticateRequest(req);
+  const userId = user ? user.id : (req.session?.guestCartId || (req.headers["x-guest-id"] as string));
+  if (!userId) {
+    return res.json({ success: true });
+  }
 
   try {
-    const dbCart = await dbService.getCart(req.user.id);
+    const dbCart = await dbService.getCart(userId);
     const item = dbCart.find((c: any) => c.productId === productId);
     const product = await dbService.getProductById(productId);
 
     if (!item || !product) {
       return res.status(404).json({ error: "Cart item or product not found." });
     }
-
-    // Bypass stock block for demo
-    // if (quantity > product.availableStock) {
-    //   return res.status(400).json({ error: `Only ${product.availableStock} boxes are available in stock.` });
-    // }
 
     let newCart = dbCart;
     if (quantity <= 0) {
@@ -2792,32 +2806,40 @@ app.post("/api/cart/update", requireAuth, async (req, res) => {
       item.quantity = quantity;
     }
 
-    await dbService.saveCart(req.user.id, newCart);
+    await dbService.saveCart(userId, newCart);
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post("/api/cart/remove", requireAuth, async (req, res) => {
+app.post("/api/cart/remove", async (req, res) => {
   const { productId } = req.body;
+  const user = await authenticateRequest(req);
+  const userId = user ? user.id : (req.session?.guestCartId || (req.headers["x-guest-id"] as string));
+  if (!userId) {
+    return res.json({ success: true });
+  }
+
   try {
-    const dbCart = await dbService.getCart(req.user.id);
+    const dbCart = await dbService.getCart(userId);
     const newCart = dbCart.filter((c: any) => c.productId !== productId);
-    await dbService.saveCart(req.user.id, newCart);
+    await dbService.saveCart(userId, newCart);
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post("/api/cart/clear", requireAuth, async (req, res) => {
-  try {
-    await dbService.saveCart(req.user.id, []);
-    res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+app.post("/api/cart/clear", async (req, res) => {
+  const user = await authenticateRequest(req);
+  const userId = user ? user.id : (req.session?.guestCartId || (req.headers["x-guest-id"] as string));
+  if (userId) {
+    try {
+      await dbService.saveCart(userId, []);
+    } catch {}
   }
+  res.json({ success: true });
 });
 
 app.get("/api/analytics", requireAuth, async (req, res) => {

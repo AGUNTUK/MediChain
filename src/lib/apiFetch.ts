@@ -38,8 +38,8 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
 
   if (response.status === 401) {
     const urlStr = typeof input === "string" ? input : (input instanceof Request ? input.url : input.toString());
-    // Only dispatch auth-expired if this was an actual authenticated route, not login itself
-    if (!urlStr.includes("/api/auth/login") && !urlStr.includes("/api/auth/local-login")) {
+    // Only dispatch auth-expired if this was an actual authenticated route, not login or cart
+    if (!urlStr.includes("/api/auth/login") && !urlStr.includes("/api/auth/local-login") && !urlStr.includes("/api/cart")) {
       if (typeof window !== "undefined") {
         const hadUser = localStorage.getItem("medichain_user");
         if (hadUser) {

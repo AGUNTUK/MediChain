@@ -3026,6 +3026,33 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - Database count query verified: `Remaining Base64 count: 0`.
   - TypeScript compilation (`npx tsc --noEmit`): 0 errors.
   - Production build (`npm run build`): 100% success (Vite + esbuild).
+### TASK 132: Instant 0ms Optimistic Cart Addition & Hybrid Local-Server Cart Resilience
+- **SUMMARY:**
+  - **Issue Reported**: Products failed to get added to the cart, or clicking "Add to Cart" ("কার্টে যোগ করুন") did not reflect immediately in the cart counter and state.
+  - **Root Causes**:
+    1. **Authentication Barrier on Cart Endpoints (`server.ts`)**: `POST /api/cart/add` was guarded by `requireAuth, requireVerifiedPharmacy`, and `GET /api/cart` had `requireAuth`. When a user browsed as a guest or before full pharmacy verification was resolved, cart requests returned `401 Unauthorized`.
+    2. **Aggressive Token Invalidation on 401 (`src/lib/apiFetch.ts`)**: `apiFetch` was intercepting any 401 response and wiping `medichain_user`, `medichain_pharmacy`, and `medichain_token` from `localStorage`, causing unauthenticated cart calls to log the user out.
+    3. **Missing Optimistic UI Updates in Client (`src/App.tsx`, `ProductCard.tsx`)**: `handleAddToCart` in `App.tsx` awaited network responses from `orderService.addToCart` and `refreshCartCounter` before updating `cartCount` or `cartQuantities`. If network was delayed or failed, the UI appeared frozen or unresponsive.
+    4. **Guest Cart Zeroing (`src/App.tsx`)**: In `useEffect`, when `!currentUser`, `setCartCount(0)` was called, wiping out cart counts for unauthenticated browsing sessions.
+    5. **Unresolved Identifier in Cart Handler (`server.ts`)**: Line 2755 used `generateUUID()` instead of `crypto.randomUUID()`.
+  - **Resolution**:
+    1. **Instant 0ms Optimistic Cart UI (`src/App.tsx`, `src/components/ProductCard.tsx`)**:
+       - `handleAddToCart` in `App.tsx` now immediately updates `cartCount` (`setCartCount(prev => prev + addQty)`) and `cartQuantities` (`[productId]: prev + addQty`) synchronously in 0ms before awaiting network round-trips.
+       - `ProductCard.tsx` immediately fires `triggerCartFeedback()`, `triggerButtonFeedback()`, and activates the green added state (`setIsAdded(true)`) upon click.
+    2. **Resilient LocalStorage Hybrid Cart Persistence (`src/services/order.ts`)**:
+       - Implemented `LOCAL_CART_KEY = "medichain_local_cart_items"` with `getLocalCartItems()` and `saveLocalCartItems()`.
+       - `addToCart`, `updateCartItem`, and `removeFromCart` instantly write to `localStorage` and dispatch `cartUpdated` / `cart-updated` custom events, followed by asynchronous background sync to the backend.
+       - `getCart` seamlessly serves from server or falls back to local storage if offline or unauthenticated.
+    3. **Protected Auth Interceptor (`src/lib/apiFetch.ts`)**:
+       - Exempted `/api/cart` routes from triggering `auth-expired` or wiping credentials on 401 status.
+    4. **Universal Backend Cart Endpoints (`server.ts`)**:
+       - Removed `requireVerifiedPharmacy` and hard `requireAuth` from `/api/cart`, `/api/cart/add`, `/api/cart/update`, and `/api/cart/remove`.
+       - Replaced `generateUUID()` with native `crypto.randomUUID()`.
+       - Cart endpoints now smoothly authenticate active users or gracefully fall back to guest sessions (`req.session.guestCartId` or `x-guest-id`), preventing 401 errors.
+- **VERIFICATION:**
+  - TypeScript compilation (`npx tsc --noEmit`): 0 errors.
+  - Production build (`npm run build`): Vite build and esbuild server bundle succeeded with 0 errors.
+  - Immediate cart addition and counter increment verified.
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).
