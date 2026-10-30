@@ -480,6 +480,7 @@ export default function App() {
     const isSpecialRole = ["Admin", "Depot Staff", "Delivery Staff"].includes(user.role);
     const hasIncomingPharmacy = Boolean(incomingPharmacy && activeIncomingName);
     const hasLocalPharmacy = Boolean(pharmacy && (pharmacy.pharmacyName || (pharmacy as any)?.pharmacy_name));
+    const hasKnownPharmacyId = Boolean(user?.pharmacy_id || incomingPharmacy?.id);
 
     if (isSpecialRole) {
       // Admin / Depot Staff / Delivery Staff always go to their role-specific dashboard
@@ -487,7 +488,7 @@ export default function App() {
       return;
     }
 
-    if (hasIncomingPharmacy || hasLocalPharmacy) {
+    if (hasIncomingPharmacy || hasLocalPharmacy || hasKnownPharmacyId) {
       // We already have confirmed pharmacy data — go straight to main
       setAppStep("main");
       refreshPharmacyProfile();
@@ -606,11 +607,15 @@ export default function App() {
     // Verification check for non-admin/staff pharmacy users
     if (currentUser && !["Admin", "Depot Staff", "Delivery Staff"].includes(currentUser.role)) {
       if (appStep !== "splash" && appStep !== "login" && appStep !== "setup") {
-        if (isProfileLoading && !pharmacy) {
+        const hasKnownPharmacyId = Boolean((currentUser as any).pharmacy_id);
+        if (isProfileLoading && (!pharmacy || hasKnownPharmacyId)) {
           return <LoadingScreen />;
         }
         const hasPharmacy = Boolean(pharmacy && (pharmacy.pharmacyName || (pharmacy as any).pharmacy_name));
         if (!hasPharmacy) {
+          if (hasKnownPharmacyId) {
+            return <LoadingScreen />;
+          }
           return (
             <Suspense fallback={<LoadingScreen />}>
               <ProfileSetup phone={phone} onSetupComplete={handleSetupComplete} onBack={() => setAppStep("login")} />
@@ -640,7 +645,8 @@ export default function App() {
               if (currentUser) {
                 const isSpecialRole = ["Admin", "Depot Staff", "Delivery Staff"].includes(currentUser.role);
                 const hasPharmacy = Boolean(pharmacy && (pharmacy.pharmacyName || (pharmacy as any).pharmacy_name));
-                if (isSpecialRole || hasPharmacy || isProfileLoading) {
+                const hasKnownPharmacyId = Boolean((currentUser as any).pharmacy_id);
+                if (isSpecialRole || hasPharmacy || isProfileLoading || hasKnownPharmacyId) {
                   setAppStep("main");
                 } else {
                   setAppStep("setup");
@@ -795,6 +801,7 @@ export default function App() {
                 onAddToCart={handleAddToCart}
                 onToggleFavourite={handleToggleFavourite}
                 favouriteIds={favouriteIds}
+                pharmacyId={pharmacy?.id}
                 pharmacyName={pharmacy?.pharmacyName || "Sohel Pharma"}
                 onOpenProductDetails={(p) => setSelectedProduct(p)}
                 onOpenNotifications={() => setShowNotifications(true)}

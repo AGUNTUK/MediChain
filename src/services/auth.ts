@@ -134,7 +134,7 @@ export const authService = {
         throw new Error("Failed to login via Supabase.");
       }
 
-      // 2. Fetch profile from Supabase users table
+      // 2. Fetch profile from Supabase users table (with graceful fallback if RLS prevents client query)
       let name = "";
       let role = "Pharmacy Owner";
       let userProfile: any = null;
@@ -144,7 +144,7 @@ export const authService = {
           .from("users")
           .select("*")
           .eq("id", user.id)
-          .single();
+          .maybeSingle();
 
         if (!dbError && profile) {
           userProfile = profile;
@@ -164,7 +164,7 @@ export const authService = {
         localStorage.setItem("medichain_token", token);
       }
 
-      // 3. Synchronize session with backend Express DB
+      // 3. Synchronize session with backend Express DB (authoritative source of truth)
       const syncHeaders: Record<string, string> = { "Content-Type": "application/json" };
       if (token) {
         syncHeaders["Authorization"] = `Bearer ${token}`;
@@ -176,6 +176,8 @@ export const authService = {
           method: "POST",
           headers: syncHeaders,
           body: JSON.stringify({
+            id: user.id,
+            email: user.email,
             name,
           }),
         });
@@ -229,6 +231,8 @@ export const authService = {
         console.warn("Could not load pharmacy profile during auth fallback:", pErr);
       }
 
+      const isSpecialRole = ["Admin", "Depot Staff", "Delivery Staff"].includes(role);
+
       return {
         success: true,
         user: {
@@ -238,7 +242,7 @@ export const authService = {
           role: role,
           pharmacy_id: pharmacy ? pharmacy.id : null
         },
-        needsSetup: !pharmacy?.id,
+        needsSetup: isSpecialRole ? false : (pharmacy?.id ? false : null),
         pharmacy
       };
     } else {
@@ -312,12 +316,22 @@ export const authService = {
       syncHeaders["Authorization"] = `Bearer ${token}`;
     }
 
+    let userFromToken: any = null;
+    if (isSupabaseConfigured) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser(token);
+        userFromToken = user;
+      } catch {}
+    }
+
     try {
       const response = await apiFetch("/api/auth/sync-session", {
         method: "POST",
         headers: syncHeaders,
         body: JSON.stringify({
-          name: name || ""
+          id: userFromToken?.id,
+          email: userFromToken?.email,
+          name: name || userFromToken?.user_metadata?.full_name || ""
         })
       });
 
@@ -331,14 +345,24 @@ export const authService = {
 
     if (isSupabaseConfigured) {
       try {
-        const { data: { user } } = await supabase.auth.getUser(token);
+        const user = userFromToken || (await supabase.auth.getUser(token)).data?.user;
         if (user) {
-          const { data: profile } = await supabase.from("users").select("*").eq("id", user.id).maybeSingle();
-          let { data: pharmData } = await supabase.from("pharmacies").select("*").eq("user_id", user.id).maybeSingle();
-          if (!pharmData && profile?.pharmacy_id) {
-            const { data: pById } = await supabase.from("pharmacies").select("*").eq("id", profile.pharmacy_id).maybeSingle();
-            pharmData = pById;
-          }
+          let profile: any = null;
+          try {
+            const { data: p } = await supabase.from("users").select("*").eq("id", user.id).maybeSingle();
+            profile = p;
+          } catch {}
+
+          let pharmData: any = null;
+          try {
+            const { data: ph } = await supabase.from("pharmacies").select("*").eq("user_id", user.id).maybeSingle();
+            pharmData = ph;
+            if (!pharmData && profile?.pharmacy_id) {
+              const { data: pById } = await supabase.from("pharmacies").select("*").eq("id", profile.pharmacy_id).maybeSingle();
+              pharmData = pById;
+            }
+          } catch {}
+
           let pharmacy = null;
           if (pharmData) {
             pharmacy = {
@@ -353,7 +377,8 @@ export const authService = {
             };
           }
           const userName = profile?.full_name || profile?.name || name || user.email?.split("@")[0] || "User";
-          const userRole = profile?.role || "Pharmacy Owner";
+          const userRole = profile?.role || user.user_metadata?.role || "Pharmacy Owner";
+          const isSpecialRole = ["Admin", "Depot Staff", "Delivery Staff"].includes(userRole);
 
           return {
             success: true,
@@ -364,7 +389,7 @@ export const authService = {
               role: userRole,
               pharmacy_id: pharmacy ? pharmacy.id : null
             },
-            needsSetup: !pharmacy?.id,
+            needsSetup: isSpecialRole ? false : (pharmacy?.id ? false : null),
             pharmacy
           };
         }

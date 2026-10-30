@@ -520,6 +520,7 @@ app.post("/api/auth/local-login", loginLimiter, validateBody(schemas.login), asy
       pharmacy_id: pharmacyId
     };
 
+    const isSpecialRole = ["Admin", "Depot Staff", "Delivery Staff"].includes(role);
     res.json({
       success: true,
       user: {
@@ -529,7 +530,7 @@ app.post("/api/auth/local-login", loginLimiter, validateBody(schemas.login), asy
         role,
         pharmacy_id: pharmacyId
       },
-      needsSetup: !pharmacyId,
+      needsSetup: isSpecialRole ? false : !pharmacyId,
       pharmacy
     });
   } catch (err: any) {
@@ -567,6 +568,7 @@ app.post("/api/auth/local-google-login", loginLimiter, async (req, res) => {
       pharmacy_id: pharmacyId
     };
 
+    const isSpecialRole = ["Admin", "Depot Staff", "Delivery Staff"].includes(user.role);
     res.json({
       success: true,
       user: {
@@ -576,7 +578,7 @@ app.post("/api/auth/local-google-login", loginLimiter, async (req, res) => {
         role: user.role,
         pharmacy_id: pharmacyId
       },
-      needsSetup: !pharmacyId,
+      needsSetup: isSpecialRole ? false : !pharmacyId,
       pharmacy
     });
   } catch (err: any) {
@@ -711,10 +713,14 @@ app.post("/api/auth/sync-session", loginLimiter, async (req, res) => {
       pharmacy_id: pharmacyId
     };
 
+    // Special roles (Admin, Depot Staff, Delivery Staff) never need pharmacy onboarding
+    const isSpecialRole = ["Admin", "Depot Staff", "Delivery Staff"].includes(user.role);
     // Only set needsSetup=true when we are confident the pharmacy does NOT exist.
     // If both DB lookups failed (cold-start outage), return needsSetup=null so
     // the client can re-verify independently without showing the setup wizard.
-    const needsSetup = pharmacyLookupFailed ? null : (!pharmacy || !pharmacy.pharmacyName);
+    const needsSetup = isSpecialRole
+      ? false
+      : (pharmacyLookupFailed ? null : (!pharmacy || !pharmacy.pharmacyName));
 
     res.json({
       success: true,
@@ -864,6 +870,295 @@ app.post("/api/pharmacy/verification-documents/signed-url", requireAuth, async (
     }
 
     res.json({ success: true, signedUrl: data.signedUrl });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- PHARMA-SMART KHATA & SHORT BOOK ENDPOINTS ---
+
+async function resolveRequestPharmacyId(req: any): Promise<string | null> {
+  if (req.user?.pharmacy_id && req.user.pharmacy_id.length > 10) {
+    return req.user.pharmacy_id;
+  }
+  if (req.user?.id) {
+    try {
+      const { data: pharm } = await supabaseAdmin
+        .from("pharmacies")
+        .select("id")
+        .eq("user_id", req.user.id)
+        .maybeSingle();
+      if (pharm?.id) return pharm.id;
+
+      const { data: userRow } = await supabaseAdmin
+        .from("users")
+        .select("pharmacy_id")
+        .eq("id", req.user.id)
+        .maybeSingle();
+      if (userRow?.pharmacy_id) return userRow.pharmacy_id;
+    } catch (e: any) {
+      log.warn("Failed resolving pharmacy_id for khata:", e?.message || e);
+    }
+  }
+  return null;
+}
+
+app.get("/api/khata/bundle", requireAuth, async (req, res) => {
+  try {
+    const pharmacyId = await resolveRequestPharmacyId(req);
+    if (!pharmacyId) {
+      return res.json({
+        success: true,
+        pharmacyId: null,
+        customers: [],
+        suppliers: [],
+        transactions: [],
+        shortBook: []
+      });
+    }
+
+    const [shortBookRes, customersRes, suppliersRes, transactionsRes] = await Promise.all([
+      supabaseAdmin
+        .from("khata_short_book")
+        .select("*")
+        .eq("pharmacy_id", pharmacyId)
+        .order("created_at", { ascending: false })
+        .limit(300),
+      supabaseAdmin
+        .from("khata_customers")
+        .select("*")
+        .eq("pharmacy_id", pharmacyId)
+        .order("created_at", { ascending: false })
+        .limit(200),
+      supabaseAdmin
+        .from("khata_suppliers")
+        .select("*")
+        .eq("pharmacy_id", pharmacyId)
+        .order("created_at", { ascending: false })
+        .limit(100),
+      supabaseAdmin
+        .from("khata_transactions")
+        .select("*")
+        .eq("pharmacy_id", pharmacyId)
+        .order("created_at", { ascending: false })
+        .limit(500)
+    ]);
+
+    res.json({
+      success: true,
+      pharmacyId,
+      shortBook: shortBookRes.data || [],
+      customers: customersRes.data || [],
+      suppliers: suppliersRes.data || [],
+      transactions: transactionsRes.data || []
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to load khata bundle" });
+  }
+});
+
+app.post("/api/khata/short-book", requireAuth, async (req, res) => {
+  try {
+    const pharmacyId = await resolveRequestPharmacyId(req);
+    if (!pharmacyId) {
+      return res.status(400).json({ error: "No active pharmacy associated with this account." });
+    }
+
+    const {
+      id,
+      productId,
+      product_id,
+      medicine_name,
+      medicineName,
+      generic_name,
+      genericName,
+      company,
+      required_qty,
+      requiredQty,
+      pack_size,
+      packSize,
+      estimated_price,
+      estimatedPrice,
+      status,
+      notes
+    } = req.body;
+
+    const medName = medicine_name || medicineName;
+    if (!medName || !medName.trim()) {
+      return res.status(400).json({ error: "Medicine name is required." });
+    }
+
+    const recordId = id || crypto.randomUUID();
+    const payload = {
+      id: recordId,
+      pharmacy_id: pharmacyId,
+      product_id: product_id || productId || null,
+      medicine_name: medName.trim(),
+      generic_name: generic_name || genericName || null,
+      company: company || null,
+      required_qty: Math.max(1, Number(required_qty ?? requiredQty ?? 1)),
+      pack_size: pack_size || packSize || "10x10 Box",
+      estimated_price: Number(estimated_price ?? estimatedPrice ?? 0),
+      status: status || "Pending",
+      notes: notes || null,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabaseAdmin
+      .from("khata_short_book")
+      .upsert([payload], { onConflict: "id" })
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json({ success: true, item: data || payload });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/khata/short-book/:id", requireAuth, async (req, res) => {
+  try {
+    const pharmacyId = await resolveRequestPharmacyId(req);
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: "Item ID is required." });
+
+    let query = supabaseAdmin.from("khata_short_book").delete().eq("id", id);
+    if (pharmacyId) {
+      query = query.eq("pharmacy_id", pharmacyId);
+    }
+    const { error } = await query;
+    if (error) return res.status(500).json({ error: error.message });
+
+    res.json({ success: true, id });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/khata/short-book/bulk-status", requireAuth, async (req, res) => {
+  try {
+    const pharmacyId = await resolveRequestPharmacyId(req);
+    const { ids, status } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0 || !status) {
+      return res.status(400).json({ error: "Invalid payload: ids and status are required." });
+    }
+
+    let query = supabaseAdmin
+      .from("khata_short_book")
+      .update({ status, updated_at: new Date().toISOString() })
+      .in("id", ids);
+
+    if (pharmacyId) {
+      query = query.eq("pharmacy_id", pharmacyId);
+    }
+
+    const { error } = await query;
+    if (error) return res.status(500).json({ error: error.message });
+
+    res.json({ success: true, updatedCount: ids.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/khata/transactions", requireAuth, async (req, res) => {
+  try {
+    const pharmacyId = await resolveRequestPharmacyId(req);
+    if (!pharmacyId) return res.status(400).json({ error: "No pharmacy associated." });
+
+    const tx = req.body;
+    const payload = {
+      id: tx.id || crypto.randomUUID(),
+      pharmacy_id: pharmacyId,
+      type: tx.type || "SALE",
+      customer_id: tx.customer_id || null,
+      supplier_id: tx.supplier_id || null,
+      customer_name: tx.customer_name || null,
+      supplier_name: tx.supplier_name || null,
+      total_amount: Number(tx.total_amount || 0),
+      paid_amount: Number(tx.paid_amount || 0),
+      due_amount: Number(tx.due_amount || 0),
+      payment_method: tx.payment_method || "Cash",
+      category: tx.category || null,
+      note: tx.note || null,
+      linked_order_id: tx.linked_order_id || null,
+      items: Array.isArray(tx.items) ? tx.items : [],
+      created_at: tx.created_at || new Date().toISOString()
+    };
+
+    const { data, error } = await supabaseAdmin
+      .from("khata_transactions")
+      .upsert([payload], { onConflict: "id" })
+      .select()
+      .maybeSingle();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true, transaction: data || payload });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/khata/customers", requireAuth, async (req, res) => {
+  try {
+    const pharmacyId = await resolveRequestPharmacyId(req);
+    if (!pharmacyId) return res.status(400).json({ error: "No pharmacy associated." });
+
+    const c = req.body;
+    const payload = {
+      id: c.id || crypto.randomUUID(),
+      pharmacy_id: pharmacyId,
+      name: c.name || "Customer",
+      phone: c.phone || null,
+      address: c.address || null,
+      total_due: Number(c.total_due ?? c.totalDue ?? 0),
+      notes: c.notes || null,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabaseAdmin
+      .from("khata_customers")
+      .upsert([payload], { onConflict: "id" })
+      .select()
+      .maybeSingle();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true, customer: data || payload });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/khata/suppliers", requireAuth, async (req, res) => {
+  try {
+    const pharmacyId = await resolveRequestPharmacyId(req);
+    if (!pharmacyId) return res.status(400).json({ error: "No pharmacy associated." });
+
+    const s = req.body;
+    const payload = {
+      id: s.id || crypto.randomUUID(),
+      pharmacy_id: pharmacyId,
+      name: s.name || "Supplier",
+      company: s.company || null,
+      phone: s.phone || null,
+      total_payable: Number(s.total_payable ?? s.totalPayable ?? 0),
+      is_medichain: Boolean(s.is_medichain),
+      notes: s.notes || null,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabaseAdmin
+      .from("khata_suppliers")
+      .upsert([payload], { onConflict: "id" })
+      .select()
+      .maybeSingle();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true, supplier: data || payload });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

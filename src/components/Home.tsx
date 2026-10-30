@@ -48,6 +48,7 @@ interface HomeProps {
   onAddToCart: (productId: string, qty: number) => Promise<boolean>;
   onToggleFavourite: (productId: string) => void;
   favouriteIds: string[];
+  pharmacyId?: string;
   pharmacyName?: string;
   onOpenProductDetails: (product: Product) => void;
   onOpenNotifications?: () => void;
@@ -66,6 +67,7 @@ export default function Home({
   onAddToCart,
   onToggleFavourite,
   favouriteIds,
+  pharmacyId,
   pharmacyName = "City Pharma",
   onOpenProductDetails,
   onOpenNotifications,
@@ -92,7 +94,7 @@ export default function Home({
   // Pharma-Smart Khata Hub state
   const [isKhataHubOpen, setIsKhataHubOpen] = useState(false);
   const [khataInitialTab, setKhataInitialTab] = useState<KhataTab>('dashboard');
-  const { summary: khataSummary } = usePharmaKhata({ pharmacyName, orders });
+  const { summary: khataSummary } = usePharmaKhata({ pharmacyId, pharmacyName, orders });
 
   const handleOpenKhataHub = (tab: KhataTab = 'dashboard') => {
     setKhataInitialTab(tab);
@@ -724,6 +726,7 @@ export default function Home({
       <PharmaKhataHub
         isOpen={isKhataHubOpen}
         onClose={() => setIsKhataHubOpen(false)}
+        pharmacyId={pharmacyId}
         pharmacyName={pharmacyName}
         orders={orders}
         onOpenCart={onOpenCart}

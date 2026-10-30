@@ -9,6 +9,7 @@ import {
 import { Order } from "../types";
 import { isSupabaseConfigured, supabase } from "../lib/supabaseClient";
 import { orderService, productService } from "../services";
+import { apiFetch, safeJsonResponse } from "../lib/apiFetch";
 import { toBengaliNumber } from "../lib/utils";
 
 interface UsePharmaKhataProps {
@@ -23,6 +24,31 @@ const STORAGE_PREFIX = "medichain_pharma_khata_v4_";
  * Robust Client-Side UUID v4 Generator
  * Guarantees RFC4122 compliance before saving to localStorage or upserting to Supabase
  */
+export function isUUID(str?: string): boolean {
+  return Boolean(str && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str));
+}
+
+export function resolveActivePharmacyId(explicitId?: string): string {
+  if (isUUID(explicitId)) {
+    return explicitId!;
+  }
+  if (typeof window !== "undefined") {
+    try {
+      const ph = localStorage.getItem("medichain_pharmacy");
+      if (ph) {
+        const parsed = JSON.parse(ph);
+        if (isUUID(parsed.id)) return parsed.id;
+      }
+      const u = localStorage.getItem("medichain_user");
+      if (u) {
+        const parsed = JSON.parse(u);
+        if (isUUID(parsed.pharmacy_id)) return parsed.pharmacy_id;
+      }
+    } catch (_) {}
+  }
+  return explicitId && explicitId !== "default-pharmacy" ? explicitId : "default-pharmacy";
+}
+
 export function generateUUID(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -62,8 +88,10 @@ const getInitialSeedData = (_pharmacyId: string = "default") => {
   };
 };
 
-export function usePharmaKhata({ pharmacyId = "default-pharmacy", pharmacyName = "City Pharma", orders = [] }: UsePharmaKhataProps = {}) {
-  const storageKey = useMemo(() => `${STORAGE_PREFIX}${pharmacyId}`, [pharmacyId]);
+export function usePharmaKhata({ pharmacyId: rawPharmacyId, pharmacyName = "City Pharma", orders = [] }: UsePharmaKhataProps = {}) {
+  const activePharmacyId = useMemo(() => resolveActivePharmacyId(rawPharmacyId), [rawPharmacyId]);
+  const pharmacyId = activePharmacyId;
+  const storageKey = useMemo(() => `${STORAGE_PREFIX}${activePharmacyId}`, [activePharmacyId]);
 
   const [customers, setCustomers] = useState<KhataCustomer[]>([]);
   const [suppliers, setSuppliers] = useState<KhataSupplier[]>([]);
@@ -72,13 +100,13 @@ export function usePharmaKhata({ pharmacyId = "default-pharmacy", pharmacyName =
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Load state from localStorage or start with clean initial data
-  const loadData = useCallback(() => {
+  // Load state from localStorage immediately (0ms) and sync with remote database
+  const loadData = useCallback(async () => {
     try {
       // Proactively purge old mock storage versions if present
       ["v1", "v2", "v3"].forEach(v => {
         try {
-          localStorage.removeItem(`medichain_pharma_khata_${v}_${pharmacyId}`);
+          localStorage.removeItem(`medichain_pharma_khata_${v}_${activePharmacyId}`);
         } catch (_) {}
       });
 
@@ -95,38 +123,101 @@ export function usePharmaKhata({ pharmacyId = "default-pharmacy", pharmacyName =
         setSuppliers(sanitizedSuppliers);
         setTransactions(sanitizedTransactions);
         setShortBook(sanitizedShortBook);
-
-        // Update localStorage with clean sanitized state
-        const sanitizedBundle = {
-          customers: sanitizedCustomers,
-          suppliers: sanitizedSuppliers,
-          transactions: sanitizedTransactions,
-          shortBook: sanitizedShortBook,
-          updatedAt: new Date().toISOString()
-        };
-        localStorage.setItem(storageKey, JSON.stringify(sanitizedBundle));
       } else {
-        const { seedCustomers, seedSuppliers, seedTransactions, seedShortBook } = getInitialSeedData(pharmacyId);
+        const { seedCustomers, seedSuppliers, seedTransactions, seedShortBook } = getInitialSeedData(activePharmacyId);
         setCustomers(seedCustomers);
         setSuppliers(seedSuppliers);
         setTransactions(seedTransactions);
         setShortBook(seedShortBook);
-
-        const initialBundle = {
-          customers: seedCustomers,
-          suppliers: seedSuppliers,
-          transactions: seedTransactions,
-          shortBook: seedShortBook,
-          updatedAt: new Date().toISOString()
-        };
-        localStorage.setItem(storageKey, JSON.stringify(initialBundle));
       }
     } catch (e) {
       console.warn("Failed to read Khata from localStorage:", e);
     } finally {
       setIsLoading(false);
     }
-  }, [storageKey, pharmacyId]);
+
+    // Remote database synchronization
+    try {
+      setIsSyncing(true);
+      const res = await apiFetch("/api/khata/bundle");
+      const parsed = await safeJsonResponse(res);
+
+      if (parsed.ok && parsed.data) {
+        const data = parsed.data as any;
+        if (Array.isArray(data.shortBook)) {
+          setShortBook(prev => {
+            const dbIds = new Set(data.shortBook.map((s: any) => s.id));
+            const localOnly = prev.filter(s => !dbIds.has(s.id));
+            const merged = [...data.shortBook, ...localOnly];
+            try {
+              const currentRaw = localStorage.getItem(storageKey);
+              const currentParsed = currentRaw ? JSON.parse(currentRaw) : {};
+              localStorage.setItem(storageKey, JSON.stringify({
+                ...currentParsed,
+                shortBook: merged,
+                updatedAt: new Date().toISOString()
+              }));
+            } catch (_) {}
+            return merged;
+          });
+        }
+        if (Array.isArray(data.customers) && data.customers.length > 0) setCustomers(data.customers);
+        if (Array.isArray(data.suppliers) && data.suppliers.length > 0) setSuppliers(data.suppliers);
+        if (Array.isArray(data.transactions) && data.transactions.length > 0) setTransactions(data.transactions);
+      } else if (isSupabaseConfigured && supabase && isUUID(activePharmacyId)) {
+        const { data: dbShorts } = await supabase
+          .from("khata_short_book")
+          .select("*")
+          .eq("pharmacy_id", activePharmacyId)
+          .order("created_at", { ascending: false });
+
+        if (Array.isArray(dbShorts)) {
+          setShortBook(prev => {
+            const dbIds = new Set(dbShorts.map(s => s.id));
+            const localOnly = prev.filter(s => !dbIds.has(s.id));
+            const merged = [...dbShorts, ...localOnly];
+            try {
+              const currentRaw = localStorage.getItem(storageKey);
+              const currentParsed = currentRaw ? JSON.parse(currentRaw) : {};
+              localStorage.setItem(storageKey, JSON.stringify({
+                ...currentParsed,
+                shortBook: merged,
+                updatedAt: new Date().toISOString()
+              }));
+            } catch (_) {}
+            return merged;
+          });
+        }
+      }
+    } catch (remoteErr) {
+      console.warn("Khata remote bundle sync notice:", remoteErr);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [storageKey, activePharmacyId]);
+
+  // Synchronize state across multiple hook instances and tabs
+  useEffect(() => {
+    const handleKhataSync = () => {
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed.shortBook)) setShortBook(parsed.shortBook);
+          if (Array.isArray(parsed.customers)) setCustomers(parsed.customers);
+          if (Array.isArray(parsed.suppliers)) setSuppliers(parsed.suppliers);
+          if (Array.isArray(parsed.transactions)) setTransactions(parsed.transactions);
+        }
+      } catch (_) {}
+    };
+
+    window.addEventListener("khataUpdated", handleKhataSync);
+    window.addEventListener("storage", handleKhataSync);
+    return () => {
+      window.removeEventListener("khataUpdated", handleKhataSync);
+      window.removeEventListener("storage", handleKhataSync);
+    };
+  }, [storageKey]);
 
   useEffect(() => {
     loadData();
@@ -244,9 +335,22 @@ export function usePharmaKhata({ pharmacyId = "default-pharmacy", pharmacyName =
     if (hasChanges) {
       setSuppliers(updatedSuppliers);
       setTransactions(updatedTransactions);
-      persistState(customers, updatedSuppliers, updatedTransactions, shortBook);
+
+      let currentShortBook = shortBook;
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed.shortBook) && parsed.shortBook.length > currentShortBook.length) {
+            currentShortBook = parsed.shortBook;
+          }
+        }
+      } catch (_) {}
+
+      persistState(customers, updatedSuppliers, updatedTransactions, currentShortBook);
+      window.dispatchEvent(new CustomEvent("khataUpdated"));
     }
-  }, [orders, suppliers, transactions, customers, shortBook, pharmacyId, persistState]);
+  }, [orders, suppliers, transactions, customers, shortBook, activePharmacyId, persistState, storageKey]);
 
   // 2. Checkout Completion Hook:
   // Automatically transition Short Book items currently marked 'In Cart' to 'Ordered' upon successful checkout
@@ -772,9 +876,11 @@ export function usePharmaKhata({ pharmacyId = "default-pharmacy", pharmacyName =
     const estPrice = params.estimated_price ?? params.estimatedPrice ?? 0;
 
     const newShortId = generateUUID();
+    const targetPharmacyId = isUUID(activePharmacyId) ? activePharmacyId : undefined;
+
     const newItem: KhataShortItem = {
       id: newShortId,
-      pharmacy_id: pharmacyId,
+      pharmacy_id: targetPharmacyId,
       product_id: params.productId || null,
       medicine_name: medName,
       generic_name: genName,
@@ -790,13 +896,25 @@ export function usePharmaKhata({ pharmacyId = "default-pharmacy", pharmacyName =
     const updated = [newItem, ...shortBook];
     setShortBook(updated);
     persistState(customers, suppliers, transactions, updated);
+    window.dispatchEvent(new CustomEvent("khataUpdated"));
 
-    // Idempotent Upsert to Supabase
-    if (isSupabaseConfigured && supabase) {
+    // 1. Backend REST API Sync
+    try {
+      await apiFetch("/api/khata/short-book", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newItem)
+      });
+    } catch (apiErr) {
+      console.warn("Backend add short item notice:", apiErr);
+    }
+
+    // 2. Direct Supabase Client Fallback
+    if (isSupabaseConfigured && supabase && targetPharmacyId) {
       try {
         await supabase.from("khata_short_book").upsert([{
           id: newShortId,
-          pharmacy_id: pharmacyId,
+          pharmacy_id: targetPharmacyId,
           product_id: params.productId || null,
           medicine_name: medName,
           generic_name: genName,
@@ -813,12 +931,21 @@ export function usePharmaKhata({ pharmacyId = "default-pharmacy", pharmacyName =
     }
 
     return newItem;
-  }, [customers, suppliers, transactions, shortBook, pharmacyId, persistState]);
+  }, [customers, suppliers, transactions, shortBook, activePharmacyId, persistState]);
 
   const removeShortItem = useCallback(async (id: string) => {
     const updated = shortBook.filter(s => s.id !== id);
     setShortBook(updated);
     persistState(customers, suppliers, transactions, updated);
+    window.dispatchEvent(new CustomEvent("khataUpdated"));
+
+    try {
+      await apiFetch(`/api/khata/short-book/${encodeURIComponent(id)}`, {
+        method: "DELETE"
+      });
+    } catch (apiErr) {
+      console.warn("Backend delete short item notice:", apiErr);
+    }
 
     if (isSupabaseConfigured && supabase) {
       try {
@@ -833,10 +960,21 @@ export function usePharmaKhata({ pharmacyId = "default-pharmacy", pharmacyName =
     const updated = shortBook.map(s => s.id === id ? { ...s, status } : s);
     setShortBook(updated);
     persistState(customers, suppliers, transactions, updated);
+    window.dispatchEvent(new CustomEvent("khataUpdated"));
+
+    try {
+      await apiFetch("/api/khata/short-book/bulk-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [id], status })
+      });
+    } catch (apiErr) {
+      console.warn("Backend update short status notice:", apiErr);
+    }
 
     if (isSupabaseConfigured && supabase) {
       try {
-        await supabase.from("khata_short_book").upsert([{ id, status }], { onConflict: "id" });
+        await supabase.from("khata_short_book").update({ status }).eq("id", id);
       } catch (err) {
         console.warn("Supabase update short status notice:", err);
       }
@@ -912,15 +1050,28 @@ export function usePharmaKhata({ pharmacyId = "default-pharmacy", pharmacyName =
       setShortBook(updatedShortBook);
       persistState(customers, suppliers, transactions, updatedShortBook);
 
+      if (addedItemIds.length > 0) {
+        try {
+          await apiFetch("/api/khata/short-book/bulk-status", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids: addedItemIds, status: "In Cart" })
+          });
+        } catch (apiErr) {
+          console.warn("Backend bulk status update notice:", apiErr);
+        }
+      }
+
       if (isSupabaseConfigured && supabase) {
         try {
           for (const id of addedItemIds) {
-            await supabase.from("khata_short_book").upsert([{ id, status: "In Cart" }], { onConflict: "id" });
+            await supabase.from("khata_short_book").update({ status: "In Cart" }).eq("id", id);
           }
         } catch (err) {
           console.warn("Supabase short book status sync notice:", err);
         }
       }
+      window.dispatchEvent(new CustomEvent("khataUpdated"));
 
       // Trigger global cart update event
       window.dispatchEvent(new CustomEvent("cartUpdated"));

@@ -2906,6 +2906,62 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - Tested module loading with Node ESM: Verified `server.js` loads Express instance with `.handle` cleanly in 0ms without `EADDRINUSE`.
   - Verified TypeScript compilation (`npm run lint` / `tsc --noEmit`): 0 errors.
   - Verified production build (`npm run build`): 100% success.
+
+### TASK 128: Pharma-Smart Khata & Short Book Permanent Database Synchronization & Re-open Persistence Fix
+- **SUMMARY:**
+  - **Issue Reported**: In the "Short Khata" (শর্ট খাতা - out-of-stock medicine shortage tracker), entries added by the user appeared immediately in the view, but upon browser refresh or reopening the app, the data disappeared completely and failed to sync to the database.
+  - **Root Cause**:
+    1. **Invalid UUID Type Rejection (`usePharmaKhata.ts`)**: `pharmacyId` was omitted in `App.tsx` and `Home.tsx`, defaulting to the string `"default-pharmacy"`. The PostgreSQL schema (`supabase/migrations/20_pharma_smart_khata.sql`) defines `pharmacy_id UUID REFERENCES public.pharmacies(id)`. Upserting with `"default-pharmacy"` caused Postgres to reject the record with `22P02 invalid input syntax for type uuid: "default-pharmacy"`, preventing database saves.
+    2. **Zero Database Fetch on Load**: `loadData()` in `usePharmaKhata.ts` only read from `localStorage` and never queried the Supabase database (`khata_short_book`, `khata_customers`, `khata_suppliers`, `khata_transactions`) on initialization or refresh.
+    3. **Multi-Instance State Collision**: Both `Home.tsx` (for the homepage widget summary) and `PharmaKhataHub.tsx` (for the full modal drawer) mounted independent instances of `usePharmaKhata`. When `PharmaKhataHub` saved a new item to `localStorage`, `Home.tsx` remained on its empty in-memory state. Subsequent order-sync or render triggers in `Home.tsx` called `persistState` with its stale empty `shortBook: []`, overwriting and wiping out `localStorage`.
+    4. **Missing Backend REST Endpoints**: No dedicated server endpoints existed for `/api/khata/*`, making synchronization brittle if direct browser-to-Supabase client calls faced RLS or token renewal gaps.
+  - **Resolution**:
+    1. **Dedicated Backend API Endpoints (`server.ts`)**:
+       - `GET /api/khata/bundle`: Authenticated endpoint that automatically resolves the user's pharmacy UUID and loads `shortBook`, `customers`, `suppliers`, and `transactions` in a single high-performance query.
+       - `POST /api/khata/short-book`: Validates and upserts short book items with guaranteed verified `pharmacy_id`.
+       - `DELETE /api/khata/short-book/:id`: Scoped deletion by item ID and pharmacy ID.
+       - `POST /api/khata/short-book/bulk-status`: Batch updates status (e.g. `'In Cart'`, `'Ordered'`).
+    2. **Auto-Resolution of Pharmacy UUID (`src/hooks/usePharmaKhata.ts`)**:
+       - Implemented `resolveActivePharmacyId` to dynamically inspect `explicitId`, `localStorage` (`medichain_pharmacy.id` or `medichain_user.pharmacy_id`). Ensures all database operations use the valid PostgreSQL UUID.
+    3. **Asynchronous Dual-Layer Sync on Init & Reopen (`usePharmaKhata.ts`)**:
+       - `loadData()` performs an instant optimistic read from `localStorage` for 0ms rendering, followed immediately by remote bundle synchronization from `/api/khata/bundle` with direct Supabase fallback.
+       - Merges remote and local items seamlessly without data loss.
+    4. **Universal Cross-Component Khata Event Bus (`usePharmaKhata.ts`)**:
+       - Dispatches `khataUpdated` CustomEvent on `window` upon any add, remove, or status change.
+       - All hook instances listen to `khataUpdated` and synchronize their React state directly from the updated bundle, eliminating stale-closure overwrites between `Home.tsx` and `PharmaKhataHub`.
+    5. **Prop Propagation (`src/App.tsx` & `src/components/Home.tsx`)**:
+       - Added `pharmacyId?: string` to `HomeProps` and passed `pharmacyId={pharmacy?.id}` from `App.tsx` to `Home.tsx` and into `PharmaKhataHub`.
+- **VERIFICATION:**
+  - Tested Supabase `khata_short_book` upsert, select, status update, and delete with live pharmacy UUID: 100% success.
+  - Verified TypeScript compilation (`npm run lint` / `tsc --noEmit`): 0 errors.
+  - Verified production build (`npm run build`): 100% success.
+  - Verified full test suite (`npx tsx tests/pharmaKhata.test.ts`): 12/12 passing.
+
+### TASK 129: Multi-Role User Authentication, Session Sync & Pharmacy Onboarding Wizard Bypass Fix for Vercel Production
+- **SUMMARY:**
+  - **Issue Reported**: Existing users logging into production Vercel (`https://medichainbd.vercel.app`) were improperly shown the "Pharmacy Onboarding Wizard" modal dialog (`<ProfileSetup>`) asking for pharmacy name, license, and owner details, instead of routing to their respective application role (Admin Panel for admins, Depot Dashboard for depot staff, Delivery Dashboard for riders, and Pharmacy Storefront for existing verified pharmacy owners).
+  - **Root Cause**:
+    1. **False `needsSetup` Flag on Special Roles (`server.ts`)**: In `/api/auth/sync-session`, `needsSetup` was calculated as `(!pharmacy || !pharmacy.pharmacyName)`. Because Admins, Depot Staff, and Delivery Staff do not hold pharmacy accounts, `!pharmacy` evaluated to `true`, erroneously sending `needsSetup: true` to the frontend.
+    2. **PostgreSQL RLS 42P17 Infinite Recursion on Client Reads**: Direct frontend queries with the Supabase public `anon` key against `public.users` and `public.pharmacies` failed with Postgres error `42P17 infinite recursion detected in policy for relation "users"`. This prevented client-side role resolution before server sync, causing roles to fall back to the default `"Pharmacy Owner"`.
+    3. **Premature View Hijacking in Frontend Guards (`src/App.tsx`)**: In `renderMobileContent()`, an eager check `if (!hasPharmacy)` immediately returned `<ProfileSetup>` even when `appStep` was set to `"main"` while `pharmacy` state was being populated asynchronously.
+    4. **Incomplete Payload on Cold-Start Session Sync (`src/services/auth.ts`)**: `authService.login` only passed `{ name }` in the `/api/auth/sync-session` POST body. If the Bearer token lookup encountered transient gateway latency on Vercel, the server rejected the request with `400 Missing required session parameters (id, email)`.
+  - **Resolution**:
+    1. **Strict Special Role Exemption (`server.ts`)**:
+       - In `POST /api/auth/sync-session`, evaluated `isSpecialRole = ["Admin", "Depot Staff", "Delivery Staff"].includes(user.role)`.
+       - For special roles, `needsSetup` is strictly set to `false`.
+    2. **Authoritative Backend Role Resolution (`src/services/auth.ts`)**:
+       - `authService.login` and `syncActiveSession` now pass `{ id: user.id, email: user.email, name }` in the POST body, ensuring robust identification across serverless cold starts.
+       - Retired vulnerable client-side anon queries on `public.users` in favor of authoritative backend responses powered by `supabaseAdmin` service role credentials.
+       - In fallback scenarios, respects `user_metadata.role` and never forces `needsSetup = true` for staff or admins.
+    3. **Protected Navigation Guards (`src/App.tsx`)**:
+       - In `renderMobileContent()`, `<ProfileSetup>` is rendered exclusively when `appStep === "setup"`. When on `"main"`, `isProfileLoading` renders `<LoadingScreen />` until pharmacy profile resolution completes.
+       - `handleLoginSuccess` immediately routes special roles (`Admin`, `Depot Staff`, `Delivery Staff`) to their dedicated cockpits.
+    4. **Idempotent RLS Non-Recursive Policy Migration (`supabase/migrations/21_fix_users_rls_recursion.sql`)**:
+       - Standardized `public.users` and `public.pharmacies` SELECT and UPDATE policies to evaluate `(SELECT auth.uid())` without recursive self-referencing subqueries.
+- **VERIFICATION:**
+  - Tested `/api/auth/sync-session` across all role types: Admins and Staff receive `needsSetup: false` and navigate to their dashboards. Verified existing pharmacy owners receive their verified pharmacy record without onboarding prompts.
+  - Verified TypeScript compilation (`npm run lint` / `tsc --noEmit`): 0 errors.
+  - Verified production build (`npm run build`): 100% success.
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).
