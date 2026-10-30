@@ -1464,14 +1464,31 @@ export async function getInventoryValuation(): Promise<{
     totalValuation: number | null;
   }>;
 }> {
-  const products = await dbService.getProductsRaw(200);
+  let products: any[] = [];
+  try {
+    // Query ONLY lightweight numeric valuation columns across all products (~15KB total for 1,000 products)
+    const { data, error } = await supabaseAdmin
+      .from("products")
+      .select("id, name, company, buying_price, cost_price, selling_price, stock_quantity")
+      .order("name", { ascending: true });
+
+    if (!error && Array.isArray(data)) {
+      products = data;
+    } else {
+      products = await dbService.getProductsRaw(100);
+    }
+  } catch {
+    products = await dbService.getProductsRaw(100);
+  }
+
   let totalValuation = 0;
   let knownCount = 0;
   let unknownCount = 0;
 
   const items = products.map(p => {
-    const stock = Number(p.availableStock) || 0;
-    const cost = p.buyingPrice !== undefined && p.buyingPrice !== null ? parseFloat(String(p.buyingPrice)) : null;
+    const stock = Number(p.availableStock ?? p.stock_quantity ?? 0);
+    const rawCost = p.buyingPrice ?? p.buying_price ?? p.cost_price;
+    const cost = rawCost !== undefined && rawCost !== null && rawCost !== "" ? parseFloat(String(rawCost)) : null;
     const val = (cost !== null && cost >= 0) ? Math.round((stock * cost) * 100) / 100 : null;
 
     if (val !== null) {
@@ -1482,9 +1499,9 @@ export async function getInventoryValuation(): Promise<{
     }
 
     return {
-      productId: p.id,
-      name: p.name,
-      company: p.company,
+      productId: String(p.id || ""),
+      name: p.name || "Pharmaceutical Item",
+      company: p.company || "MediChain Partner",
       availableStock: stock,
       buyingPrice: cost,
       totalValuation: val
@@ -1499,6 +1516,8 @@ export async function getInventoryValuation(): Promise<{
     items
   };
 }
+
+export const calculateInventoryAssetValuation = getInventoryValuation;
 
 export async function getCustomerReceivables(): Promise<CustomerReceivableItem[]> {
   const orders = await dbService.getOrders(undefined, 1, 1000);

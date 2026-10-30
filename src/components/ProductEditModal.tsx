@@ -18,6 +18,7 @@ import {
 import { Product } from "../types";
 import { CATEGORY_GROUPS } from "../constants/categories";
 import SearchableCategorySelect from "./SearchableCategorySelect";
+import { storageService } from "../services/storage";
 
 interface ProductEditModalProps {
   product?: Product | null;
@@ -91,7 +92,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
   if (!isOpen) return null;
 
-  const processFile = (file: File) => {
+  const processFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
       setErrorMessage("Please upload a valid image file (PNG, JPG, WEBP)");
       return;
@@ -105,18 +106,31 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     setErrorMessage("");
     setIsUploading(true);
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      setImageUrl(result);
+    try {
+      // 1. Show instant local preview
+      const previewUrl = URL.createObjectURL(file);
+      setImageUrl(previewUrl);
+
+      // 2. Upload to Supabase Storage "product-images" bucket via backend proxy or direct client
+      const uploaded = await storageService.uploadProductImage(file);
+      if (uploaded?.url) {
+        setImageUrl(uploaded.url);
+        setUploadSuccess(true);
+      } else {
+        throw new Error("Empty URL returned from storage service");
+      }
+    } catch (err: any) {
+      console.warn("Storage upload notice in ProductEditModal:", err);
+      // Fallback: read file data URL (backend will auto-convert to Supabase Storage URL on save)
+      const reader = new FileReader();
+      reader.onload = () => {
+        setImageUrl(reader.result as string);
+        setUploadSuccess(true);
+      };
+      reader.readAsDataURL(file);
+    } finally {
       setIsUploading(false);
-      setUploadSuccess(true);
-    };
-    reader.onerror = () => {
-      setErrorMessage("Failed to read image file");
-      setIsUploading(false);
-    };
-    reader.readAsDataURL(file);
+    }
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -191,8 +205,8 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       availableStock: numStock,
       batchNumber: batchNumber.trim() || "BN-2026-X",
       expiryDate: expiryDate || new Date().toISOString().split("T")[0],
-      imageUrl: imageUrl.trim(),
-      image_url: imageUrl.trim(),
+      imageUrl: imageUrl.startsWith("blob:") ? (product?.imageUrl || product?.image_url || "") : imageUrl.trim(),
+      image_url: imageUrl.startsWith("blob:") ? (product?.imageUrl || product?.image_url || "") : imageUrl.trim(),
     };
 
     try {

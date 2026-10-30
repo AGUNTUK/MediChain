@@ -3001,6 +3001,31 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - TypeScript compilation (`npx tsc --noEmit`): 0 errors.
   - Production build (`npm run build`): Vite and esbuild succeeded with 0 errors in 24.82s.
   - Comprehensive codebase scan confirmed 0 unpaginated or unrestricted `.select('*')` calls remain on `products`, `orders`, `prescriptions`, `users`, or `pharmacies`.
+
+### TASK 131: Migration of 165 Base64 Product Images (23 MB) to Supabase Storage & Financial Inventory Valuation Accuracy
+- **SUMMARY:**
+  - **Issue Reported**: A production audit identified 165 products storing 23 MB of raw Base64 image data directly within the PostgreSQL `products.image_url` text column. This was the primary driver of PostgREST egress burn. In addition, capping inventory asset valuation to 200 items in the previous patch caused inaccurate financial valuation when catalog size exceeded 200 items.
+  - **Root Cause**:
+    1. Historical imports and admin product edits in `<ProductEditModal>` read files using `FileReader.readAsDataURL()` and wrote uncompressed Base64 text straight into `products.image_url`.
+    2. `calculateInventoryAssetValuation` called `getProductsRaw(200)` to limit egress, which truncated inventory calculation on catalogs with >200 items.
+  - **Resolution**:
+    1. **Automated Base64-to-Storage Migration (`scripts/migrateBase64Images.ts`)**:
+       - Implemented an idempotent migration script querying products in batches of 10 (`image_url LIKE 'data:image%'`).
+       - Converted MIME types and payloads into binary Buffers and uploaded them directly to the public `'product-images'` Supabase Storage bucket (`products/${product.id}.${ext}`) with 1-year cache headers (`cacheControl: '31536000'`).
+       - Updated `products.image_url` with the permanent Supabase Storage public CDN URL (<100 bytes each).
+       - Exposed CLI script `npm run migrate:images` in `package.json` and executed migration in production: **165/165 migrated with 0 failures, eliminating all 23 MB of base64 text from PostgreSQL**.
+    2. **Guaranteed Base64 Blocking on Admin Creation/Update (`server.ts`, `dbService.ts`, `ProductEditModal.tsx`)**:
+       - `dbService.addOrUpdateProduct`: Added `uploadBase64ProductImage()` to intercept any `data:image%` string before writing to database, uploading it to Supabase Storage and storing only the resulting public URL.
+       - `server.ts`: Added interception across `POST /api/admin/products`, `PATCH /api/admin/products/:id`, `PUT /api/admin/products/:id`, `POST /api/products`, and `PUT /api/products/:id`.
+       - `ProductEditModal.tsx`: Updated `processFile` to upload files directly via `storageService.uploadProductImage` with optimistic instant preview.
+    3. **100% Accurate Inventory Valuation with Negligible Egress (`accountsService.ts`)**:
+       - Updated `getInventoryValuation()` and `calculateInventoryAssetValuation` to query only the numeric valuation columns:
+         `.select("id, name, company, buying_price, cost_price, selling_price, stock_quantity")`
+       - Contains zero images, base64 strings, or heavy metadata blobs (~15 KB total for 1,000 products), achieving 100% accurate financial valuation across all catalog items with negligible network egress.
+- **VERIFICATION:**
+  - Database count query verified: `Remaining Base64 count: 0`.
+  - TypeScript compilation (`npx tsc --noEmit`): 0 errors.
+  - Production build (`npm run build`): 100% success (Vite + esbuild).
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).

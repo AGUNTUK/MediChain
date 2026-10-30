@@ -5175,6 +5175,21 @@ async function handleStockChangeNotifications(oldStock: number | undefined, newS
 
 app.post("/api/admin/products", requireRole(["Admin"]), validateBody(schemas.adminProduct), async (req, res) => {
   const productData = req.body;
+
+  // Intercept and auto-upload any Base64 data URI before database write
+  if (productData.image_url && typeof productData.image_url === "string" && productData.image_url.startsWith("data:image")) {
+    const uploadedUrl = await dbService.uploadBase64ProductImage(productData.image_url, productData.id);
+    if (uploadedUrl) {
+      productData.image_url = uploadedUrl;
+    }
+  }
+  if (productData.imageUrl && typeof productData.imageUrl === "string" && productData.imageUrl.startsWith("data:image")) {
+    const uploadedUrl = await dbService.uploadBase64ProductImage(productData.imageUrl, productData.id);
+    if (uploadedUrl) {
+      productData.imageUrl = uploadedUrl;
+    }
+  }
+
   const validation = validateProduct(productData);
   if (!validation.isValid) {
     return res.status(400).json({ error: validation.error });
@@ -5248,6 +5263,21 @@ app.patch("/api/admin/products/:id", requireRole(["Admin"]), async (req, res) =>
 
     const oldStock = existing.availableStock;
     const updates = req.body;
+
+    // Intercept and auto-upload any Base64 data URI before database write
+    if (updates.image_url && typeof updates.image_url === "string" && updates.image_url.startsWith("data:image")) {
+      const uploadedUrl = await dbService.uploadBase64ProductImage(updates.image_url, req.params.id);
+      if (uploadedUrl) {
+        updates.image_url = uploadedUrl;
+      }
+    }
+    if (updates.imageUrl && typeof updates.imageUrl === "string" && updates.imageUrl.startsWith("data:image")) {
+      const uploadedUrl = await dbService.uploadBase64ProductImage(updates.imageUrl, req.params.id);
+      if (uploadedUrl) {
+        updates.imageUrl = uploadedUrl;
+      }
+    }
+
     const merged = { ...existing, ...updates, id: req.params.id };
 
     // Validate merged product
@@ -5298,6 +5328,84 @@ app.delete("/api/admin/products/:id", requireRole(["Admin"]), async (req, res) =
     clearProductCache();
 
     res.json({ success: true, message: "Product deleted successfully." });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- PRODUCT MUTATION ALIASES (BLOCK BASE64 ACROSS ALL ROUTES) ---
+app.post("/api/products", requireRole(["Admin"]), validateBody(schemas.adminProduct), async (req, res) => {
+  const productData = req.body;
+
+  if (productData.image_url && typeof productData.image_url === "string" && productData.image_url.startsWith("data:image")) {
+    const uploadedUrl = await dbService.uploadBase64ProductImage(productData.image_url, productData.id);
+    if (uploadedUrl) productData.image_url = uploadedUrl;
+  }
+  if (productData.imageUrl && typeof productData.imageUrl === "string" && productData.imageUrl.startsWith("data:image")) {
+    const uploadedUrl = await dbService.uploadBase64ProductImage(productData.imageUrl, productData.id);
+    if (uploadedUrl) productData.imageUrl = uploadedUrl;
+  }
+
+  const validation = validateProduct(productData);
+  if (!validation.isValid) {
+    return res.status(400).json({ error: validation.error });
+  }
+
+  try {
+    const saved = await dbService.addOrUpdateProduct(productData);
+    await dbService.logAudit(`Product ${productData.id ? "updated" : "created"}: ${productData.name}`, "Products", saved.id, req.user.email, req.user.role);
+    clearProductCache();
+    res.json({ success: true, message: "Product saved successfully.", product: saved });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/admin/products/:id", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const existing = await dbService.getProductById(req.params.id);
+    if (!existing) return res.status(404).json({ error: "Product not found." });
+
+    const updates = req.body;
+    if (updates.image_url && typeof updates.image_url === "string" && updates.image_url.startsWith("data:image")) {
+      const uploadedUrl = await dbService.uploadBase64ProductImage(updates.image_url, req.params.id);
+      if (uploadedUrl) updates.image_url = uploadedUrl;
+    }
+    if (updates.imageUrl && typeof updates.imageUrl === "string" && updates.imageUrl.startsWith("data:image")) {
+      const uploadedUrl = await dbService.uploadBase64ProductImage(updates.imageUrl, req.params.id);
+      if (uploadedUrl) updates.imageUrl = uploadedUrl;
+    }
+
+    const merged = { ...existing, ...updates, id: req.params.id };
+    const saved = await dbService.addOrUpdateProduct(merged);
+    await dbService.logAudit(`Product updated: ${saved.name}`, "Products", saved.id, req.user.email, req.user.role);
+    clearProductCache();
+    res.json({ success: true, message: "Product updated successfully.", product: saved });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/products/:id", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const existing = await dbService.getProductById(req.params.id);
+    if (!existing) return res.status(404).json({ error: "Product not found." });
+
+    const updates = req.body;
+    if (updates.image_url && typeof updates.image_url === "string" && updates.image_url.startsWith("data:image")) {
+      const uploadedUrl = await dbService.uploadBase64ProductImage(updates.image_url, req.params.id);
+      if (uploadedUrl) updates.image_url = uploadedUrl;
+    }
+    if (updates.imageUrl && typeof updates.imageUrl === "string" && updates.imageUrl.startsWith("data:image")) {
+      const uploadedUrl = await dbService.uploadBase64ProductImage(updates.imageUrl, req.params.id);
+      if (uploadedUrl) updates.imageUrl = uploadedUrl;
+    }
+
+    const merged = { ...existing, ...updates, id: req.params.id };
+    const saved = await dbService.addOrUpdateProduct(merged);
+    await dbService.logAudit(`Product updated: ${saved.name}`, "Products", saved.id, req.user.email, req.user.role);
+    clearProductCache();
+    res.json({ success: true, message: "Product updated successfully.", product: saved });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

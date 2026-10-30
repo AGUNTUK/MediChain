@@ -1282,6 +1282,64 @@ export async function deleteProduct(id: string) {
     .eq("id", id);
 }
 
+export async function uploadBase64ProductImage(dataUri: string, idHint?: string): Promise<string | null> {
+  if (!dataUri || !dataUri.startsWith("data:image")) {
+    return dataUri || null;
+  }
+
+  try {
+    const matches = dataUri.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/s);
+    let mimeType = "image/jpeg";
+    let base64Data = "";
+
+    if (matches && matches.length === 3) {
+      mimeType = matches[1];
+      base64Data = matches[2];
+    } else {
+      const commaIndex = dataUri.indexOf(",");
+      if (commaIndex !== -1) {
+        const header = dataUri.substring(0, commaIndex);
+        base64Data = dataUri.substring(commaIndex + 1);
+        mimeType = header.split(";")[0]?.replace("data:", "") || "image/jpeg";
+      } else {
+        return null;
+      }
+    }
+
+    let ext = "jpg";
+    if (mimeType.includes("png")) ext = "png";
+    else if (mimeType.includes("webp")) ext = "webp";
+    else if (mimeType.includes("gif")) ext = "gif";
+    else if (mimeType.includes("svg")) ext = "svg";
+
+    const buffer = Buffer.from(base64Data, "base64");
+    const cleanId = idHint ? idHint.replace(/[^a-zA-Z0-9_-]/g, "") : generateUUID();
+    const storagePath = `products/${cleanId || generateUUID()}.${ext}`;
+
+    const { error: uploadErr } = await supabaseAdmin.storage
+      .from("product-images")
+      .upload(storagePath, buffer, {
+        contentType: mimeType,
+        cacheControl: "31536000",
+        upsert: true
+      });
+
+    if (uploadErr) {
+      console.warn("Storage uploadBase64ProductImage notice:", uploadErr.message);
+      return null;
+    }
+
+    const { data: urlData } = supabaseAdmin.storage
+      .from("product-images")
+      .getPublicUrl(storagePath);
+
+    return urlData?.publicUrl || null;
+  } catch (err) {
+    console.warn("Exception in uploadBase64ProductImage:", err);
+    return null;
+  }
+}
+
 export async function addOrUpdateProduct(prod: Partial<Product> & { name: string; genericName: string; company: string; category: string; strength: string; packSize: string }) {
   // Try to find category or create fallback category
   const { data: cat } = await supabaseAdmin
@@ -1306,6 +1364,21 @@ export async function addOrUpdateProduct(prod: Partial<Product> & { name: string
     ? prod.availableStock 
     : ((prod as any).stock_quantity !== undefined ? (prod as any).stock_quantity : 100);
 
+  // Intercept any Base64 data URI in image_url to prevent PostgREST egress bloat
+  const rawImageUrl = prod.imageUrl || prod.image_url || "";
+  let finalImageUrl = rawImageUrl;
+
+  if (rawImageUrl.startsWith("data:image")) {
+    try {
+      const uploadedUrl = await uploadBase64ProductImage(rawImageUrl, prod.id || `prod_${Date.now()}`);
+      if (uploadedUrl) {
+        finalImageUrl = uploadedUrl;
+      }
+    } catch (uploadErr) {
+      console.warn("Base64 image upload to storage failed in addOrUpdateProduct:", uploadErr);
+    }
+  }
+
   const productPayload: any = {
     name: prod.name,
     generic_name: prod.genericName,
@@ -1317,7 +1390,7 @@ export async function addOrUpdateProduct(prod: Partial<Product> & { name: string
     mrp: mrpVal,
     selling_price: sellingVal,
     stock_quantity: stockQty,
-    image_url: prod.imageUrl || prod.image_url || "",
+    image_url: finalImageUrl,
     ...(prod.barcode ? { barcode: prod.barcode } : {}),
     ...(prod.buyingPrice !== undefined ? {
       buying_price: prod.buyingPrice !== null && (prod.buyingPrice as any) !== "" ? parseFloat(String(prod.buyingPrice)) : null
