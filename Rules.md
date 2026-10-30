@@ -55,8 +55,9 @@ This document defines the strict operational boundaries, coding patterns, forbid
    - Guard `useEffect` dependencies: avoid objects and array literals as dependencies to prevent infinite re-renders.
    - Memoize costly calculations with `useMemo` or `useCallback`.
 
-3. **Port & Host Constraints:**
-   - Port `3000` and host `0.0.0.0` are hardcoded by Cloud Run infrastructure. Never override or attempt to bind other ports (e.g. 5173, 3001).
+3. **Deployment & Port Ingress:**
+   - In production, API handlers execute via Vercel Serverless Functions (`api/index.ts`).
+   - For local development and container runtime, bind to port `3000` on `0.0.0.0`. Never attempt to bind arbitrary unconfigured ports (e.g. 5173, 3001).
 
 4. **Responsive & Mobile-First:**
    - Minimum touch target size: 44px on mobile devices.
@@ -69,5 +70,5 @@ This document defines the strict operational boundaries, coding patterns, forbid
 - **API Route Handlers:** Always wrap in `try/catch` blocks and return structured JSON: `{ error: string }` or `{ success: true, ... }`.
 - **Database Transactions:** In multi-step operations (e.g., order creation + stock deduction), implement atomic rollbacks to prevent orphaned records.
 - **Mandatory Quality Gates:**
-  1. `lint_applet` (must pass `tsc --noEmit` with 0 errors).
-  2. `compile_applet` (must pass production build `vite build` cleanly).
+  1. `npm run lint` / `tsc --noEmit` (must pass with 0 errors).
+  2. `npm run build` (must pass production Vite bundling cleanly).

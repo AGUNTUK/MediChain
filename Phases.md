@@ -4,7 +4,7 @@ This document outlines the phased lifecycle of MediChain, detailing completed fu
 
 ---
 
-## Completed Phases (Milestones 1 – 15)
+## Completed Phases (Milestones 1 – 13)
 
 ### Phase 1: Foundation & Authentication Setup
 - Core React 19 + TypeScript + Tailwind CSS structure.
@@ -54,13 +54,33 @@ This document outlines the phased lifecycle of MediChain, detailing completed fu
 - In-memory LRU cache (`apiCache.ts`) for sub-100ms catalog read times.
 - Full PWA Service Worker caching (`sw.js`).
 
+### Phase 11: Production Vercel Migration & Serverless API Optimization
+- Migration from Render to Vercel Serverless Functions (`api/index.ts`) and Vercel Edge.
+- Single-bundle serverless function configuration with explicit extension resolution, eliminating `FUNCTION_INVOCATION_FAILED`.
+- Seamless URL rewrites in `vercel.json` routing `/api/*` to the serverless Express backend.
+
+### Phase 12: Pharma Khata Hub & Shortage Book Sync Engine
+- Built comprehensive retail accounts manager:
+  - **Customer Khata** (বাকির খাতা) for managing customer debt and payment reminders.
+  - **Supplier Khata** (পাওনাদার খাতা) for tracking company representatives and payables.
+  - **Smart Shortage Book** (ঘাটতি বই) for auto-recording stockouts and 1-tap cart additions.
+  - **Cashbook & Accounts Ledger** for daily cash inflow/outflow reconciliation.
+- Dual-layer optimistic cache (`usePharmaKhata.ts`): instant 0ms localStorage read + remote Supabase synchronization (`/api/khata/bundle`, `/api/khata/short-book`).
+- Cross-component event bus (`khataUpdated`) eliminating stale-closure state divergence between storefront and Khata hub.
+
+### Phase 13: Non-Recursive RLS Hardening & Special Role Onboarding Exemption
+- Eliminated PostgreSQL error `42P17 infinite recursion detected in policy for relation "users"` by migrating to direct `(SELECT auth.uid())` non-recursive RLS policies.
+- Hardened `/api/auth/sync-session` using `supabaseAdmin` service-role credentials.
+- Exempted special roles (`Admin`, `Depot Staff`, `Delivery Staff`) from the Pharmacy Onboarding Wizard, routing them directly to their dedicated cockpits.
+- Guaranteed existing verified pharmacy owners bypass setup prompts and proceed straight to the store.
+
 ---
 
 ## Current Active Phases & Future Roadmap
 
 | Phase | Title | Focus & Key Deliverables | Status |
 | :--- | :--- | :--- | :--- |
-| **Phase 16** | **Rider Offline Sync** | Background indexedDB sync for delivery status updates in zero-connectivity areas. | ⏳ Planned |
-| **Phase 17** | **Advanced Batch Barcode Generation** | Automated EAN-128 / Code 128 barcode image generator for batch labels. | ⏳ Planned |
-| **Phase 18** | **Automated Telegram Bot Commands** | Two-way Telegram bot commands (`/status [OrderID]`, `/inventory [Generic]`). | ⏳ Planned |
-| **Phase 19** | **Predictive Restock Insights** | AI-driven reorder suggestions based on pharmacy purchasing patterns. | ⏳ Planned |
+| **Phase 14** | **Rider Offline Sync** | Background IndexedDB queue for delivery status updates in zero-connectivity areas. | ⏳ Planned |
+| **Phase 15** | **Automated Batch Barcode Generation** | Automated EAN-128 / Code 128 barcode generator for depot warehouse labels. | ⏳ Planned |
+| **Phase 16** | **Two-Way Telegram Bot Operations** | Interactive Telegram commands (`/status [OrderID]`, `/inventory [Generic]`). | ⏳ Planned |
+| **Phase 17** | **Predictive Restock Insights** | AI-driven reorder suggestions based on retail pharmacy purchasing velocity. | ⏳ Planned |

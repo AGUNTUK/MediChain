@@ -6,7 +6,7 @@ This document outlines the security architecture, authentication lifecycle, Role
 
 ## 1. Authentication Lifecycle
 
-MediChain implements a dual-mode authentication strategy tailored for both production deployment (with Supabase Auth) and offline-capable PWA edge resilience.
+MediChain implements a dual-mode authentication strategy tailored for production serverless deployment on **Vercel** (`https://medichainbd.vercel.app` via `api/index.ts`) with Supabase Auth, alongside local offline-capable development.
 
 ### A. Obtaining a Token
 1. **Frontend Authentication (`src/services/auth.ts`)**:
@@ -22,23 +22,24 @@ MediChain implements a dual-mode authentication strategy tailored for both produ
      ```http
      Authorization: Bearer <SUPABASE_JWT_ACCESS_TOKEN>
      ```
-   - For web session resilience on modern reverse proxies (Cloud Run / Render / Vercel), signed HTTP-only cookies (`cookie-session`) are maintained with `SameSite=None; Secure` in production and a 30-day lifecycle.
+   - For web session resilience on reverse proxies (Vercel Edge / Serverless), signed HTTP-only cookies (`cookie-session`) are maintained with `SameSite=None; Secure` in production and a 30-day lifecycle.
 
-### B. Token Verification (`authenticateRequest` in `server.ts`)
-1. When a request arrives at the Express backend:
+### B. Token Verification & Session Sync (`/api/auth/sync-session` & `server.ts`)
+1. When a request arrives at the backend:
    - The `Authorization` header is inspected for `Bearer <token>`.
-   - The token is cryptographically verified server-side against Supabase using the service role client:
+   - The token is cryptographically verified server-side against Supabase using the service-role client:
      ```ts
      const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
      ```
    - If the token is invalid, expired, or tampered with, the request is rejected immediately with HTTP 401.
 2. If no Bearer token is provided, the backend checks the cryptographic `cookie-session` signature.
-3. **CRITICAL HARDENING (Phase 6)**: The server **never** trusts client-supplied user identity headers (`x-session-user-id`, `x-session-user-role`, or `x-session-pharmacy-id`). Any incoming `x-session-*` headers are completely stripped and ignored.
+3. **CRITICAL HARDENING**: The server **never** trusts client-supplied user identity headers (`x-session-user-id`, `x-session-user-role`, or `x-session-pharmacy-id`). Any incoming `x-session-*` headers are completely stripped and ignored.
+4. **PostgreSQL RLS 42P17 Recursion Immunity**: To prevent client-side recursive policy execution, user role and pharmacy verification are executed server-side via `supabaseAdmin` service-role credentials during `/api/auth/sync-session`. Special roles (`Admin`, `Depot Staff`, `Delivery Staff`) are strictly flagged with `needsSetup: false` to prevent unwarranted onboarding hijacking.
 
 ### C. Role Resolution
 1. Roles are **never** client-assignable. Even if an attacker passes `{ role: "Admin" }` during signup, profile creation, or session synchronization, the role is strictly overridden to `"Pharmacy Owner"`.
 2. Role lookup hierarchy:
-   - Verified Supabase user ID -> Query `users` database table:
+   - Verified Supabase user ID -> Query `users` database table via service-role:
      ```ts
      const { data: profile } = await supabaseAdmin
        .from("users")
@@ -46,7 +47,7 @@ MediChain implements a dual-mode authentication strategy tailored for both produ
        .eq("id", user.id)
        .maybeSingle();
      ```
-   - Role is resolved directly from the authenticated database row.
+   - Role is resolved directly from the authoritative database row.
 
 ---
 
@@ -65,12 +66,19 @@ All protected API endpoints require either `requireAuth` (any valid authenticate
 | `GET /api/hero-carousel` | Public | Active homepage banners |
 | `GET /api/bulk-deals/live` | Public | Active wholesale campaigns |
 | `GET /api/notifications/vapid-public-key` | Public | Web push public key |
-| **Pharmacy Customer Routes** | | |
+| **Pharmacy Customer & Khata Routes** | | |
 | `GET /api/auth/me` | Authenticated Users | Current user profile |
+| `POST /api/auth/sync-session` | Authenticated Users | Authoritative role & onboarding synchronization |
 | `POST /api/orders` | `Pharmacy Owner` | Checkout (COD Exclusive, server-side totals) |
 | `GET /api/orders` | `Pharmacy Owner` (owns order) | Filtered order history (IDOR protected) |
 | `GET /api/orders/:id` | `Pharmacy Owner` (owns order) | Order details & invoice |
 | `POST /api/orders/:id/cancel` | `Pharmacy Owner` (owns order) | Cancel pending order |
+| `GET /api/khata/bundle` | `Pharmacy Owner` | Load complete pharmacy Khata bundle |
+| `POST /api/khata/short-book` | `Pharmacy Owner` | Upsert shortage book item |
+| `DELETE /api/khata/short-book/:id` | `Pharmacy Owner` | Scoped deletion by item and pharmacy ID |
+| `POST /api/khata/short-book/bulk-status` | `Pharmacy Owner` | Batch update shortage statuses |
+| `GET /api/khata/parties` / `POST /api/khata/parties` | `Pharmacy Owner` | Manage Customer & Supplier ledger parties |
+| `GET /api/khata/transactions` / `POST /api/khata/transactions` | `Pharmacy Owner` | Record cashbook & credit ledger entries |
 | `GET /api/cart` / `POST /api/cart` | Authenticated Users | Dedicated user cart store |
 | `GET /api/notifications` | Authenticated Users | Dedicated user notification inbox |
 | `PATCH /api/notifications/:id/read` | Authenticated Users | Mark notification as read |
@@ -103,18 +111,21 @@ All protected API endpoints require either `requireAuth` (any valid authenticate
   - `products`: Public read for active items; write restricted to service role / admin.
   - `orders` & `order_items`: Read/write strictly restricted to owner `(select auth.uid()) = user_id` or admin.
   - `inventory`: Public read of stock quantities; updates restricted to staff/admin.
+  - `khata_short_book`: Read/write strictly restricted to owner pharmacy UUID.
+  - `khata_parties` & `khata_transactions`: Scoped to verified pharmacy.
   - `notifications`: User-scoped read/update; staff-only for operational alerts.
   - `carts`: User-scoped `(select auth.uid()) = user_id`.
   - `audit_logs`: Admin read-only; append-only via service role.
 - **Service Role Isolation**: Express backend connects via `SUPABASE_SERVICE_ROLE_KEY` to execute verified mutations. The key is never exposed to the frontend client bundle.
 - **Frontend Anon Key**: `VITE_SUPABASE_ANON_KEY` is public by design; all direct anon accesses are constrained by RLS policies.
+- **Non-Recursive Policy Architecture**: All RLS policies utilize direct `(SELECT auth.uid())` comparisons, completely avoiding self-referential subqueries on `public.users`.
 
 ---
 
 ## 4. Input Validation & Defense in Depth
 
 1. **Zod Boundary Schemas (`src/lib/security.ts`)**:
-   - Every state-changing API request (`/api/orders`, `/api/auth/*`, `/api/admin/*`) is validated against strict Zod schemas before hitting business logic.
+   - Every state-changing API request (`/api/orders`, `/api/auth/*`, `/api/khata/*`, `/api/admin/*`) is validated against strict Zod schemas before hitting business logic.
    - Excess or unrecognized fields are rejected.
 2. **PostgREST Injection Elimination**:
    - Template interpolation into PostgREST `.or(...)` filter strings is strictly prohibited.

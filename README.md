@@ -1,14 +1,14 @@
 # 🛡️ MediChain — Premium B2B Pharma Procurement OS
 
-MediChain is a high-performance, secure, enterprise-grade B2B pharmaceutical procurement operating system designed to streamline bulk wholesale drug ordering, batch tracking, and logistics fulfillment for licensed retail pharmacies.
+MediChain is a high-performance, secure, enterprise-grade B2B pharmaceutical procurement operating system designed to streamline bulk wholesale drug ordering, batch tracking, warehouse fulfillment, and retail pharmacy financial ledgers.
 
-This repository contains the complete full-stack codebase of MediChain, fully audited, secured, and **Supabase-Ready** for production-grade deployment and instant GitHub export.
+This repository contains the complete full-stack codebase of MediChain, fully audited, secured, and **Supabase-Ready** for production deployment on **Vercel** (`https://medichainbd.vercel.app`).
 
 ---
 
 ## 📖 Project Overview
 
-Local pharmacies frequently suffer from highly fragmented supply chains, forcing them to coordinate with 20 to 30 separate pharmaceutical manufacturing depots daily to maintain critical drug stock. MediChain solves this fragmentation by acting as a single, centralized procurement aggregator, integrating dynamic searching, real-time FEFO inventory validation, B2B digital credit accounts, and intelligent optical prescription scanning into a unified, high-speed interface.
+Local pharmacies frequently suffer from highly fragmented supply chains, forcing them to coordinate with 20 to 30 separate pharmaceutical manufacturing depots daily to maintain critical drug stock. MediChain solves this fragmentation by acting as a single, centralized procurement aggregator, integrating dynamic multi-token searching, real-time FEFO inventory validation, digital retail ledger management (Pharma Khata), and intelligent optical prescription scanning into a unified, high-speed interface.
 
 ---
 
@@ -16,12 +16,13 @@ Local pharmacies frequently suffer from highly fragmented supply chains, forcing
 
 MediChain operates on a modern, high-volume **B2B Aggregation & Fulfillment Model**:
 
-$$\text{Pharma Manufacturers (Beximco, Square, Incepta)} \longrightarrow \text{MediChain Central Depot} \longrightarrow \text{Licensed Retail Pharmacies}$$
+$$\text{Pharma Manufacturers (Square, Beximco, Incepta, Renata)} \longrightarrow \text{MediChain Central Depot} \longrightarrow \text{Licensed Retail Pharmacies}$$
 
 ### Core Value Drivers:
-1. **Unified SKU Aggregation**: Retail pharmacies see only MediChain as their single point of purchase and logistics delivery, eliminating the administrative overhead of coordinating separate invoices, payments, and delivery drivers for each pharma manufacturer.
-2. **Bulk Rebate Distribution**: By leveraging aggregate wholesale ordering volumes, MediChain secures bulk tier discounts directly from manufacturers and passes significant rebates (typically 10% to 25% off MRP) down to retail pharmacies, increasing their thin retail margins.
-3. **Optimized FEFO Logistics**: MediChain utilizes a strict **FEFO (First Expiry First Out)** warehousing workflow, routing orders to batches with the earliest expiry dates. This maximizes shelf longevity for retail pharmacies while preventing expensive product write-offs for manufacturers.
+1. **Unified SKU Aggregation**: Retail pharmacies see MediChain as their single point of purchase and logistics delivery, eliminating the administrative overhead of coordinating separate invoices, payments, and delivery drivers for each pharma manufacturer.
+2. **Bulk Wholesale Savings**: By leveraging aggregate wholesale ordering volumes, MediChain secures bulk tier discounts directly from manufacturers and passes substantial savings (typically 10% to 25% off MRP) down to retail pharmacies, increasing their retail profit margins.
+3. **Strict 100% Cash on Delivery (COD)**: Transparent procurement with zero credit card or digital payment gateway friction. All orders are settled at the pharmacy door upon verified delivery.
+4. **Optimized FEFO Logistics**: MediChain utilizes a strict **FEFO (First Expiry First Out)** warehousing workflow, routing orders to batches with the earliest expiry dates to maximize retail shelf life and prevent wastage.
 
 ---
 
@@ -30,26 +31,29 @@ $$\text{Pharma Manufacturers (Beximco, Square, Incepta)} \longrightarrow \text{M
 - **⚡ Instant Procurement Engine**: Full-text searching across brand names, generic formulas, and manufacturing companies with advanced phonetic typo tolerance and instant autocomplete suggestions.
 - **📦 Smart Quantity Controls**: Interactive bulk quantity selection presets (10, 50, 100, 200 boxes) with live subtotal calculation, available stock boundary validation, and real-time inventory updates.
 - **🔄 Past Invoice 1-Tap Reorders**: Instant history retrieval allowing busy pharmacy owners to duplicate past order lines into their active cart in a single tap, bypassing standard browsing steps.
-- **🧾 Intelligent Optical Prescription Scanning**: Powered by **Google Gemini AI** (server-side via official `@google/genai` SDK), allowing pharmacies to upload patient prescription sheets and automatically map hand-written formulas to real, purchasable wholesale inventory SKUs with confidence matching.
+- **🧾 Intelligent Optical Prescription Scanning**: Powered by **Google Gemini AI** (server-side via official `@google/genai` SDK), allowing pharmacies to upload patient prescription sheets and automatically map handwritten formulas to real, purchasable wholesale inventory SKUs with confidence matching.
 - **📱 Physicians Product Quick-Request**: A seamless Telegram-integrated upload flow accessible via a specialized floating action button (FAB), enabling pharmacists to instantly submit bulk product inquiries and physician prescription sheets directly to the administrative Telegram channel.
-- **💳 B2B Credit Line Accounts**: Integrated credit facilities validating available credit balance against checkout amounts to support flexible cash-on-delivery and deferred invoice settlement.
-- **🚚 Dual-State Role Dashboards**: Pre-wired pathways supporting separate views for Pharmacy Owners (procurement, returns, ledger), Depot Staff (packing, batch numbering, FEFO inventory, expiry audits), and Delivery Express Couriers (assigned dropoffs, OTP-validated deliveries).
+- **📒 Retail Pharma Khata Hub (Smart Ledger)**: Built-in retail accounts manager featuring **Customer Khata** (বাকির খাতা with due balances & SMS reminders), **Supplier Khata** (পাওনাদার খাতা with purchase tracking), **Smart Shortage Book** (ঘাটতি বই auto-recording low/zero stock with 1-tap cart restocking), and **Daily Cashbook** ledger.
+- **🔒 6-Digit Handover OTP Verification**: Delivery security ensured through cryptographically generated one-time passcodes issued upon parcel dispatch and verified on the rider's device at handover.
+- **🚚 Built-In Multi-Role Cockpits**: Dedicated, purpose-built dashboards within the same application for **Pharmacy Owners** (storefront, cart, invoices, Khata ledger), **Depot Staff** (order picking by rack/shelf, barcode verification, 80mm thermal slips), **Delivery Couriers** (assigned parcels, direct phone dialing, OTP verification), and **Administrators** (compliance, catalog import, bulk deal tiers, financial analytics).
 
 ---
 
 ## 🛠️ Technology Stack
 
-- **Frontend**: React 18 (with React 19 forward-compatible APIs), Vite, TypeScript, Tailwind CSS, Motion (Fluid UI micro-interactions and transitions)
-- **Backend**: Node.js, Express (Single, compiled, production-bundled server utilizing esbuild)
-- **Database**: PostgreSQL (Supabase native) with local file-based persistent JSON failover fallback for isolated local-dev/preview testing
-- **AI Core**: Google Gemini Pro (accessed via modern, secure, server-side `@google/genai` SDK)
-- **Design & Icons**: Lucide React vector suite with responsive, high-contrast typography (`Inter` paired with mathematical data representation in `JetBrains Mono`)
+- **Frontend**: React 19, TypeScript, Vite, Tailwind CSS v4, Motion / Framer Motion (`motion/react`), Lucide React iconography.
+- **Backend / API**: Node.js & Express.js, running natively on **Vercel Serverless Functions** (`/api/*` via `api/index.ts`) in production with local development on `server.ts`.
+- **Database & Storage**: PostgreSQL via Supabase with active Row Level Security (RLS) policies, automated triggers, and Supabase Storage for prescription files.
+- **AI Core**: Google Gemini 2.5 Flash / Vision (accessed via server-side `@google/genai` SDK).
+- **Typography & Localization**: Bilingual English & Bengali UI powered by custom `@font-face` `Li Alinur Banglaborno` typography.
+- **Real-Time & Alerts**: Telegram Bot operations alert integration and Web Push API notifications.
+- **Document Generation**: PDFKit (official VAT invoices) and custom monospace formatter for 80mm thermal warehouse pick slips.
 
 ---
 
 ## ⚙️ Environment Configuration
 
-To configure MediChain for production, rename `.env.example` to `.env` in the root directory and populate your credentials:
+To configure MediChain for local development or deployment, copy `.env.example` to `.env` in the root directory and populate your credentials:
 
 ```env
 # Server Ingress Settings
@@ -67,7 +71,11 @@ VITE_SUPABASE_ANON_KEY="your_public_client_anon_key_here"
 SUPABASE_SERVICE_ROLE_KEY="your_backend_supabase_service_role_key_here"
 
 # Self-referential URL of the hosting environment
-APP_URL="https://your-deployed-app.com"
+APP_URL="https://medichainbd.vercel.app"
+
+# Operations Alerts (Optional)
+TELEGRAM_BOT_TOKEN="your_telegram_bot_token"
+TELEGRAM_CHAT_ID="your_telegram_chat_id"
 ```
 
 ---
@@ -83,19 +91,19 @@ APP_URL="https://your-deployed-app.com"
 npm install
 ```
 
-### 3. Start local development server
+### 3. Start Local Development Server
 ```bash
 npm run dev
 ```
-The server will start on **`http://localhost:3000`** and automatically load development data from `/src/db-store.json`.
+The server will start on **`http://localhost:3000`** and load development catalog and ledger data.
 
 ### 4. Build for Production
-To build the React Single Page App assets and bundle the Express backend into a single, optimized, self-contained CommonJS script (`dist/server.cjs`) using esbuild:
+To build the React Single Page App assets and compile the Express backend for production deployment:
 ```bash
 npm run build
 ```
 
-### 5. Start Production server
+### 5. Start Production Server (Local / Container)
 ```bash
 npm run start
 ```
@@ -104,60 +112,53 @@ npm run start
 
 ## 🚀 Supabase Database Provisioning
 
-The complete relational schema mapping is located in [**`supabase-schema.sql`**](./supabase-schema.sql) at the root level. Follow these steps to provision your Supabase instance:
+The complete relational schema mapping is located in [**`supabase-schema.sql`**](./supabase-schema.sql) at the root level, alongside migration files in `supabase/migrations/`:
 
 1. **Create Supabase Project**: Login to [Supabase](https://supabase.com) and create a new PostgreSQL database project.
 2. **Execute Schema SQL**: Go to the **SQL Editor** tab in the Supabase Dashboard, create a new query, paste the contents of `supabase-schema.sql`, and click **Run**. This will build:
-   - All relational tables (`users`, `pharmacies`, `products`, `inventory`, `orders`, `order_items`, `credit_accounts`, `prescriptions`, `returns`, etc.)
-   - Comprehensive multi-column query performance indexes (`idx_inventory_expiry`, `idx_products_name_generic`, etc.)
+   - Relational tables: `users`, `pharmacies`, `products`, `inventory`, `orders`, `order_items`, `khata_parties`, `khata_transactions`, `khata_short_book`, `bulk_deal_tiers`, `hero_banners`, `audit_logs`.
+   - Comprehensive query performance indexes (`idx_inventory_expiry`, `idx_products_name_generic`, `idx_khata_short_book_pharmacy`).
    - Automated timestamp triggers to keep table rows synchronized.
-   - Row Level Security (RLS) policies isolating user profiles, orders, and credit information.
+   - Non-recursive Row Level Security (RLS) policies isolating user profiles, orders, and retail khata ledgers.
 3. **Retrieve Keys**: Navigate to **Project Settings > API** in Supabase and copy your `Project URL`, `anon public key`, and `service_role secret key`.
-4. **Apply Env Variables**: Input these keys in your production environment as defined in the **Environment Configuration** section of this document.
+4. **Apply Env Variables**: Input these keys into your Vercel Project Settings or local `.env` file.
 
 ---
 
-## 🔮 Future Admin Portal Integration Guide
+## 🏛️ Built-In Role Architecture & Cockpits
 
-MediChain has been built from the ground up to support rapid B2B administrative expansion. Inside `server.ts`, a robust set of secure API routing groups starting with `/api/admin/*`, `/api/depot/*`, and `/api/delivery/*` are preconfigured and protected by role-based access control (RBAC) middleware:
+MediChain provides specialized role cockpits accessible directly within the application, secured by backend Role-Based Access Control (RBAC):
 
-### Middleware Enforcement:
-```ts
-function requireRole(allowedRoles: string[]) {
-  return (req: any, res: any, next: any) => {
-    if (!db.currentUser) {
-      return res.status(401).json({ error: "Authentication required." });
-    }
-    if (!hasRole(db.currentUser, allowedRoles)) {
-      return res.status(403).json({ error: "Access Denied." });
-    }
-    next();
-  };
-}
-```
+1. **Pharmacy Owner Cockpit (`Home.tsx`, `PharmaKhataHub.tsx`)**:
+   - Live wholesale medicine catalog browsing with categorized filters and search.
+   - Wholesale cart with bulk tiered discounts and 100% Cash on Delivery checkout.
+   - Smart Order AI OCR prescription scanner (`SmartOrderModal.tsx`).
+   - Complete Pharma Khata Hub: Customer credit ledger (বাকির খাতা), Supplier ledger (পাওনাদার খাতা), Shortage Book (ঘাটতি বই) with 1-tap cart addition, and Daily Cashbook.
+   - Real-time order timeline tracking with 6-digit handover OTP.
 
-### Ready-to-Connect Admin Endpoints:
-1. **Catalog & Inventory Control**: 
-   - `GET /api/admin/pharmacies` (Requires role: `Admin`): Retrieve physical licenses and owner metrics for onboarding verification.
-   - `POST /api/admin/products` (Requires role: `Admin`): Inject new medicine entries.
-   - `POST /api/admin/products/import` (Requires role: `Admin`): Bulk catalog import matching standard pharma Excel datasets.
-   - `POST /api/admin/prices` (Requires role: `Admin`): Global wholesale price adjustment engine.
-2. **Credit Line Control**:
-   - `POST /api/admin/credit-accounts` (Requires role: `Admin`): Adjust pharmacy credit limit lines based on payment histories.
-3. **Depot Operations**:
-   - `GET /api/depot/assigned-orders` (Requires roles: `Admin` or `Depot Staff`): View orders ready for batch packaging.
-   - `POST /api/depot/update-packing` (Requires roles: `Admin` or `Depot Staff`): Transition orders from `Processing` to `Packed` with specified FEFO warehouse shelf IDs.
-4. **Delivery Management**:
-   - `GET /api/delivery/assigned-deliveries` (Requires roles: `Admin` or `Delivery Staff`): Route optimization coordinates for dropoffs.
-   - `POST /api/delivery/update-status` (Requires roles: `Admin` or `Delivery Staff`): Update status to `Out for Delivery` and finalize transactions as `Delivered` upon verified mobile SMS OTP entry.
+2. **Depot Warehouse Management (`DepotDashboard.tsx`)**:
+   - Order Center with sequential walking path optimization based on warehouse Rack/Shelf coordinates.
+   - Barcode picking verification scanner (`BarcodePickScanner.tsx`).
+   - 80mm thermal receipt printer preview and `.txt` packing slip generation.
+   - Inventory batch management, FEFO stock audits, and rider dispatch assignment.
 
-### Recommended Integration Architecture:
-To build out the dedicated Admin Console interface, you can deploy a separate React/Vite dashboard client application hosted on a different subdomain (e.g. `admin.medichain.com`) that authenticates admins using secure OTP. This admin application can safely call the pre-wired administrative routes on the backend, ensuring full administrative control over catalog seeding, credit validation, inventory FEFO audits, and delivery logs.
+3. **Delivery Courier Portal (`DeliveryDashboard.tsx`)**:
+   - Active assigned deliveries queue with direct phone dialing and GPS address details.
+   - Secure handover modal requiring the customer's 6-digit OTP to finalize deliveries.
+   - Delivery failure reporting with structured reason codes.
+   - Delivery history and earnings ledger.
+
+4. **Administration & Compliance Panel (`AdminPanel.tsx`)**:
+   - Pharmacy KYC onboarding verification and document inspection.
+   - Medicine catalog management with bulk Excel/CSV import and price update engine.
+   - Bulk volume deal tier manager and homepage hero banner manager.
+   - Operations Telegram alerts broadcast and financial analytics (gross sales, margin, top generics).
 
 ---
 
 ## 🛡️ Production Security & Quality Assurances
 
-1. **No Client-Side Secrets**: All communication with third-party keys (like Gemini AI) is fully proxied via secure server-side routes, protecting API keys from exposure in browser bundles.
-2. **Global Fail-Safe Catching**: Configured global Express error handlers prevent server-side stack trace exposure to API clients during runtime failures, ensuring a highly polished API response footprint.
-3. **Rigorous Linter Checks**: The entire full-stack application builds cleanly under strict TypeScript configuration (`tsc --noEmit`), with no unresolved type errors, missing declarations, or package warnings.
+1. **No Client-Side Secrets**: All communication with external services (Gemini AI, Telegram Bot, Supabase Service Role) is securely proxied through backend routes.
+2. **Server-Side Session Synchronization**: Authentication sessions are verified through `/api/auth/sync-session` using service-role credentials to eliminate client-side RLS infinite recursion (Postgres error 42P17).
+3. **100% Cash on Delivery Safety**: All payment amounts and wholesale margin discounts are computed server-side, preventing client-side cart tampering.
+4. **Rigorous Quality Standards**: The entire application compiles cleanly under strict TypeScript (`tsc --noEmit`) and Vite production bundling with zero errors.
