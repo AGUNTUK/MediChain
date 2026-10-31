@@ -45,7 +45,7 @@ import { usePharmaKhata } from "../hooks/usePharmaKhata";
 
 interface HomeProps {
   onTriggerSearch: (query?: string, category?: string) => void;
-  onAddToCart: (productId: string, qty: number) => Promise<boolean>;
+  onAddToCart: (productId: string, qty: number, product?: Product) => Promise<boolean>;
   onToggleFavourite: (productId: string) => void;
   favouriteIds: string[];
   pharmacyId?: string;
@@ -691,7 +691,7 @@ export default function Home({
                           product={product}
                           layout="horizontal"
                           cartQuantity={cartQuantities[product.id] || 0}
-                          onAddToCart={(id, qty) => onAddToCart(id, qty)}
+                          onAddToCart={(id, qty, p) => onAddToCart(id, qty, p || product)}
                           onUpdateCartQty={(id, currentQty, delta) =>
                             onUpdateCartQty ? onUpdateCartQty(id, currentQty, delta) : null
                           }

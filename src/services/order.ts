@@ -130,42 +130,59 @@ export const orderService = {
     let totalMrp = 0;
     let totalTierSavings = 0;
 
+    let hasNewCachedProducts = false;
     for (const item of local) {
-      const product = item.product || fetchedMap.get(item.productId);
-      if (product) {
-        const mrp = Number(product.mrp) || Number(product.sellingPrice) || 0;
-        let effectiveUnitPrice = Number(product.sellingPrice) || mrp;
-        let activeTier: any = null;
-        let nextTier: any = null;
-        let tierSavings = 0;
-
-        if (product.tiers && Array.isArray(product.tiers) && product.tiers.length > 0) {
-          const sortedTiers = [...product.tiers].sort((a: any, b: any) => a.minQty - b.minQty);
-          activeTier = [...sortedTiers].reverse().find((t: any) => item.quantity >= t.minQty) || null;
-          nextTier = sortedTiers.find((t: any) => item.quantity < t.minQty) || null;
-
-          if (activeTier && activeTier.discountPercent > 0) {
-            effectiveUnitPrice = Math.round((mrp * (1 - activeTier.discountPercent / 100)) * 100) / 100;
-            tierSavings = Math.max(0, Math.round(((Number(product.sellingPrice) - effectiveUnitPrice) * item.quantity) * 100) / 100);
-          }
-        }
-
-        const subtotal = Math.round(effectiveUnitPrice * item.quantity * 100) / 100;
-        totalAmount += subtotal;
-        totalMrp += Math.round(mrp * item.quantity * 100) / 100;
-        totalTierSavings += tierSavings;
-
-        cartItems.push({
-          product,
-          productId: product.id || item.productId,
-          quantity: item.quantity,
-          effectiveUnitPrice,
-          itemSubtotal: subtotal,
-          tierSavings,
-          activeTier,
-          nextTier
-        });
+      let product = item.product || fetchedMap.get(item.productId);
+      if (!product) {
+        product = {
+          id: item.productId,
+          name: "ঔষধ আইটেম",
+          genericName: "",
+          company: "",
+          sellingPrice: 0,
+          mrp: 0
+        };
+      } else if (!item.product && fetchedMap.has(item.productId)) {
+        item.product = product;
+        hasNewCachedProducts = true;
       }
+
+      const mrp = Number(product.mrp) || Number(product.sellingPrice) || 0;
+      let effectiveUnitPrice = Number(product.sellingPrice) || mrp;
+      let activeTier: any = null;
+      let nextTier: any = null;
+      let tierSavings = 0;
+
+      if (product.tiers && Array.isArray(product.tiers) && product.tiers.length > 0) {
+        const sortedTiers = [...product.tiers].sort((a: any, b: any) => a.minQty - b.minQty);
+        activeTier = [...sortedTiers].reverse().find((t: any) => item.quantity >= t.minQty) || null;
+        nextTier = sortedTiers.find((t: any) => item.quantity < t.minQty) || null;
+
+        if (activeTier && activeTier.discountPercent > 0) {
+          effectiveUnitPrice = Math.round((mrp * (1 - activeTier.discountPercent / 100)) * 100) / 100;
+          tierSavings = Math.max(0, Math.round(((Number(product.sellingPrice) - effectiveUnitPrice) * item.quantity) * 100) / 100);
+        }
+      }
+
+      const subtotal = Math.round(effectiveUnitPrice * item.quantity * 100) / 100;
+      totalAmount += subtotal;
+      totalMrp += Math.round(mrp * item.quantity * 100) / 100;
+      totalTierSavings += tierSavings;
+
+      cartItems.push({
+        product,
+        productId: product.id || item.productId,
+        quantity: item.quantity,
+        effectiveUnitPrice,
+        itemSubtotal: subtotal,
+        tierSavings,
+        activeTier,
+        nextTier
+      });
+    }
+
+    if (hasNewCachedProducts) {
+      saveLocalCartItems(local);
     }
 
     const totalSavings = Math.max(0, Math.round((totalMrp - totalAmount) * 100) / 100);
@@ -187,7 +204,7 @@ export const orderService = {
     const existing = local.find(i => i.productId === productId);
     if (existing) {
       existing.quantity += qtyNum;
-      if (product && !existing.product) {
+      if (product && (!existing.product || !existing.product.name)) {
         existing.product = product;
       }
     } else {

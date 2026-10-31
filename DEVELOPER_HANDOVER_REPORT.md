@@ -3080,6 +3080,45 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - TypeScript compilation (`npx tsc --noEmit`): 0 errors.
   - Production build (`npm run build`): Vite build and esbuild server bundle succeeded with 0 errors.
   - Egress during browsing and cart interactions: **0 bytes PostgREST egress**.
+
+### TASK 134: Cloud Run Deployment Boot Fix in `server.js` & AI Guardrails Compliance
+- **SUMMARY:**
+  - **Issue Reported**: Deployment logs reported: `Deployment logs: The live Cloud Run service is in a failed state.`
+  - **Root Cause**: `server.js` unconditionally hardcoded `process.env.VERCEL = "1"`. When the Cloud Run container booted up running `node server.js`, the `VERCEL` flag suppressed `startServer()`, meaning no HTTP server was listening on Cloud Run's port ($PORT / 8080). As a result, Cloud Run's container health check failed.
+  - **Resolution**:
+    - Consulted and adhered to `AI_GUARDRAILS.md`.
+    - Updated `server.js` so `process.env.VERCEL = "1"` is only assigned when running in an actual Vercel environment (`process.env.NOW_REGION` or `process.env.VERCEL_ENV`), while `api/index.ts` continues to provide the serverless entrypoint for Vercel.
+    - Cloud Run, Docker, and standalone Node instances now correctly initialize `startServer()` and bind to `process.env.PORT`.
+- **VERIFICATION:**
+  - TypeScript compilation (`tsc --noEmit`): 0 errors.
+  - Applet compilation (`compile_applet`): Build succeeded.
+
+### TASK 135: Instant E-Commerce Add-to-Cart Speed & Product Object Persistence Fix
+- **SUMMARY:**
+  - **Issue Reported**:
+    - In screen recording (`Screen_Recording_20261031_103719_cb50f8b7.mp4`), clicking "যোগ করুন" (Add to Cart) on product cards briefly showed feedback, but after ~1.2s reverted back to "যোগ করুন". The cart badge in the header and navbar remained 0.
+  - **Root Cause**:
+    1. In `src/components/Home.tsx`, `<ProductCard>` passed `(product.id, orderQty, product)` to `onAddToCart`, but `Home.tsx` wrapped it with `onAddToCart={(id, qty) => onAddToCart(id, qty)}`, stripping the product object.
+    2. Because `product` was `undefined`, `orderService.addToCart(id, qty, undefined)` saved `{ productId, quantity: 1, product: undefined }` to `localStorage`.
+    3. `handleAddToCart` in `App.tsx` then called `refreshCartCounter()`, which called `orderService.getCart()`.
+    4. In `orderService.getCart()`, when `item.product` was undefined, it attempted an async fetch that failed or dropped items without product objects, resetting the cart count to 0 and wiping `cartQuantities`.
+    5. When `ProductCard`'s 1200ms animation finished, `cartQuantity` was 0, so the button reverted back to "যোগ করুন".
+  - **Resolution**:
+    1. **Direct Product Persistence**:
+       - Updated `Home.tsx`, `SearchSystem.tsx`, `Account.tsx`, and `App.tsx` so all `onAddToCart` callers pass the full product object (`onAddToCart(productId, qty, product)`).
+       - In `orderService.ts`, `addToCart` stores the full product snapshot in `localStorage` (`medichain_active_cart`).
+       - In `orderService.ts`, `getCart()` never discards items even if metadata is temporarily missing; it falls back to a safe placeholder and retains existing metadata.
+    2. **Instant 0ms E-Commerce Feedback**:
+       - In `App.tsx`, `cartCount` and `cartQuantities` are initialized synchronously on mount from `getLocalCartItems()`.
+       - `refreshCartCounter()` immediately reads `getLocalCartItems()` synchronously (0ms) before evaluating asynchronous cart summaries.
+       - `handleAddToCart` performs an immediate optimistic state update on both `cartCount` and `cartQuantities`.
+       - Because `cartQuantities[product.id] > 0` remains true, `ProductCard` transitions into the `{cartQuantity} বক্স কার্টে আছে` stepper with `-` and `+` controls instead of reverting.
+    3. **Zero DB Egress & AI Guardrails Compliance**:
+       - Active cart interactions remain 100% client-side in `localStorage` with 0 backend queries and 0 bytes of Supabase egress during catalog browsing.
+- **VERIFICATION:**
+  - TypeScript compilation (`tsc --noEmit`): 0 errors.
+  - Full applet compilation (`compile_applet`): Succeeded.
+  - Unit tests (`tests/cartOptimisticAndManualQty.test.ts`): 5/5 passed.
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).

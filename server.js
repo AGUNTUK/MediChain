@@ -1,5 +1,7 @@
-// Universal entry point for Node, Docker, and Vercel ES Module runtimes
-process.env.VERCEL = "1";
+// Universal entry point for Node, Docker, Cloud Run, and Vercel ES Module runtimes
+if (process.env.NOW_REGION || process.env.VERCEL_ENV) {
+  process.env.VERCEL = "1";
+}
 
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);

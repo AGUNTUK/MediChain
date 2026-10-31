@@ -20,7 +20,7 @@ interface AccountProps {
   pharmacy: Pharmacy | null;
   currentUser: User | null;
   onLogout: () => void;
-  onAddToCart: (productId: string, qty: number) => Promise<boolean>;
+  onAddToCart: (productId: string, qty: number, product?: Product) => Promise<boolean>;
   favouriteIds: string[];
   onRefreshProfile?: () => Promise<void>;
   onTriggerTab?: (tab: string) => void;
@@ -128,8 +128,8 @@ export default function Account({
     fetchData();
   }, [favouriteIds, currentUser]);
 
-  const handleQuickReorder = async (productId: string) => {
-    const success = await onAddToCart(productId, 1); // Standard quick reorder (1 box)
+  const handleQuickReorder = async (productId: string, productObj?: Product) => {
+    const success = await onAddToCart(productId, 1, productObj); // Standard quick reorder (1 box)
     if (success) {
       setSuccessId(productId);
       setTimeout(() => setSuccessId(null), 1500);
@@ -495,7 +495,7 @@ export default function Account({
                   <div className="text-xs text-slate-500 font-mono font-bold mt-0.5">৳{p.sellingPrice} / বক্স</div>
                 </div>
                 <button
-                  onClick={() => handleQuickReorder(p.id)}
+                  onClick={() => handleQuickReorder(p.id, p)}
                   disabled={successId === p.id}
                   className={`py-2 px-3.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
                     successId === p.id
@@ -570,7 +570,7 @@ export default function Account({
 
                     {isRestocked && req.product && (
                       <button
-                        onClick={() => handleQuickReorder(req.product!.id)}
+                        onClick={() => handleQuickReorder(req.product!.id, req.product)}
                         className="py-1.5 px-3 rounded-xl text-xs font-black bg-brand-lime hover:bg-brand-lime-dark text-slate-950 transition-all flex items-center gap-1 cursor-pointer shadow-xs"
                       >
                         <ShoppingCart className="w-3 h-3" />

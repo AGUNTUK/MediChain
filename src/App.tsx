@@ -8,7 +8,7 @@ import { CartFeedbackProvider } from "./context/FlyToCartContext";
 import SafeBoundary from "./components/SafeBoundary";
 import { Product, Pharmacy, Order, Notification, User } from "./types";
 import { Home as HomeIcon, Search as SearchIcon, Package as PackageIcon, FileText as FileIcon, ClipboardList as ListIcon, User as UserIcon, Shield, Smartphone, ShoppingBag, Camera, X, Sparkles, MessageSquareText, AlertCircle } from "lucide-react";
-import { authService, productService, orderService, profileService, notificationService } from "./services";
+import { authService, productService, orderService, profileService, notificationService, getLocalCartItems } from "./services";
 import { apiFetch } from "./lib/apiFetch";
 import { isSupabaseConfigured, supabase } from "./lib/supabaseClient";
 
@@ -154,8 +154,24 @@ export default function App() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [trackingOrderId, setTrackingOrderId] = useState<string>("");
-  const [cartCount, setCartCount] = useState(0);
-  const [cartQuantities, setCartQuantities] = useState<Record<string, number>>({});
+  const [cartCount, setCartCount] = useState(() => {
+    try {
+      return getLocalCartItems().reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
+    } catch {
+      return 0;
+    }
+  });
+  const [cartQuantities, setCartQuantities] = useState<Record<string, number>>(() => {
+    try {
+      const qMap: Record<string, number> = {};
+      getLocalCartItems().forEach(item => {
+        if (item.productId) qMap[item.productId] = Number(item.quantity) || 0;
+      });
+      return qMap;
+    } catch {
+      return {};
+    }
+  });
   const [cartData, setCartData] = useState<{
     items: Array<any>;
     totalMrp: number;
@@ -277,9 +293,22 @@ export default function App() {
 
   const refreshCartCounter = async () => {
     try {
+      // 1. Immediately read local cart from localStorage to set count and quantities synchronously (0ms)
+      const local = getLocalCartItems();
+      const localTotal = local.reduce((acc: number, item: any) => acc + (Number(item.quantity) || 0), 0);
+      const localQtyMap: Record<string, number> = {};
+      local.forEach((item: any) => {
+        if (item.productId) {
+          localQtyMap[item.productId] = Number(item.quantity) || 0;
+        }
+      });
+      setCartCount(localTotal);
+      setCartQuantities(localQtyMap);
+
+      // 2. Fetch full calculated cart data for drawer and checkout
       const data = await orderService.getCart();
       setCartData(data);
-      const totalItems = data.items?.reduce((acc: number, item: any) => acc + item.quantity, 0) || 0;
+      const totalItems = data.items?.reduce((acc: number, item: any) => acc + item.quantity, 0) || localTotal;
       setCartCount(totalItems);
 
       const qtyMap: Record<string, number> = {};
@@ -289,7 +318,7 @@ export default function App() {
           qtyMap[pId] = item.quantity;
         }
       });
-      setCartQuantities(qtyMap);
+      setCartQuantities(prev => ({ ...prev, ...localQtyMap, ...qtyMap }));
     } catch (err) {
       console.error(err);
     }
@@ -948,7 +977,7 @@ export default function App() {
                 <ProductDetails
                   product={selectedProduct}
                   onClose={() => setSelectedProduct(null)}
-                  onAddToCart={(pid, qty) => handleAddToCart(pid, qty)}
+                  onAddToCart={(pid, qty, prod) => handleAddToCart(pid, qty, prod || selectedProduct)}
                   onSelectProduct={(p) => setSelectedProduct(p)}
                 />
               </Suspense>

@@ -32,7 +32,7 @@ import CategoryIcon from "./CategoryIcon";
 import { ALL_CATEGORY_VALUES } from "../constants/categories";
 
 interface SearchSystemProps {
-  onAddToCart: (productId: string, qty: number) => Promise<boolean>;
+  onAddToCart: (productId: string, qty: number, product?: Product) => Promise<boolean>;
   onToggleFavourite: (productId: string) => void;
   favouriteIds: string[];
   onOpenProductDetails: (product: Product) => void;
@@ -295,7 +295,8 @@ export default function SearchSystem({
     productId: string,
     stock: number,
     e?: React.MouseEvent<HTMLElement>,
-    imageSrc?: string
+    imageSrc?: string,
+    productObj?: Product
   ) => {
     if (cartAdding[productId]) return; // Throttling safeguard
     if (stock <= 0) return; // Cannot add out of stock items
@@ -310,7 +311,7 @@ export default function SearchSystem({
     const qty = quantities[productId] || 1; // Default bulk size (e.g. 1 box)
 
     setCartAdding(prev => ({ ...prev, [productId]: true }));
-    const success = await onAddToCart(productId, qty);
+    const success = await onAddToCart(productId, qty, productObj);
     setCartAdding(prev => ({ ...prev, [productId]: false }));
 
     if (success) {
@@ -330,7 +331,24 @@ export default function SearchSystem({
 
     let allSuccessful = true;
     for (const item of order.items) {
-      const success = await onAddToCart(item.productId, item.quantity);
+      const productObj: Product = {
+        id: item.productId,
+        name: item.name,
+        genericName: item.genericName || "",
+        company: item.company || "",
+        category: item.category || "General",
+        strength: item.strength,
+        packSize: item.packSize,
+        sellingPrice: item.sellingPrice,
+        mrp: item.mrp,
+        discountPercentage: item.discountPercentage || 0,
+        availableStock: 999,
+        reservedStock: 0,
+        soldStock: 0,
+        batchNumber: "REORDER",
+        expiryDate: ""
+      };
+      const success = await onAddToCart(item.productId, item.quantity, productObj);
       if (!success) {
         allSuccessful = false;
       }
@@ -602,7 +620,7 @@ export default function SearchSystem({
                                   />
                                   <button
                                     type="button"
-                                    onClick={(e) => handleAddToCartClick(p.id, p.availableStock, e, p.imageUrl || p.image_url)}
+                                    onClick={(e) => handleAddToCartClick(p.id, p.availableStock, e, p.imageUrl || p.image_url, p)}
                                     disabled={cartAdding[p.id]}
                                     className={`flex-1 py-1 rounded-md text-[9.5px] font-extrabold flex items-center justify-center gap-1 cursor-pointer transition-all ${
                                       addedSuccess[p.id]
@@ -859,7 +877,7 @@ export default function SearchSystem({
 
                                 <button
                                   type="button"
-                                  onClick={(e) => handleAddToCartClick(p.id, p.availableStock, e, p.imageUrl || p.image_url)}
+                                  onClick={(e) => handleAddToCartClick(p.id, p.availableStock, e, p.imageUrl || p.image_url, p)}
                                   disabled={cartAdding[p.id] || (p.availableStock ?? 0) <= 0}
                                   className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                                     (p.availableStock ?? 0) <= 0

@@ -34,3 +34,4 @@ yarn-error.log*
 tests/output/
 .agents/
 .aistudio/
+public/assets/aistudio/*.mp4
