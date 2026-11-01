@@ -123,6 +123,11 @@ export default function ModernInvoiceModal({ order, pharmacy, onClose }: ModernI
     }
   };
 
+  const safeFixed = (val: any, decimals = 2): string => {
+    const num = Number(val);
+    return (isNaN(num) ? 0 : num).toFixed(decimals);
+  };
+
   const invoiceDate = formatInvoiceDate(order.createdAt);
   
   // Invoice Number & Order Ref formatting
@@ -505,19 +510,19 @@ export default function ModernInvoiceModal({ order, pharmacy, onClose }: ModernI
                             )}
                           </td>
                           <td className="py-2 px-2.5 text-right font-mono tabular-nums text-[#6B7280]">
-                            ৳{item.mrp.toFixed(2)}
+                            ৳{safeFixed(item.mrp, 2)}
                           </td>
                           <td className="py-2 px-2.5 text-right font-mono tabular-nums font-semibold text-[#14161B]">
-                            ৳{item.rate.toFixed(2)}
+                            ৳{safeFixed(item.rate, 2)}
                           </td>
                           <td className="py-2 px-2 text-right font-mono tabular-nums text-[#14161B]">
                             {item.qty}
                           </td>
                           <td className="py-2 px-2.5 text-right font-mono tabular-nums font-bold text-[#65A30D]">
-                            ৳{item.netDiscount.toFixed(2)}
+                            ৳{safeFixed(item.netDiscount, 2)}
                           </td>
                           <td className="py-2 px-3 text-right font-mono tabular-nums font-bold text-[#14161B]">
-                            ৳{item.total.toFixed(2)}
+                            ৳{safeFixed(item.total, 2)}
                           </td>
                         </tr>
                       ))}
@@ -532,7 +537,7 @@ export default function ModernInvoiceModal({ order, pharmacy, onClose }: ModernI
                     <div className="flex justify-between items-center px-1 text-[#6B7280]">
                       <span>Subtotal (Medicines)</span>
                       <span className="font-mono tabular-nums text-slate-800 font-medium">
-                        ৳{subtotalMedicines.toFixed(2)}
+                        ৳{safeFixed(subtotalMedicines, 2)}
                       </span>
                     </div>
 
@@ -540,7 +545,7 @@ export default function ModernInvoiceModal({ order, pharmacy, onClose }: ModernI
                     <div className="flex justify-between items-center px-1">
                       <span className="text-[#6B7280]">Wholesale Savings</span>
                       <span className="font-mono tabular-nums font-bold text-[#65A30D]">
-                        -৳{wholesaleSavings.toFixed(2)}
+                        -৳{safeFixed(wholesaleSavings, 2)}
                       </span>
                     </div>
 
@@ -548,7 +553,7 @@ export default function ModernInvoiceModal({ order, pharmacy, onClose }: ModernI
                     <div className="flex justify-between items-center px-1 text-[#6B7280]">
                       <span>Delivery Charge</span>
                       <span className="font-mono tabular-nums text-slate-800 font-medium">
-                        ৳{deliveryCharge.toFixed(2)}
+                        ৳{safeFixed(deliveryCharge, 2)}
                       </span>
                     </div>
 
@@ -561,7 +566,7 @@ export default function ModernInvoiceModal({ order, pharmacy, onClose }: ModernI
                     >
                       <span className="font-bold text-xs uppercase tracking-wide">Net Payable</span>
                       <span className="font-mono tabular-nums text-base sm:text-lg font-black">
-                        ৳{netPayable.toFixed(2)}
+                        ৳{safeFixed(netPayable, 2)}
                       </span>
                     </div>
 
@@ -571,7 +576,7 @@ export default function ModernInvoiceModal({ order, pharmacy, onClose }: ModernI
                         Amount Due {isPaid ? "(Paid)" : "(Cash on Delivery)"}
                       </span>
                       <span className={`font-mono tabular-nums font-bold text-[13px] ${isPaid ? "text-[#166534]" : "text-[#14161B]"}`}>
-                        ৳{amountDue.toFixed(2)}
+                        ৳{safeFixed(amountDue, 2)}
                       </span>
                     </div>
                   </div>

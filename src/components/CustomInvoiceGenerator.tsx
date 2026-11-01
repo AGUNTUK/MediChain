@@ -104,6 +104,12 @@ export default function CustomInvoiceGenerator({
     return now.toISOString().slice(0, 10);
   };
 
+  // Safe number to fixed string formatting helper (prevents TypeError on non-numbers/strings)
+  const safeFixed = (val: any, decimals = 2): string => {
+    const num = Number(val);
+    return (isNaN(num) ? 0 : num).toFixed(decimals);
+  };
+
   // Form State
   const [invoiceId, setInvoiceId] = useState<string>(`custom-${Date.now()}`);
   const [invoiceNumber, setInvoiceNumber] = useState<string>(generateNewMemoNumber());
@@ -259,7 +265,20 @@ export default function CustomInvoiceGenerator({
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
-          setSavedInvoices(parsed);
+          const sanitized = parsed.map((inv: any) => ({
+            ...inv,
+            netPayable: Number(inv.netPayable) || 0,
+            items: (inv.items || []).map((it: any) => ({
+              ...it,
+              mrp: Number(it.mrp) || 0,
+              rate: Number(it.rate) || 0,
+              quantity: Number(it.quantity) || 1,
+              discountPercentage: Number(it.discountPercentage) || 0,
+              netDiscount: Number(it.netDiscount) || 0,
+              total: Number(it.total) || 0
+            }))
+          }));
+          setSavedInvoices(sanitized);
         }
       }
     } catch (e) {
@@ -510,6 +529,10 @@ export default function CustomInvoiceGenerator({
         const netDiscount = Math.round(Math.max(0, mrp - rate) * qty * 100) / 100;
         const total = Math.round(rate * qty * 100) / 100;
 
+        updated.mrp = mrp;
+        updated.rate = rate;
+        updated.quantity = qty;
+        updated.discountPercentage = discPct;
         updated.netDiscount = netDiscount;
         updated.total = total;
 
@@ -661,7 +684,16 @@ export default function CustomInvoiceGenerator({
     setDeliveryCharge(inv.deliveryCharge ?? 0);
     setSpecialAdjustment(inv.specialAdjustment ?? 0);
     setNotes(inv.notes || "");
-    setItems(inv.items || []);
+    const sanitizedItems = (inv.items || []).map(it => ({
+      ...it,
+      mrp: Number(it.mrp) || 0,
+      rate: Number(it.rate) || 0,
+      quantity: Number(it.quantity) || 1,
+      discountPercentage: Number(it.discountPercentage) || 0,
+      netDiscount: Number(it.netDiscount) || 0,
+      total: Number(it.total) || 0
+    }));
+    setItems(sanitizedItems);
     setActiveTab("editor");
     showToast(`Loaded invoice ${inv.invoiceNumber} into editor.`);
   };
@@ -1485,7 +1517,7 @@ export default function CustomInvoiceGenerator({
                         <div className="space-y-0.5 text-right">
                           <label className="text-[10px] text-slate-500 font-medium">Line Total</label>
                           <div className="font-mono text-xs font-black text-slate-900 pt-1.5">
-                            ৳{item.total.toFixed(2)}
+                            ৳{safeFixed(item.total, 2)}
                           </div>
                         </div>
                       </div>
@@ -1743,19 +1775,19 @@ export default function CustomInvoiceGenerator({
                                   )}
                                 </td>
                                 <td className="py-2 px-2.5 text-right font-mono tabular-nums text-[#6B7280]">
-                                  ৳{(item.mrp || 0).toFixed(2)}
+                                  ৳{safeFixed(item.mrp, 2)}
                                 </td>
                                 <td className="py-2 px-2.5 text-right font-mono tabular-nums font-semibold text-[#14161B]">
-                                  ৳{(item.rate || 0).toFixed(2)}
+                                  ৳{safeFixed(item.rate, 2)}
                                 </td>
                                 <td className="py-2 px-2 text-right font-mono tabular-nums text-[#14161B]">
                                   {item.quantity}
                                 </td>
                                 <td className="py-2 px-2.5 text-right font-mono tabular-nums font-bold text-[#65A30D]">
-                                  ৳{(item.netDiscount || 0).toFixed(2)}
+                                  ৳{safeFixed(item.netDiscount, 2)}
                                 </td>
                                 <td className="py-2 px-3 text-right font-mono tabular-nums font-bold text-[#14161B]">
-                                  ৳{(item.total || 0).toFixed(2)}
+                                  ৳{safeFixed(item.total, 2)}
                                 </td>
                               </tr>
                             ))
@@ -1771,7 +1803,7 @@ export default function CustomInvoiceGenerator({
                         <div className="flex justify-between items-center px-1 text-[#6B7280]">
                           <span>Subtotal (Medicines / Supplies)</span>
                           <span className="font-mono tabular-nums text-slate-800 font-medium">
-                            ৳{subtotalMedicines.toFixed(2)}
+                            ৳{safeFixed(subtotalMedicines, 2)}
                           </span>
                         </div>
 
@@ -1779,7 +1811,7 @@ export default function CustomInvoiceGenerator({
                         <div className="flex justify-between items-center px-1">
                           <span className="text-[#6B7280]">Institutional Savings</span>
                           <span className="font-mono tabular-nums font-bold text-[#65A30D]">
-                            -৳{wholesaleSavings.toFixed(2)}
+                            -৳{safeFixed(wholesaleSavings, 2)}
                           </span>
                         </div>
 
@@ -1787,7 +1819,7 @@ export default function CustomInvoiceGenerator({
                         <div className="flex justify-between items-center px-1 text-[#6B7280]">
                           <span>Delivery Charge</span>
                           <span className="font-mono tabular-nums text-slate-800 font-medium">
-                            ৳{(deliveryCharge || 0).toFixed(2)}
+                            ৳{safeFixed(deliveryCharge, 2)}
                           </span>
                         </div>
 
@@ -1796,7 +1828,7 @@ export default function CustomInvoiceGenerator({
                           <div className="flex justify-between items-center px-1 text-[#6B7280]">
                             <span>Special Adjustment</span>
                             <span className="font-mono tabular-nums font-bold text-purple-700">
-                              ৳{(specialAdjustment || 0).toFixed(2)}
+                              ৳{safeFixed(specialAdjustment, 2)}
                             </span>
                           </div>
                         )}
@@ -1810,7 +1842,7 @@ export default function CustomInvoiceGenerator({
                         >
                           <span className="font-bold text-xs uppercase tracking-wide">Net Payable</span>
                           <span className="font-mono tabular-nums text-base sm:text-lg font-black">
-                            ৳{netPayable.toFixed(2)}
+                            ৳{safeFixed(netPayable, 2)}
                           </span>
                         </div>
 
@@ -1820,7 +1852,7 @@ export default function CustomInvoiceGenerator({
                             Amount Due {isPaid ? "(Paid in Full)" : `(${paymentMethod})`}
                           </span>
                           <span className={`font-mono tabular-nums font-bold text-[13px] ${isPaid ? "text-[#166534]" : "text-[#14161B]"}`}>
-                            ৳{amountDue.toFixed(2)}
+                            ৳{safeFixed(amountDue, 2)}
                           </span>
                         </div>
                       </div>
@@ -1962,7 +1994,7 @@ export default function CustomInvoiceGenerator({
                           </span>
                         </td>
                         <td className="p-3 text-right font-mono font-black text-slate-900">
-                          ৳{inv.netPayable ? inv.netPayable.toFixed(2) : "0.00"}
+                          ৳{safeFixed(inv.netPayable, 2)}
                         </td>
                         <td className="p-3 text-center">
                           {inv.paymentStatus === "Paid" ? (

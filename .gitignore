@@ -35,3 +35,6 @@ tests/output/
 .agents/
 .aistudio/
 public/assets/aistudio/*.mp4
+scripts/cloneDatabase.*
+scripts/clonePostgresObjects.*
+scripts/*temp*

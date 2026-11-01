@@ -3118,7 +3118,81 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 - **VERIFICATION:**
   - TypeScript compilation (`tsc --noEmit`): 0 errors.
   - Full applet compilation (`compile_applet`): Succeeded.
+### TASK 136: Safe Number Formatting & `.toFixed` Type Guarding in CustomInvoiceGenerator & ModernInvoiceModal
+- **SUMMARY:**
+  - **Issue Reported**: `TypeError: (item.mrp || 0).toFixed is not a function` at `CustomInvoiceGenerator.tsx:2985:51` caught by SafeBoundary.
+  - **Root Cause**:
+    1. In `CustomInvoiceGenerator.tsx`, when users edited invoice items (or when items were loaded from storage), `<input onChange={e => handleUpdateItem(item.id, "mrp", e.target.value)} />` passed string values. In `handleUpdateItem`, `updated.mrp` remained a string.
+    2. When rendering table columns, `(item.mrp || 0).toFixed(2)` was called. Because `"120" || 0` returns the string `"120"`, calling `.toFixed()` on a string caused an unhandled runtime `TypeError`.
+    3. The same vulnerability existed for `rate`, `netDiscount`, `total`, `subtotalMedicines`, `wholesaleSavings`, `deliveryCharge`, `specialAdjustment`, `netPayable`, and `amountDue`.
+  - **Resolution**:
+    1. Implemented `safeFixed(val, decimals = 2)` helper in both `CustomInvoiceGenerator.tsx` and `ModernInvoiceModal.tsx` that safely casts any value to `Number(val)`, checks `isNaN()`, and returns a guaranteed fixed numeric string.
+    2. Replaced all raw `.toFixed()` calls in table items and summary boxes with `safeFixed(...)`.
+    3. Updated `handleUpdateItem` to explicitly enforce numeric values on `updated.mrp`, `updated.rate`, `updated.quantity`, and `updated.discountPercentage`.
+    4. Added defensive data sanitization on mount (`localStorage.getItem`) and when loading invoices into the editor (`handleLoadInvoiceIntoEditor`), ensuring historical data loaded from storage cannot trigger crashes.
+- **VERIFICATION:**
+  - TypeScript compilation (`tsc --noEmit`): 0 errors.
+  - Applet compilation (`compile_applet`): Build succeeded.
   - Unit tests (`tests/cartOptimisticAndManualQty.test.ts`): 5/5 passed.
+
+### TASK 137: Emergency Full Supabase Database Wire Protocol Clone (`MediChain` -> `MediChain-Prod-2`)
+- **SUMMARY:**
+  - **Issue Reported**: Old Supabase project (`qboghbbrqfmexpbzvded`) hit its 5GB PostgREST API egress limit, blocking customer logins and orders. A new target Supabase project (`okwiohbwvvveecyhxawh`, MediChain-Prod-2) was provisioned. Required full direct wire protocol clone.
+  - **Execution & Scope**:
+    1. **Direct Wire Protocol Connection**: Connected using explicit `pg.Client` configuration on port 5432 with SSL enabled to bypass URL parsing issues.
+    2. **Auth Users & Identities Preservation**:
+       - Filtered out generated columns (e.g. `confirmed_at`) and cloned all 40 `auth.users` with encrypted passwords, UUIDs, and metadata preserved (`ON CONFLICT (id) DO UPDATE`).
+       - Cloned all 44 `auth.identities` (`ON CONFLICT DO NOTHING`).
+    3. **Extensions & Custom Enums**:
+       - Enabled `uuid-ossp` and `pgcrypto`.
+       - Cloned all 5 custom enums (`order_status`, `payment_method`, `payment_status`, `prescription_status`, `return_status`).
+    4. **49 Public Tables Recreated & Cloned**:
+       - Introspected table columns, primary keys, defaults, and data types from `information_schema`.
+       - Recreated all missing tables on target with correct schemas.
+       - Disabled foreign key constraint triggers during migration (`SET session_replication_role = 'replica';`).
+       - Serialized `json` and `jsonb` array/object parameters to prevent driver syntax conflicts.
+       - Restored normal replication role (`SET session_replication_role = 'origin';`).
+    5. **Sequences & 77 RLS Policies**:
+       - Created and synchronized sequences (including `order_number_seq`).
+       - Enabled `ROW LEVEL SECURITY` across all public tables and replicated all 77 policies with robust role list handling.
+    6. **100% Data Verification**:
+       - Generated table-by-table verification: 100% of all 51 tables matched with exact row counts (2,371 products, 2,322 inventory items, 1,140 notifications, 774 audit logs, 207 order items, 159 categories, 118 WhatsApp recipients, 95 expenses, 89 order amendments, 79 purchases, 41 orders, 41 invoices, 40 auth users, 44 auth identities, 39 public users, 38 custom invoices, 38 collections, 35 pharmacies, 27 carts, etc.).
+    7. **Cleaned Credentials**:
+       - Added migration patterns to `.gitignore` and permanently deleted `scripts/cloneDatabase.mjs`.
+- **VERIFICATION:**
+  - Row Count Verification: 51 / 51 tables MATCH ✓ (100% of data cloned).
+  - TypeScript compilation (`tsc --noEmit`): 0 errors.
+  - Applet compilation (`compile_applet`): Build succeeded.
+
+### TASK 138: Full Replication of Advanced PostgreSQL Objects to `MediChain-Prod-2` (FKs, Indexes, Functions, Triggers, Views)
+- **SUMMARY:**
+  - **Issue Reported**: To enable Supabase PostgREST nested relation queries (e.g., `orders -> order_items`, `products -> inventory`), search performance, and triggers, all remaining PostgreSQL objects required verification and cloning from `qboghbbrqfmexpbzvded` to `okwiohbwvvveecyhxawh`.
+  - **Execution & Scope**:
+    1. **Extensions**:
+       - Enabled `uuid-ossp`, `pgcrypto`, and `pg_trgm` (in `public` schema) on target to provide trigram operator classes (`gin_trgm_ops`) and similarity algorithms.
+    2. **Functions & RPCs (`pg_proc`)**:
+       - Extracted and recreated all 36 user-defined & extension functions in `public` using `pg_get_functiondef(oid)`.
+    3. **Materialized Views (`pg_matviews`) & Views (`pg_views`)**:
+       - Recreated `fefo_inventory_view` materialized view on target with full SQL definition.
+    4. **Foreign Key Constraints (`contype = 'f'`)**:
+       - Recreated all 35 foreign keys using `pg_get_constraintdef(oid)` so PostgREST automatically recognizes table relationships.
+    5. **Custom Indexes (`pg_indexes`)**:
+       - Recreated all 105 non-primary indexes, including GIN trigram indexes (`idx_products_name_trgm`, `idx_products_generic_trgm`, `idx_products_company_trgm`) and materialized view index (`idx_fefo_product_expiry`).
+    6. **Triggers (`pg_trigger`)**:
+       - Recreated all 13 table update/audit triggers across `public` tables.
+    7. **PostgREST Schema Reload**:
+       - Dispatched `NOTIFY pgrst, 'reload schema';` on target database.
+    8. **Clean Up**:
+       - Deleted temporary migration script `scripts/clonePostgresObjects.mjs` and ensured `.gitignore` coverage.
+- **VERIFICATION:**
+  - Foreign Keys: 35 / 35 (MATCH ✓)
+  - Custom Indexes: 105 / 105 (MATCH ✓)
+  - Functions/RPCs: 36 / 36 (MATCH ✓)
+  - Triggers: 13 / 13 (MATCH ✓)
+  - Materialized Views: 1 / 1 (MATCH ✓)
+  - PostgREST Schema Cache: Reloaded.
+  - TypeScript compilation (`tsc --noEmit`): 0 errors.
+  - Full applet compilation (`compile_applet`): Build succeeded.
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).
