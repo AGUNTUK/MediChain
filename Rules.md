@@ -1,5 +1,8 @@
 # Rules & Guidelines — MediChain AI Agent
 
+> ### ⚠️ MANDATORY PRODUCTION GUARDRAILS
+> **CRITICAL NOTICE:** `AI_GUARDRAILS.md` MUST be read and strictly obeyed before any code modification, schema adjustment, or query construction. Any violation risks live production downtime, security regressions, or quota exhaustion.
+
 This document defines the strict operational boundaries, coding patterns, forbidden practices, and architecture rules for all AI agents and engineers working on MediChain.
 
 ---

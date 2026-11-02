@@ -3249,6 +3249,15 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - TypeScript compilation (`tsc --noEmit`): 0 errors.
   - Applet compilation (`compile_applet`): Build succeeded.
   - Unit tests (`tests/cartOptimisticAndManualQty.test.ts`): 5/5 passed.
+
+### TASK 142: Establish `AI_GUARDRAILS.md` & Mandatory Governance Banners in Architectural Docs
+- **SUMMARY:**
+  - Created root-level governance document `AI_GUARDRAILS.md` containing strict engineering mandates (Surgical Scope, Auth Immutability, Supabase Zero-Egress Discipline & Column Pruning, Core Business Logic Preservation, and Pre/Post-Flight Verification).
+  - Added top-level mandatory reading banners to `Architecture.md` and `Rules.md`.
+  - Zero application code (`src/`, `server.ts`) was modified during this task.
+- **VERIFICATION:**
+  - TypeScript compilation (`tsc --noEmit`): 0 errors.
+  - Full applet compilation (`compile_applet`): Build succeeded.
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).

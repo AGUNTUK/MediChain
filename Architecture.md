@@ -1,5 +1,8 @@
 # Architecture & Technical Design Document — MediChain
 
+> ### ⚠️ MANDATORY PRODUCTION GUARDRAILS
+> **CRITICAL NOTICE:** `AI_GUARDRAILS.md` MUST be read and strictly obeyed before any code modification, schema adjustment, or query construction. Any violation risks live production downtime, security regressions, or quota exhaustion.
+
 ## 1. System Architecture Overview
 
 MediChain utilizes a modern full-stack monolith architecture designed for high availability, low latency, and zero deployment friction. In production, the application is deployed on **Vercel** (`https://medichainbd.vercel.app`), serving the single-page React frontend via Vercel Edge and API endpoints via **Vercel Serverless Functions** (`/api/*` wrapped in `api/index.ts`). For local development, Express serves both static frontend assets and REST / WebSocket APIs via `server.ts` on port 3000.
