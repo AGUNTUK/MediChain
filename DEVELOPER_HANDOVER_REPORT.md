@@ -3193,6 +3193,62 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - PostgREST Schema Cache: Reloaded.
   - TypeScript compilation (`tsc --noEmit`): 0 errors.
   - Full applet compilation (`compile_applet`): Build succeeded.
+
+### TASK 139: Fix `bulk_campaigns.tag` Schema Error & HTML Response Deserialization in Product/Bulk Services
+- **SUMMARY:**
+  - **Issue Reported**:
+    1. `Error fetching live campaign: {"code":"42703","details":null,"hint":null,"message":"column bulk_campaigns.tag does not exist"}`
+    2. `Failed to load catalog products for home: SyntaxError: Unexpected token '<', "<!doctype "... is not valid JSON`
+    3. `Error querying products catalog: SyntaxError: Unexpected token '<', "<!doctype "... is not valid JSON`
+  - **Root Cause**:
+    1. In `src/services/bulkDeals.ts`, fallback queries selected `tag` and `end_time`, which did not exist on the `bulk_campaigns` table.
+    2. In `server.ts`, `/api/bulk-deals/live` requested legacy column names (`subtitle, badge_text, discount_text, starts_at, expires_at`), causing the endpoint to fail and fall back to Supabase.
+    3. When the container booted or during dev server restarts, requests to `/api/products` received the SPA HTML fallback (`<!doctype html>...`) before Express mounted. Calling raw `res.json()` in `src/services/product.ts` threw a `SyntaxError: Unexpected token '<'` unhandled exception.
+  - **Resolution**:
+    1. **Database Schema Compatibility**:
+       - Added compatibility columns (`tag`, `end_time`, `subtitle`, `badge_text`, `discount_text`, `starts_at`, `expires_at`) to `public.bulk_campaigns` and reloaded the PostgREST schema cache.
+    2. **Resilient JSON Deserialization**:
+       - Converted all endpoint callers in `src/services/product.ts` and `src/services/bulkDeals.ts` to use `safeJsonResponse`, gracefully detecting HTML/text error banners and returning structured fallback catalogs rather than crashing with syntax errors.
+    3. **Server Route Selection Fix**:
+       - Updated `/api/bulk-deals/live` in `server.ts` to `.select("*")` so all campaign columns (`subtext`, `featured_product_id`, `trust_badges`, etc.) are returned correctly.
+- **VERIFICATION:**
+  - TypeScript compilation (`tsc --noEmit`): 0 errors.
+  - Full applet compilation (`compile_applet`): Build succeeded.
+  - Unit tests (`tests/cartOptimisticAndManualQty.test.ts`): 5/5 passed.
+
+### TASK 140: Dev Server Startup Lock Remediation (Removed Stale `bun.lock` & Launched `npm run dev`)
+- **SUMMARY:**
+  - **Issue Reported**: "The dev server didn't start, please fix it".
+  - **Root Cause**:
+    - A leftover `bun.lock` file in the workspace root caused the environment's container control plane to identify the project as Bun-managed.
+    - During container boot, the control plane executed `bun install`, which hung on peer dependency resolution and socket locks, preventing the Node.js/Express dev server (`npm run dev` / `tsx server.ts`) on port 3000 from starting.
+  - **Resolution**:
+    - Deleted the conflicting `bun.lock` file and terminated the hanging process.
+    - The control plane immediately invoked `npm run dev --port 3000 --host 0.0.0.0` with `tsx server.ts`.
+    - Both the application frontend (port 3000) and API endpoints (`/api/bulk-deals/live`, `/api/products`), as well as the Nginx proxy (port 8080), returned `HTTP/1.1 200 OK`.
+- **VERIFICATION:**
+  - Direct HTTP check: `http://localhost:3000/` -> `HTTP/1.1 200 OK`.
+  - Nginx reverse proxy: `http://localhost:8080/` -> `HTTP/1.1 200 OK`.
+  - API endpoints: `/api/bulk-deals/live` (200), `/api/products?paginate=true&limit=2` (200 JSON).
+  - TypeScript compilation (`tsc --noEmit`): 0 errors.
+  - Applet compilation (`compile_applet`): Build succeeded.
+
+### TASK 141: Fix "Product not found." in ProductEditModal (Schema Compatibility Columns for Products)
+- **SUMMARY:**
+  - **Issue Reported**: `Save error: Error: Product not found.` at `onSave (AdminPanel.tsx)` and `handleSubmit (ProductEditModal.tsx:175:7)`.
+  - **Root Cause**:
+    - `dbService.getProductById(id)` queried `products` table selecting: `cost_price`, `is_antibiotic`, `requires_prescription`, `tax_rate`, and `status`.
+    - Because `cost_price` and those auxiliary columns were not present on the `products` table in the database, PostgREST rejected the query with `HTTP 400: column products.cost_price does not exist`.
+    - Consequently, `getProductById(id)` returned `null` for every product lookup. When the admin submitted `ProductEditModal`, `PATCH /api/admin/products/:id` checked `const existing = await dbService.getProductById(req.params.id)`. Since it returned `null`, the endpoint returned `404: Product not found.`.
+  - **Resolution**:
+    - Added compatibility columns (`cost_price numeric`, `is_antibiotic boolean DEFAULT false`, `requires_prescription boolean DEFAULT false`, `tax_rate numeric DEFAULT 0`, `status text DEFAULT 'active'`) to `public.products` across both Supabase databases and reloaded the PostgREST schema cache.
+    - Updated `getProductById` in `src/lib/dbService.ts` to sanitize IDs with `cleanId = String(id || '').trim()` and added explicit error logging to prevent silent failures.
+    - Verified direct lookup via `/api/products/:id` returning `HTTP/1.1 200 OK` with full product and inventory payloads.
+- **VERIFICATION:**
+  - Direct HTTP test: `GET /api/products/89f0a924-a682-45a3-b1e1-a91296c8eca5` -> `HTTP/1.1 200 OK`.
+  - TypeScript compilation (`tsc --noEmit`): 0 errors.
+  - Applet compilation (`compile_applet`): Build succeeded.
+  - Unit tests (`tests/cartOptimisticAndManualQty.test.ts`): 5/5 passed.
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).

@@ -1928,7 +1928,7 @@ app.get("/api/bulk-deals/live", async (req, res) => {
   try {
     const { data, error } = await supabaseAdmin
       .from("bulk_campaigns")
-      .select("id, title, subtitle, badge_text, discount_text, status, starts_at, expires_at, created_at, updated_at")
+      .select("*")
       .eq("status", "Live")
       .order("updated_at", { ascending: false })
       .limit(1)

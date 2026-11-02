@@ -1252,13 +1252,20 @@ export async function getProductsRaw(limit = 100): Promise<Product[]> {
 }
 
 export async function getProductById(id: string): Promise<Product | null> {
+  const cleanId = String(id || "").trim();
+  if (!cleanId) return null;
+
   const { data: p, error } = await supabaseAdmin
     .from("products")
     .select("id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, cost_price, buying_price, discount_percentage, stock_quantity, barcode, is_antibiotic, requires_prescription, tax_rate, status, image_url")
-    .eq("id", id)
+    .eq("id", cleanId)
     .maybeSingle();
 
-  if (error || !p) return null;
+  if (error) {
+    console.error("[dbService] getProductById error for id:", cleanId, error.message);
+    return null;
+  }
+  if (!p) return null;
 
   let inv: any = null;
   try {

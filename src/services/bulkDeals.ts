@@ -1,7 +1,7 @@
 import { supabase } from "../lib/supabaseClient";
 import { BulkCampaign, BulkCampaignProduct, BulkTier } from "../types";
 import { apiCache } from "../lib/apiCache";
-import { apiFetch } from "../lib/apiFetch";
+import { apiFetch, safeJsonResponse } from "../lib/apiFetch";
 
 export const bulkDealsService = {
   clearCache(): void {
@@ -19,9 +19,9 @@ export const bulkDealsService = {
         const res = await apiFetch("/api/bulk-deals/campaigns", {
           cache: "no-store"
         });
-        if (res.ok) {
-          const data = await res.json();
-          return Array.isArray(data) ? data : [];
+        const parsed = await safeJsonResponse<BulkCampaign[]>(res);
+        if (parsed.ok && Array.isArray(parsed.data)) {
+          return parsed.data;
         }
       } catch (err) {
         console.warn("[Bulk Deals] Server fetch failed, attempting Supabase fallback...", err);
@@ -29,15 +29,15 @@ export const bulkDealsService = {
 
       const { data, error } = await supabase
         .from("bulk_campaigns")
-        .select("id, title, tag, subtext, status, end_time, created_at, updated_at")
+        .select("id, title, subtext, status, created_at, updated_at, featured_product_id, discount_display_percent, banner_color, banner_image_url, cta_text, cta_link")
         .order("created_at", { ascending: false })
         .limit(10);
       
       if (error) {
-        console.error("Error fetching bulk campaigns:", error);
+        console.warn("[Bulk Deals] Supabase fallback campaigns notice:", error.message);
         return [];
       }
-      return data as BulkCampaign[];
+      return (data || []) as BulkCampaign[];
     });
   },
 
@@ -51,9 +51,9 @@ export const bulkDealsService = {
           cache: "no-store",
           headers: { "Cache-Control": "no-cache" }
         });
-        if (res.ok) {
-          const data = await res.json();
-          return data as BulkCampaign | null;
+        const parsed = await safeJsonResponse<BulkCampaign | null>(res);
+        if (parsed.ok && parsed.data !== undefined) {
+          return parsed.data;
         }
       } catch (err) {
         console.warn("[Bulk Deals] Live campaign server fetch failed, falling back to Supabase...", err);
@@ -61,14 +61,14 @@ export const bulkDealsService = {
 
       const { data, error } = await supabase
         .from("bulk_campaigns")
-        .select("id, title, tag, subtext, status, end_time, created_at, updated_at")
+        .select("id, title, subtext, status, created_at, updated_at, featured_product_id, discount_display_percent, banner_color, banner_image_url, cta_text, cta_link, trust_badges")
         .eq("status", "Live")
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       
       if (error || !data) {
-        if (error) console.error("Error fetching live campaign:", error);
+        if (error) console.warn("[Bulk Deals] Notice querying live campaign fallback:", error.message);
         return null;
       }
 
@@ -145,9 +145,9 @@ export const bulkDealsService = {
         const res = await apiFetch(`/api/bulk-deals/campaigns/${encodeURIComponent(id)}`, {
           cache: "no-store"
         });
-        if (res.ok) {
-          const data = await res.json();
-          return data as BulkCampaign | null;
+        const parsed = await safeJsonResponse<BulkCampaign | null>(res);
+        if (parsed.ok && parsed.data) {
+          return parsed.data;
         }
       } catch (err) {
         console.warn("[Bulk Deals] Server fetch by ID failed, falling back to Supabase...", err);
@@ -155,12 +155,12 @@ export const bulkDealsService = {
 
       const { data, error } = await supabase
         .from("bulk_campaigns")
-        .select("id, title, tag, subtext, status, end_time, created_at, updated_at")
+        .select("id, title, subtext, status, created_at, updated_at, featured_product_id, discount_display_percent, banner_color, banner_image_url, cta_text, cta_link, trust_badges")
         .eq("id", id)
         .maybeSingle();
       
       if (error) {
-        console.error("Error fetching campaign by id:", error);
+        console.warn("[Bulk Deals] Notice querying campaign by id fallback:", error.message);
         return null;
       }
       return data as BulkCampaign | null;
@@ -173,9 +173,9 @@ export const bulkDealsService = {
         const res = await apiFetch(`/api/bulk-deals/campaigns/${encodeURIComponent(campaignId)}/products`, {
           cache: "no-store"
         });
-        if (res.ok) {
-          const data = await res.json();
-          return Array.isArray(data) ? data : [];
+        const parsed = await safeJsonResponse<BulkCampaignProduct[]>(res);
+        if (parsed.ok && Array.isArray(parsed.data)) {
+          return parsed.data;
         }
       } catch (err) {
         console.warn("[Bulk Deals] Campaign products server fetch failed, falling back to Supabase...", err);

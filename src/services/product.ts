@@ -1,6 +1,6 @@
 import { Product } from "../types";
 import { apiCache } from "../lib/apiCache";
-import { apiFetch } from "../lib/apiFetch";
+import { apiFetch, safeJsonResponse } from "../lib/apiFetch";
 
 /**
  * MediChain Product Catalog Service
@@ -32,10 +32,16 @@ export const productService = {
     const cacheKey = `products_${queryStr}`;
 
     return apiCache.swr(cacheKey, async () => {
-      const res = await apiFetch(`/api/products${queryStr}`);
-      if (!res.ok) return [];
-      const data = await res.json();
-      return Array.isArray(data) ? data : (data.products || []);
+      try {
+        const res = await apiFetch(`/api/products${queryStr}`);
+        const parsed = await safeJsonResponse<any>(res);
+        if (parsed.ok && parsed.data) {
+          return Array.isArray(parsed.data) ? parsed.data : (parsed.data.products || []);
+        }
+      } catch (e) {
+        console.warn("Failed to fetch products from /api/products:", e);
+      }
+      return [];
     });
   },
 
@@ -46,8 +52,9 @@ export const productService = {
     return apiCache.swr(`product_${id}`, async () => {
       try {
         const res = await apiFetch(`/api/products/${encodeURIComponent(id)}`);
-        if (!res.ok) return null;
-        return res.json();
+        const parsed = await safeJsonResponse<Product | null>(res);
+        if (parsed.ok && parsed.data) return parsed.data;
+        return null;
       } catch {
         return null;
       }
@@ -59,9 +66,14 @@ export const productService = {
    */
   async getCategories(): Promise<string[]> {
     return apiCache.swr("categories", async () => {
-      const res = await apiFetch("/api/categories");
-      if (!res.ok) return [];
-      return res.json();
+      try {
+        const res = await apiFetch("/api/categories");
+        const parsed = await safeJsonResponse<string[]>(res);
+        if (parsed.ok && Array.isArray(parsed.data)) return parsed.data;
+      } catch (e) {
+        console.warn("Failed to fetch categories:", e);
+      }
+      return [];
     });
   },
 
@@ -96,11 +108,26 @@ export const productService = {
     const cacheKey = `products_paginated_${queryStr}`;
 
     return apiCache.swr(cacheKey, async () => {
-      const res = await apiFetch(`/api/products?${queryStr}`);
-      if (!res.ok) {
-        throw new Error("Failed to fetch paginated product list from MediChain catalog.");
+      try {
+        const res = await apiFetch(`/api/products?${queryStr}`);
+        const parsed = await safeJsonResponse<any>(res);
+        if (parsed.ok && parsed.data && Array.isArray(parsed.data.products)) {
+          return parsed.data;
+        }
+      } catch (err) {
+        console.warn("[Products] /api/products fetch error, returning fallback catalog:", err);
       }
-      return res.json();
+
+      return {
+        products: [],
+        total: 0,
+        page: params.page || 1,
+        pageSize: params.limit || 24,
+        pages: 1,
+        suggestions: [],
+        originalQuery: params.search || "",
+        correctedQuery: undefined
+      };
     });
   },
 
