@@ -3258,6 +3258,32 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
 - **VERIFICATION:**
   - TypeScript compilation (`tsc --noEmit`): 0 errors.
   - Full applet compilation (`compile_applet`): Build succeeded.
+
+### TASK 143: Bulk Brand Discounts (Gaco 35%, OSL 20%, DBL 23%) & Crawled 98 Naafco Pharma PLC Products (45%)
+- **SUMMARY:**
+  - **Step 1 (Bulk Discounts Updated)**:
+    - `Gaco Pharmaceuticals`: 16 products updated to `discount_percentage = 35`, `selling_price = ROUND((mrp * 0.65)::numeric, 2)`.
+    - `OSL Pharma`: 30 products updated to `discount_percentage = 20`, `selling_price = ROUND((mrp * 0.80)::numeric, 2)`.
+    - `DBL Pharmaceuticals`: 14 products updated to `discount_percentage = 23`, `selling_price = ROUND((mrp * 0.77)::numeric, 2)`.
+  - **Step 2 (Naafco Pharma PLC Scraped & Imported)**:
+    - Crawled all 4 catalogue pages of Naafco Pharma PLC (`https://medex.com.bd/companies/251/naafco-pharma-plc/brands`).
+    - Successfully scraped and upserted all 98 branded formulations into `public.products` and `public.inventory` on `okwiohbwvvveecyhxawh` (`MediChain-Prod-2`).
+    - Applied strict 45% discount: `discount_percentage = 45`, `selling_price = ROUND((mrp * 0.55)::numeric, 2)`.
+    - Ensured stock default of 100 available stock with linked `public.inventory` records.
+    - Strictly obeyed `AI_GUARDRAILS.md`: 18 products with genuine MedEx packaging images stored; 80 products with `image_url = null` (no placeholder or Base64 data).
+  - **Step 3 (Env Override & Cache Clearance)**:
+    - Updated `server.ts` and `src/lib/supabaseAdmin.ts` with `dotenv.config({ override: true })` so that local development and production server instances reliably bind to the active Supabase project (`okwiohbwvvveecyhxawh`).
+    - Cleaned up temporary migration script and restarted the dev server to flush product caches.
+- **VERIFICATION:**
+  - Database counts verified:
+    - Gaco (35%): 16
+    - OSL (20%): 30
+    - DBL (23%): 14
+    - Naafco (45%): 98 (18 with packaging images, 80 with null images)
+    - Naafco inventory records: 98
+  - TypeScript compilation (`tsc --noEmit`): 0 errors.
+  - Applet compilation (`compile_applet`): Build succeeded.
+  - Unit tests (`tests/cartOptimisticAndManualQty.test.ts`): 5/5 passed.
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).

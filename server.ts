@@ -49,9 +49,9 @@ import { sendOrderAlert, logTelegramConfigStatus, sendPhysiciansProductRequest }
 import cron from "node-cron";
 import multer from "multer";
 
-dotenv.config();
+dotenv.config({ override: true });
 if (!process.env.SESSION_SECRET && fs.existsSync(path.resolve(process.cwd(), "tests", ".env"))) {
-  dotenv.config({ path: path.resolve(process.cwd(), "tests", ".env") });
+  dotenv.config({ path: path.resolve(process.cwd(), "tests", ".env"), override: true });
 }
 
 const uploadMiddleware = multer({

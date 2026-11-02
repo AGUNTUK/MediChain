@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 
 // In Node server/test environment, ensure env is loaded synchronously
 if (typeof process !== "undefined") {
-  dotenv.config();
+  dotenv.config({ override: true });
 }
 
 let adminClientInstance: SupabaseClient | null = null;
@@ -11,7 +11,7 @@ let adminClientInstance: SupabaseClient | null = null;
 export function getSupabaseAdmin(): SupabaseClient {
   if (!adminClientInstance) {
     if (!process.env.VITE_SUPABASE_URL && !process.env.SUPABASE_URL) {
-      dotenv.config();
+      dotenv.config({ override: true });
     }
 
     const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
