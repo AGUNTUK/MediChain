@@ -5183,6 +5183,30 @@ async function handleStockChangeNotifications(oldStock: number | undefined, newS
 app.post("/api/admin/products", requireRole(["Admin"]), validateBody(schemas.adminProduct), async (req, res) => {
   const productData = req.body;
 
+  // Sanitize image URLs (convert empty, malformed, blob, or internal API paths to clean URLs or null)
+  const sanitizeProductImageUrl = (url: any) => {
+    if (url === null || url === undefined || url === "") return null;
+    if (typeof url !== "string") return null;
+    const trimmed = url.trim();
+    if (!trimmed || trimmed.startsWith("blob:") || trimmed.includes("qboghbbrqfmexpbzvded") || trimmed.startsWith("/api/products/")) return null;
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("data:image")) return trimmed;
+    return null;
+  };
+  productData.image_url = sanitizeProductImageUrl(productData.image_url);
+  productData.imageUrl = sanitizeProductImageUrl(productData.imageUrl);
+
+  // Auto-compute Trade Price from MRP and Discount Percentage if discount is provided
+  const targetMrp = parseFloat(String(productData.mrp || 0));
+  const rawDisc = productData.discountPercentage ?? productData.discount_percentage;
+  if (targetMrp > 0 && rawDisc !== undefined && rawDisc !== null && rawDisc !== "" && productData.sellingPrice === undefined) {
+    const discVal = parseFloat(String(rawDisc));
+    if (!isNaN(discVal) && discVal >= 0) {
+      const computedSelling = Math.round(targetMrp * (1 - discVal / 100.0) * 100) / 100;
+      productData.sellingPrice = Math.max(0, computedSelling);
+      productData.selling_price = productData.sellingPrice;
+    }
+  }
+
   // Intercept and auto-upload any Base64 data URI before database write
   if (productData.image_url && typeof productData.image_url === "string" && productData.image_url.startsWith("data:image")) {
     const uploadedUrl = await dbService.uploadBase64ProductImage(productData.image_url, productData.id);
@@ -5271,6 +5295,38 @@ app.patch("/api/admin/products/:id", requireRole(["Admin"]), async (req, res) =>
     const oldStock = existing.availableStock;
     const updates = req.body;
 
+    // Gracefully sanitize image URLs (convert empty, malformed, blob, or internal API paths to clean URLs or null)
+    const sanitizeProductImageUrl = (url: any, existingUrl?: string | null) => {
+      if (url === null || url === undefined || url === "") return null;
+      if (typeof url !== "string") return null;
+      const trimmed = url.trim();
+      if (!trimmed || trimmed.startsWith("blob:") || trimmed.includes("qboghbbrqfmexpbzvded")) return null;
+      if (trimmed.startsWith("/api/products/")) {
+        return (existingUrl && !existingUrl.startsWith("/api/") && !existingUrl.includes("qboghbbrqfmexpbzvded")) ? existingUrl : null;
+      }
+      if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("data:image")) return trimmed;
+      return null;
+    };
+
+    if (updates.image_url !== undefined) {
+      updates.image_url = sanitizeProductImageUrl(updates.image_url, existing.image_url || existing.imageUrl);
+    }
+    if (updates.imageUrl !== undefined) {
+      updates.imageUrl = sanitizeProductImageUrl(updates.imageUrl, existing.image_url || existing.imageUrl);
+    }
+
+    // Auto-compute Trade Price from MRP and Discount Percentage if discount is provided
+    const targetMrp = updates.mrp !== undefined ? parseFloat(String(updates.mrp)) : parseFloat(String(existing.mrp || 0));
+    const rawDisc = updates.discountPercentage ?? updates.discount_percentage;
+    if (targetMrp > 0 && rawDisc !== undefined && rawDisc !== null && rawDisc !== "" && updates.sellingPrice === undefined) {
+      const discVal = parseFloat(String(rawDisc));
+      if (!isNaN(discVal) && discVal >= 0) {
+        const computedSelling = Math.round(targetMrp * (1 - discVal / 100.0) * 100) / 100;
+        updates.sellingPrice = Math.max(0, computedSelling);
+        updates.selling_price = updates.sellingPrice;
+      }
+    }
+
     // Intercept and auto-upload any Base64 data URI before database write
     if (updates.image_url && typeof updates.image_url === "string" && updates.image_url.startsWith("data:image")) {
       const uploadedUrl = await dbService.uploadBase64ProductImage(updates.image_url, req.params.id);
@@ -5285,7 +5341,13 @@ app.patch("/api/admin/products/:id", requireRole(["Admin"]), async (req, res) =>
       }
     }
 
-    const merged = { ...existing, ...updates, id: req.params.id };
+    const merged = { 
+      ...existing, 
+      ...updates, 
+      id: req.params.id,
+      imageUrl: updates.imageUrl !== undefined ? updates.imageUrl : sanitizeProductImageUrl(existing.imageUrl),
+      image_url: updates.image_url !== undefined ? updates.image_url : sanitizeProductImageUrl(existing.image_url)
+    };
 
     // Validate merged product
     try {

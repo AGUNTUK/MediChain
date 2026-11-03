@@ -1371,9 +1371,9 @@ export async function addOrUpdateProduct(prod: Partial<Product> & { name: string
     ? prod.availableStock 
     : ((prod as any).stock_quantity !== undefined ? (prod as any).stock_quantity : 100);
 
-  // Intercept any Base64 data URI in image_url to prevent PostgREST egress bloat
-  const rawImageUrl = prod.imageUrl || prod.image_url || "";
-  let finalImageUrl = rawImageUrl;
+  // Intercept any Base64 data URI in image_url to prevent PostgREST egress bloat, and sanitize malformed/internal URLs
+  const rawImageUrl = String(prod.imageUrl || prod.image_url || "").trim();
+  let finalImageUrl: string | null = null;
 
   if (rawImageUrl.startsWith("data:image")) {
     try {
@@ -1384,7 +1384,30 @@ export async function addOrUpdateProduct(prod: Partial<Product> & { name: string
     } catch (uploadErr) {
       console.warn("Base64 image upload to storage failed in addOrUpdateProduct:", uploadErr);
     }
+  } else if (
+    rawImageUrl &&
+    !rawImageUrl.startsWith("blob:") &&
+    !rawImageUrl.startsWith("/api/products/") &&
+    !rawImageUrl.includes("qboghbbrqfmexpbzvded") &&
+    (rawImageUrl.startsWith("http://") || rawImageUrl.startsWith("https://"))
+  ) {
+    finalImageUrl = rawImageUrl;
+  } else if (rawImageUrl.startsWith("/api/products/") && prod.id) {
+    // Preserve existing valid external storage image if it was pointing to our internal binary image route
+    try {
+      const { data: existingImg } = await supabaseAdmin.from("products").select("image_url").eq("id", prod.id).maybeSingle();
+      if (existingImg?.image_url && !existingImg.image_url.includes("qboghbbrqfmexpbzvded") && !existingImg.image_url.startsWith("/api/")) {
+        finalImageUrl = existingImg.image_url;
+      }
+    } catch {}
   }
+
+  const discPct = (prod as any).discountPercentage !== undefined
+    ? parseFloat(String((prod as any).discountPercentage))
+    : ((prod as any).discount_percentage !== undefined
+        ? parseFloat(String((prod as any).discount_percentage))
+        : (mrpVal > 0 ? Math.round(((mrpVal - sellingVal) / mrpVal) * 1000) / 10 : 0));
+  const finalDiscountPct = !isNaN(discPct) && discPct >= 0 ? Math.round(discPct * 100) / 100 : 0;
 
   const productPayload: any = {
     name: prod.name,
@@ -1396,11 +1419,13 @@ export async function addOrUpdateProduct(prod: Partial<Product> & { name: string
     pack_size: prod.packSize,
     mrp: mrpVal,
     selling_price: sellingVal,
+    discount_percentage: finalDiscountPct,
     stock_quantity: stockQty,
     image_url: finalImageUrl,
     ...(prod.barcode ? { barcode: prod.barcode } : {}),
     ...(prod.buyingPrice !== undefined ? {
-      buying_price: prod.buyingPrice !== null && (prod.buyingPrice as any) !== "" ? parseFloat(String(prod.buyingPrice)) : null
+      buying_price: prod.buyingPrice !== null && (prod.buyingPrice as any) !== "" ? parseFloat(String(prod.buyingPrice)) : null,
+      cost_price: prod.buyingPrice !== null && (prod.buyingPrice as any) !== "" ? parseFloat(String(prod.buyingPrice)) : null
     } : {})
   };
 

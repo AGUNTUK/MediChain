@@ -14,6 +14,7 @@ export interface Product {
   mrp: number; // Maximum Retail Price
   sellingPrice: number; // Wholesale/MediChain price
   discountPercentage: number;
+  discount_percentage?: number;
   availableStock: number;
   reservedStock: number;
   soldStock: number;

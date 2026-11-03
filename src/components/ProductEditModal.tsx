@@ -40,6 +40,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const [strength, setStrength] = useState("");
   const [packSize, setPackSize] = useState("");
   const [mrp, setMrp] = useState<number | "">("");
+  const [discountPercentage, setDiscountPercentage] = useState<number | "">("");
   const [buyingPrice, setBuyingPrice] = useState<number | "" | null>("");
   const [sellingPrice, setSellingPrice] = useState<number | "">("");
   const [availableStock, setAvailableStock] = useState<number | "">("");
@@ -63,9 +64,19 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       setCategory(product.category || "Tablet");
       setStrength(product.strength || "");
       setPackSize(product.packSize || "");
-      setMrp(product.mrp ?? "");
+      const numMrp = product.mrp ?? "";
+      const numSelling = product.sellingPrice ?? "";
+      setMrp(numMrp);
+      setSellingPrice(numSelling);
+
+      // Initialize discount percentage
+      let initialDisc = (product as any).discountPercentage ?? (product as any).discount_percentage ?? "";
+      if ((initialDisc === "" || initialDisc === undefined || isNaN(Number(initialDisc))) && numMrp && numSelling && Number(numMrp) > 0) {
+        initialDisc = Math.round(((Number(numMrp) - Number(numSelling)) / Number(numMrp)) * 1000) / 10;
+      }
+      setDiscountPercentage(initialDisc !== "" && !isNaN(Number(initialDisc)) ? Number(initialDisc) : "");
+
       setBuyingPrice(product.buyingPrice !== undefined && product.buyingPrice !== null ? product.buyingPrice : "");
-      setSellingPrice(product.sellingPrice ?? "");
       setAvailableStock(product.availableStock ?? 100);
       setBatchNumber(product.batchNumber || "");
       setExpiryDate(product.expiryDate || "");
@@ -79,6 +90,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       setStrength("");
       setPackSize("100's Box");
       setMrp("");
+      setDiscountPercentage("");
       setBuyingPrice("");
       setSellingPrice("");
       setAvailableStock(500);
@@ -89,6 +101,41 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
     }
     setErrorMessage("");
   }, [product, isOpen]);
+
+  // Real-time bidirectional price and discount calculations
+  const handleMrpChange = (val: number | "") => {
+    setMrp(val);
+    const numMrp = typeof val === "number" ? val : parseFloat(val as string) || 0;
+    if (numMrp > 0 && discountPercentage !== "" && !isNaN(Number(discountPercentage))) {
+      const disc = Number(discountPercentage);
+      const computed = Math.round(numMrp * (1 - disc / 100.0) * 100) / 100;
+      setSellingPrice(Math.max(0, computed));
+    } else if (numMrp > 0 && sellingPrice !== "" && !isNaN(Number(sellingPrice))) {
+      const sell = Number(sellingPrice);
+      const computedDisc = Math.round(((numMrp - sell) / numMrp) * 1000) / 10;
+      setDiscountPercentage(Math.max(0, computedDisc));
+    }
+  };
+
+  const handleDiscountChange = (val: number | "") => {
+    setDiscountPercentage(val);
+    const numMrp = typeof mrp === "number" ? mrp : parseFloat(mrp as string) || 0;
+    if (numMrp > 0 && val !== "" && !isNaN(Number(val))) {
+      const disc = Number(val);
+      const computed = Math.round(numMrp * (1 - disc / 100.0) * 100) / 100;
+      setSellingPrice(Math.max(0, computed));
+    }
+  };
+
+  const handleSellingPriceChange = (val: number | "") => {
+    setSellingPrice(val);
+    const numMrp = typeof mrp === "number" ? mrp : parseFloat(mrp as string) || 0;
+    const numSell = typeof val === "number" ? val : parseFloat(val as string) || 0;
+    if (numMrp > 0 && numSell >= 0) {
+      const computedDisc = Math.round(((numMrp - numSell) / numMrp) * 1000) / 10;
+      setDiscountPercentage(Math.max(0, computedDisc));
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -188,7 +235,30 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       finalBuyingPrice = Math.round(parsedBp * 100) / 100;
     }
 
-    const discountPercentage = numMrp > 0 ? Math.round(((numMrp - numSelling) / numMrp) * 100) : 0;
+    const finalDiscountPercentage = discountPercentage !== "" && !isNaN(Number(discountPercentage))
+      ? Number(discountPercentage)
+      : (numMrp > 0 ? Math.round(((numMrp - numSelling) / numMrp) * 1000) / 10 : 0);
+
+    // Gracefully sanitize image URL (empty string, blob:, dead domain, or internal proxy route -> clean URL or null)
+    let finalImageUrl: string | null = null;
+    const trimmedImg = (imageUrl || "").trim();
+    if (trimmedImg.startsWith("data:image")) {
+      finalImageUrl = trimmedImg;
+    } else if (
+      trimmedImg &&
+      !trimmedImg.startsWith("blob:") &&
+      !trimmedImg.startsWith("/api/products/") &&
+      !trimmedImg.includes("qboghbbrqfmexpbzvded") &&
+      (trimmedImg.startsWith("http://") || trimmedImg.startsWith("https://"))
+    ) {
+      finalImageUrl = trimmedImg;
+    } else if (trimmedImg.startsWith("/api/products/")) {
+      // If modal was opened with internal binary endpoint, retain genuine storage URL if available
+      const orig = product?.imageUrl || product?.image_url;
+      if (orig && !orig.startsWith("/api/") && !orig.includes("qboghbbrqfmexpbzvded")) {
+        finalImageUrl = orig;
+      }
+    }
 
     const updatedData: Partial<Product> = {
       ...(product ? { id: product.id } : {}),
@@ -201,12 +271,13 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
       mrp: numMrp,
       sellingPrice: numSelling,
       buyingPrice: finalBuyingPrice,
-      discountPercentage: discountPercentage > 0 ? discountPercentage : 0,
+      discountPercentage: Math.max(0, finalDiscountPercentage),
+      discount_percentage: Math.max(0, finalDiscountPercentage) as any,
       availableStock: numStock,
       batchNumber: batchNumber.trim() || "BN-2026-X",
       expiryDate: expiryDate || new Date().toISOString().split("T")[0],
-      imageUrl: imageUrl.startsWith("blob:") ? (product?.imageUrl || product?.image_url || "") : imageUrl.trim(),
-      image_url: imageUrl.startsWith("blob:") ? (product?.imageUrl || product?.image_url || "") : imageUrl.trim(),
+      imageUrl: finalImageUrl as any,
+      image_url: finalImageUrl as any,
     };
 
     try {
@@ -457,7 +528,7 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
           {/* PRICING & STOCK */}
           <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
               <div className="space-y-1">
                 <label className="text-slate-400 font-bold block uppercase text-[10px]">
                   Wholesale MRP (৳) *
@@ -465,9 +536,10 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
                   placeholder="e.g., 480.00"
                   value={mrp}
-                  onChange={(e) => setMrp(e.target.value === "" ? "" : parseFloat(e.target.value))}
+                  onChange={(e) => handleMrpChange(e.target.value === "" ? "" : parseFloat(e.target.value))}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono font-bold"
                   required
                 />
@@ -475,25 +547,23 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
 
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <label className="text-amber-400 font-bold block uppercase text-[10px] flex items-center gap-1">
-                    <span>Buying Price (৳)</span>
-                    <span className="text-[8px] bg-amber-500/20 text-amber-300 px-1 py-0.2 rounded font-black border border-amber-500/30">ADMIN ONLY</span>
+                  <label className="text-sky-400 font-bold block uppercase text-[10px] flex items-center gap-1">
+                    <span>Discount (%)</span>
+                    <span className="text-[8px] bg-sky-500/20 text-sky-300 px-1 py-0.2 rounded font-black border border-sky-500/30">AUTO</span>
                   </label>
                 </div>
                 <input
                   type="number"
-                  step="0.01"
+                  step="0.1"
                   min="0"
-                  placeholder="e.g., 330.00 (Blank = Unknown)"
-                  value={buyingPrice ?? ""}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setBuyingPrice(val === "" ? "" : parseFloat(val));
-                  }}
-                  className="w-full bg-slate-900 border border-amber-500/40 rounded-xl py-2 px-3 text-xs text-amber-300 placeholder:text-slate-600 focus:outline-none focus:border-amber-400 font-mono font-bold"
+                  max="100"
+                  placeholder="e.g., 13"
+                  value={discountPercentage}
+                  onChange={(e) => handleDiscountChange(e.target.value === "" ? "" : parseFloat(e.target.value))}
+                  className="w-full bg-slate-900 border border-sky-500/50 rounded-xl py-2 px-3 text-xs text-sky-300 placeholder:text-slate-600 focus:outline-none focus:border-sky-400 font-mono font-bold"
                 />
                 <p className="text-[9px] text-slate-500 leading-tight">
-                  Confidential acquisition cost. Leave empty if unknown.
+                  Auto-computes Trade Price.
                 </p>
               </div>
 
@@ -504,26 +574,58 @@ export const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
                   placeholder="e.g., 360.00"
                   value={sellingPrice}
-                  onChange={(e) => setSellingPrice(e.target.value === "" ? "" : parseFloat(e.target.value))}
+                  onChange={(e) => handleSellingPriceChange(e.target.value === "" ? "" : parseFloat(e.target.value))}
                   className="w-full bg-slate-900 border border-emerald-500/50 rounded-xl py-2 px-3 text-xs text-emerald-400 focus:outline-none focus:border-emerald-500 font-mono font-black"
                   required
                 />
+                <p className="text-[9px] text-slate-500 leading-tight">
+                  Selling price to pharmacies.
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-amber-400 font-bold block uppercase text-[10px] flex items-center gap-1">
+                    <span>Buying Price (৳)</span>
+                    <span className="text-[8px] bg-amber-500/20 text-amber-300 px-1 py-0.2 rounded font-black border border-amber-500/30">ADMIN</span>
+                  </label>
+                </div>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="e.g., 330.00"
+                  value={buyingPrice ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setBuyingPrice(val === "" ? "" : parseFloat(val));
+                  }}
+                  className="w-full bg-slate-900 border border-amber-500/40 rounded-xl py-2 px-3 text-xs text-amber-300 placeholder:text-slate-600 focus:outline-none focus:border-amber-400 font-mono font-bold"
+                />
+                <p className="text-[9px] text-slate-500 leading-tight">
+                  Acquisition cost for inventory.
+                </p>
               </div>
 
               <div className="space-y-1">
                 <label className="text-slate-400 font-bold block uppercase text-[10px]">
-                  Available Stock (Box) *
+                  Available Stock *
                 </label>
                 <input
                   type="number"
+                  min="0"
                   placeholder="e.g., 500"
                   value={availableStock}
                   onChange={(e) => setAvailableStock(e.target.value === "" ? "" : parseInt(e.target.value))}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
                   required
                 />
+                <p className="text-[9px] text-slate-500 leading-tight">
+                  Total available in depot.
+                </p>
               </div>
             </div>
 

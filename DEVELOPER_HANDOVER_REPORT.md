@@ -3328,6 +3328,24 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - TypeScript compilation (`tsc --noEmit`): 0 errors.
   - Applet compilation (`compile_applet`): Build succeeded.
   - Unit tests (`tests/cartOptimisticAndManualQty.test.ts`): 5/5 passed.
+
+### TASK 146: Fix Admin Product Edit Save / Image URL Bug & Auto-Calculate Trade Price from MRP and Discount %
+- **SUMMARY:**
+  - **Issue 1 (Image URL & Edit Save Failure Fixed)**:
+    - In `schemas.adminProduct` (`src/lib/security.ts`), fixed strict Zod validation that threw `Expected string, received null` when `imageUrl` was `null` or when merged update objects contained non-whitelisted database properties. Made `imageUrl` and `image_url` `.nullable().optional()`, added `discountPercentage` / `discount_percentage`, and applied `.passthrough()`.
+    - In `src/lib/dbService.ts` (`addOrUpdateProduct`) and `server.ts` (`PATCH /api/admin/products/:id`, `POST /api/admin/products`, `POST /api/products`), added graceful URL sanitizers that convert empty, blob, dead-domain (`qboghbbrqfmexpbzvded`), or internal API endpoints (`/api/products/...`) into clean external URLs or `null` without throwing 400 validation or database errors.
+  - **Issue 2 (Auto-Calculate Trade Price & Real-Time Syncing)**:
+    - In `src/components/ProductEditModal.tsx`, implemented bidirectional real-time synchronization between Wholesale MRP, Discount (%), and Trade Price (Selling Price).
+    - When admin enters or modifies Wholesale MRP and Discount % (e.g. 13 for 13%), Trade Price is instantly computed:
+      `selling_price = ROUND((mrp * (1 - discount_percentage / 100.0)), 2)`.
+    - Typing Trade Price dynamically back-calculates and displays Customer Discount % in real-time.
+    - Updated `ProductEditModal` UI with a 5-column responsive pricing grid (`Wholesale MRP`, `Discount (%) [AUTO]`, `Trade Price [Selling Price]`, `Buying Price [ADMIN]`, `Available Stock`).
+    - Added `discount_percentage?: number;` to `Product` interface in `src/types.ts`.
+- **VERIFICATION:**
+  - End-to-end update test verified via `npx tsx` on `okwiohbwvvveecyhxawh`: product update succeeds, image URL safely sanitized, discount percentage and selling price persisted accurately.
+  - TypeScript compilation (`tsc --noEmit`): 0 errors.
+  - Applet compilation (`compile_applet`): Build succeeded.
+  - Unit tests (`tests/cartOptimisticAndManualQty.test.ts`): 5/5 passed.
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).
