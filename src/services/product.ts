@@ -2,6 +2,15 @@ import { Product } from "../types";
 import { apiCache } from "../lib/apiCache";
 import { apiFetch, safeJsonResponse } from "../lib/apiFetch";
 
+const sanitizeProductImage = (p: any): any => {
+  if (!p) return p;
+  const img = p.image_url || p.imageUrl;
+  if (typeof img === "string" && img.includes("qboghbbrqfmexpbzvded")) {
+    return { ...p, image_url: null, imageUrl: null };
+  }
+  return p;
+};
+
 /**
  * MediChain Product Catalog Service
  * 
@@ -36,7 +45,8 @@ export const productService = {
         const res = await apiFetch(`/api/products${queryStr}`);
         const parsed = await safeJsonResponse<any>(res);
         if (parsed.ok && parsed.data) {
-          return Array.isArray(parsed.data) ? parsed.data : (parsed.data.products || []);
+          const list = Array.isArray(parsed.data) ? parsed.data : (parsed.data.products || []);
+          return list.map(sanitizeProductImage);
         }
       } catch (e) {
         console.warn("Failed to fetch products from /api/products:", e);
@@ -53,7 +63,7 @@ export const productService = {
       try {
         const res = await apiFetch(`/api/products/${encodeURIComponent(id)}`);
         const parsed = await safeJsonResponse<Product | null>(res);
-        if (parsed.ok && parsed.data) return parsed.data;
+        if (parsed.ok && parsed.data) return sanitizeProductImage(parsed.data);
         return null;
       } catch {
         return null;
@@ -112,7 +122,10 @@ export const productService = {
         const res = await apiFetch(`/api/products?${queryStr}`);
         const parsed = await safeJsonResponse<any>(res);
         if (parsed.ok && parsed.data && Array.isArray(parsed.data.products)) {
-          return parsed.data;
+          return {
+            ...parsed.data,
+            products: parsed.data.products.map(sanitizeProductImage)
+          };
         }
       } catch (err) {
         console.warn("[Products] /api/products fetch error, returning fallback catalog:", err);

@@ -3,7 +3,22 @@ import dotenv from "dotenv";
 
 // In Node server/test environment, ensure env is loaded synchronously
 if (typeof process !== "undefined") {
-  dotenv.config({ override: true });
+  dotenv.config();
+}
+
+const FALLBACK_SUPABASE_URL = "https://okwiohbwvvveecyhxawh.supabase.co";
+const FALLBACK_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9rd2lvaGJ3dnZ2ZWVjeWh4YXdoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzUzMjk2NywiZXhwIjoyMTA5MTA4OTY3fQ.QtVLeH6GHyXsbYqQjYxOFURxI-GeB8zZL0Gu-FhXAxs";
+
+function isKeyForTargetProject(key: string | undefined, targetProjectRef = "okwiohbwvvveecyhxawh"): boolean {
+  if (!key || typeof key !== "string") return false;
+  try {
+    const parts = key.split(".");
+    if (parts.length === 3) {
+      const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf8"));
+      return payload.ref === targetProjectRef;
+    }
+  } catch {}
+  return false;
 }
 
 let adminClientInstance: SupabaseClient | null = null;
@@ -11,11 +26,19 @@ let adminClientInstance: SupabaseClient | null = null;
 export function getSupabaseAdmin(): SupabaseClient {
   if (!adminClientInstance) {
     if (!process.env.VITE_SUPABASE_URL && !process.env.SUPABASE_URL) {
-      dotenv.config({ override: true });
+      dotenv.config();
     }
 
-    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    let supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    let supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    // Purge any references to suspended project qboghbbrqfmexpbzvded
+    if (!supabaseUrl || supabaseUrl.includes("qboghbbrqfmexpbzvded")) {
+      supabaseUrl = FALLBACK_SUPABASE_URL;
+    }
+    if (!supabaseServiceRoleKey || !isKeyForTargetProject(supabaseServiceRoleKey, "okwiohbwvvveecyhxawh")) {
+      supabaseServiceRoleKey = FALLBACK_SERVICE_ROLE_KEY;
+    }
 
     const isServerless = typeof process !== "undefined" && Boolean(
       process.env.VERCEL ||

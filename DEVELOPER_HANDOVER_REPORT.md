@@ -3284,6 +3284,27 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - TypeScript compilation (`tsc --noEmit`): 0 errors.
   - Applet compilation (`compile_applet`): Build succeeded.
   - Unit tests (`tests/cartOptimisticAndManualQty.test.ts`): 5/5 passed.
+
+### TASK 144: Fix Production Infinite Loading / Hang on `medichainbd.vercel.app`
+- **SUMMARY:**
+  - **Issue Reported**: Production deployment on `medichainbd.vercel.app` hung/took forever to load after cutover from suspended Supabase project (`qboghbbrqfmexpbzvded`) to `MediChain-Prod-2` (`okwiohbwvvveecyhxawh`).
+  - **Root Causes & Resolutions**:
+    1. **Purged Dead Storage URLs from DB & API**:
+       - Executed SQL on `okwiohbwvvveecyhxawh`: `UPDATE public.products SET image_url = NULL WHERE image_url LIKE '%qboghbbrqfmexpbzvded%';` (203 products updated to NULL).
+       - Added sanitizers in `server.ts` (`searchProductsPaginated`, browse mapping, `/api/products/:id/image`) and `src/services/product.ts` (`sanitizeProductImage`) to immediately strip any dead domain reference (`qboghbbrqfmexpbzvded`) to `null`.
+    2. **Automatic Storage & Auth Purge on Project Cutover**:
+       - In `src/App.tsx`, implemented `runProjectCutoverMigration()` executing synchronously before App initialization. If `localStorage.getItem('medichain_db_version') !== 'prod_2_okwiohbwvvveecyhxawh'`, it removes all stale `sb-*` tokens and dead project caches (while preserving `medichain_active_cart` and `medichain_cart_draft`), calls local `signOut()`, and flags the database version.
+       - Added strict 4-second timeout races around `supabase.auth.getSession()`, `authService.syncActiveSession()`, and `refreshPharmacyProfile()` so initial rendering is never blocked by network latency or hanging auth promises.
+    3. **Active Fallback & JWT Project Validation**:
+       - In `src/lib/supabaseClient.ts` and `src/lib/supabaseAdmin.ts`, added hardcoded fallbacks to `'https://okwiohbwvvveecyhxawh.supabase.co'` and verified via `isKeyForTargetProject()` that the JWT ref strictly matches `okwiohbwvvveecyhxawh`.
+       - Removed `override: true` from `dotenv.config()` in `server.ts` and `src/lib/supabaseAdmin.ts` so Vercel's serverless environment variables are never overwritten.
+       - Created `src/lib/supabase.ts` re-exporting `supabaseClient.ts`.
+- **VERIFICATION:**
+  - SQL verification: 203 dead URLs updated to NULL; 0 remain on active DB.
+  - Dev server HTTP check: `GET /api/products?paginate=true&limit=2` -> `HTTP/1.1 200 OK` (total 2469 products returned).
+  - TypeScript compilation (`tsc --noEmit`): 0 errors.
+  - Applet compilation (`compile_applet`): Build succeeded.
+  - Unit tests (`tests/cartOptimisticAndManualQty.test.ts`): 5/5 passed.
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).

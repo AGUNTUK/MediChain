@@ -49,9 +49,9 @@ import { sendOrderAlert, logTelegramConfigStatus, sendPhysiciansProductRequest }
 import cron from "node-cron";
 import multer from "multer";
 
-dotenv.config({ override: true });
+dotenv.config();
 if (!process.env.SESSION_SECRET && fs.existsSync(path.resolve(process.cwd(), "tests", ".env"))) {
-  dotenv.config({ path: path.resolve(process.cwd(), "tests", ".env"), override: true });
+  dotenv.config({ path: path.resolve(process.cwd(), "tests", ".env") });
 }
 
 const uploadMiddleware = multer({
@@ -1440,7 +1440,8 @@ app.get("/api/products", publicLimiter, async (req, res) => {
         const mrpVal = p.mrp ? parseFloat(p.mrp) : 0;
         const sellingVal = p.selling_price ? parseFloat(p.selling_price) : mrpVal;
         const rawImg = p.image_url;
-        const safeImg = (rawImg && typeof rawImg === "string" && !rawImg.startsWith("data:")) ? rawImg : `/api/products/${p.id}/image`;
+        const isDeadStorage = typeof rawImg === "string" && rawImg.includes("qboghbbrqfmexpbzvded");
+        const safeImg = (rawImg && typeof rawImg === "string" && !rawImg.startsWith("data:") && !isDeadStorage) ? rawImg : null;
         return {
           id: String(p.id).trim(),
           name: p.name || "Pharmaceutical Item",
@@ -1534,7 +1535,8 @@ app.get("/api/products", publicLimiter, async (req, res) => {
         const mrpVal = p.mrp ? parseFloat(p.mrp) : 0;
         const sellingVal = p.selling_price ? parseFloat(p.selling_price) : mrpVal;
         const rawImg = p.image_url;
-        const safeImg = (rawImg && typeof rawImg === "string" && !rawImg.startsWith("data:")) ? rawImg : `/api/products/${p.id}/image`;
+        const isDeadStorage = typeof rawImg === "string" && rawImg.includes("qboghbbrqfmexpbzvded");
+        const safeImg = (rawImg && typeof rawImg === "string" && !rawImg.startsWith("data:") && !isDeadStorage) ? rawImg : null;
         return {
           id: String(p.id).trim(),
           name: p.name || "Pharmaceutical Item",
@@ -1602,7 +1604,7 @@ app.get("/api/products/:id/image", async (req, res) => {
       .limit(1)
       .maybeSingle();
 
-    if (!p || !p.image_url) {
+    if (!p || !p.image_url || p.image_url.includes("qboghbbrqfmexpbzvded")) {
       return res.status(404).send("Image not found");
     }
 

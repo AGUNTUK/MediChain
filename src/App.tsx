@@ -42,7 +42,56 @@ const LoadingScreen = () => (
   </div>
 );
 
+// ---------------------------------------------------------------------------
+// PROJECT CUTOVER MIGRATION: Purge stale auth tokens & cache from suspended DB
+// ---------------------------------------------------------------------------
+const ACTIVE_DB_VERSION = "prod_2_okwiohbwvvveecyhxawh";
 
+function runProjectCutoverMigration() {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  try {
+    const currentVersion = localStorage.getItem("medichain_db_version");
+    if (currentVersion !== ACTIVE_DB_VERSION) {
+      console.log("[MediChain Cutover] Migrating local storage to active project prod_2_okwiohbwvvveecyhxawh...");
+      const preservedCart = localStorage.getItem("medichain_active_cart");
+      const preservedDraft = localStorage.getItem("medichain_cart_draft");
+      
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (
+          key.startsWith("sb-") ||
+          key.includes("qboghbbrqfmexpbzvded") ||
+          key.startsWith("medichain_token") ||
+          key.startsWith("medichain_user") ||
+          key.startsWith("medichain_pharmacy") ||
+          key.startsWith("medichain_cache") ||
+          key.startsWith("api_cache_") ||
+          key.startsWith("products_")
+        )) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+
+      if (preservedCart) localStorage.setItem("medichain_active_cart", preservedCart);
+      if (preservedDraft) localStorage.setItem("medichain_cart_draft", preservedDraft);
+
+      try {
+        if (isSupabaseConfigured && supabase?.auth?.signOut) {
+          supabase.auth.signOut({ scope: "local" }).catch(() => {});
+        }
+      } catch {}
+
+      localStorage.setItem("medichain_db_version", ACTIVE_DB_VERSION);
+    }
+  } catch (err) {
+    console.warn("[MediChain Cutover] Storage migration notice:", err);
+  }
+}
+
+// Run cutover purge synchronously before any components mount
+runProjectCutoverMigration();
 
 export default function App() {
   // Standalone legal deep-link route detector (e.g. /privacy, /terms, /refund-policy, /compliance, or ?policy=terms)
@@ -190,7 +239,10 @@ export default function App() {
   const refreshPharmacyProfile = async () => {
     try {
       setIsProfileLoading(true);
-      const res = await apiFetch("/api/pharmacy/profile");
+      const res = await Promise.race([
+        apiFetch("/api/pharmacy/profile"),
+        new Promise<any>((resolve) => setTimeout(() => resolve({ ok: false }), 4000))
+      ]);
 
       if (res.ok) {
         const data = await res.json();
@@ -375,15 +427,24 @@ export default function App() {
     }
 
     if (isSupabaseConfigured) {
-      // 1. Check active session on mount (handles OAuth redirect callback)
-      supabase.auth.getSession().then(async ({ data: { session }, error }: any) => {
+      // 1. Check active session on mount with a strict 4-second timeout to prevent UI hangs
+      const sessionPromise = Promise.race([
+        supabase.auth.getSession(),
+        new Promise<any>((resolve) => setTimeout(() => resolve({ data: { session: null }, error: null }), 4000))
+      ]);
+
+      sessionPromise.then(async ({ data: { session }, error }: any) => {
         if (!error && session?.user) {
           const token = session.access_token;
           if (token) {
             localStorage.setItem("medichain_token", token);
           }
           try {
-            const syncData = await authService.syncActiveSession(token, session.user.user_metadata?.full_name || session.user.email);
+            const syncPromise = authService.syncActiveSession(token, session.user.user_metadata?.full_name || session.user.email);
+            const syncData = await Promise.race([
+              syncPromise,
+              new Promise<any>((resolve) => setTimeout(() => resolve(null), 4000))
+            ]);
             if (syncData && syncData.user) {
               handleLoginSuccess(syncData.user, syncData.needsSetup, syncData.pharmacy);
             }
