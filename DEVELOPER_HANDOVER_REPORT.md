@@ -3367,6 +3367,39 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - TypeScript compilation (`tsc --noEmit`): 0 errors.
   - Applet compilation (`compile_applet`): Build succeeded.
   - Unit tests (`tests/cartOptimisticAndManualQty.test.ts`): 5/5 passed.
+### TASK 148: Zero-Database-Egress Live User Activity & Cart Radar via Supabase Realtime Presence & Broadcast
+- **SUMMARY:**
+  - **Lightweight Zero-Egress Client Telemetry Service (`src/services/liveActivityService.ts`)**:
+    - Built a non-blocking Realtime telemetry service utilizing Supabase Realtime Presence (`channel.track()`) and ephemeral Broadcast (`channel.send({ type: 'broadcast', event: 'user_action' })`) on a single shared channel (`'medichain_live_radar'`).
+    - **100% Zero Database Egress**: PostgREST queries, PostgreSQL table insertions, and database egress remain 0 Bytes. All telemetry runs strictly over WebSocket state synchronization without touching PostgreSQL.
+    - **Throttling & Debouncing**:
+      - Presence tracking throttled to at most once every 3,000ms (`trackThrottleMs`).
+      - Search broadcasts debounced 1,200ms (ignoring queries < 2 chars).
+      - Cart mutation broadcasts throttled 1,500ms.
+    - **Admin Exemption**: Admin users are strictly exempted from telemetry tracking so admin dashboard operations never pollute live customer radar metrics.
+    - Re-exported in `src/services/index.ts`.
+  - **Admin Live User Radar Component (`src/components/admin/LiveUserRadar.tsx`)**:
+    - **Live Status Header**: Realtime status pill with pulsing emerald indicator and total online counter.
+    - **Top KPI Cards**:
+      1. অনলাইন ইউজার (Online Now)
+      2. অ্যাক্টিভ কার্ট (Active Carts & Total BDT Value)
+      3. চেকআউটে আছে (In Checkout)
+      4. মোট সার্চ ট্র্যাকিং (Live Searches tracked in stream)
+    - **Live Online Users Table**:
+      - Realtime synced presence view showing Pharmacy / User Name, phone number, screen badges (Home, Search, Cart, Checkout, Orders), last searched medicine, cart summary badge (`X items • ৳Y`), and last active timestamp.
+      - **Cart Inspector Drawer / Modal**: Clicking any active cart badge opens a clean popover listing every medicine, unit quantity, and price currently sitting in the pharmacy's live cart.
+      - **1-Click WhatsApp Follow-Up Button**: Quick action triggering pre-filled WhatsApp message (`wa.me/88...`): *"আসসালামু আলাইকুম [Pharmacy Name], মেডিচেইনে আপনার কার্টে [X]টি ওষুধ রয়েছে। অর্ডারটি কনফার্ম করতে কোনো সাহায্য লাগবে কি?"*
+    - **Live Activity Feed Stream**:
+      - Live scrolling stream of the last 50 broadcast events with filter chips (All, Search, Cart, Checkout & Orders).
+      - Persisted in `localStorage` (`'medichain_admin_radar_feed'`) so reload preserves the stream.
+  - **Integration & Wiring**:
+    - `src/components/AdminPanel.tsx`: Added lazy route `"/admin/live-radar"`, sidebar button with pulsing live badge, header title, and full view container.
+    - `src/App.tsx`: Wired `liveActivityService.initClientTelemetry`, view change tracking on navigation, instant cart updates, checkout intent, and order placement.
+    - `src/components/SearchSystem.tsx`: Wired debounced search telemetry on search submission/results.
+- **VERIFICATION:**
+  - TypeScript compilation (`tsc --noEmit`): 0 errors.
+  - Applet compilation (`compile_applet`): Build succeeded.
+  - Unit tests (`tests/cartOptimisticAndManualQty.test.ts`): 5/5 passed.
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).

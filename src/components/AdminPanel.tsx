@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, Suspense, lazy } from "react";
 import MediChainLogo from './MediChainLogo';
 const AdminCharts = lazy(() => import("./AdminCharts"));
+const LiveUserRadar = lazy(() => import("./admin/LiveUserRadar"));
 import { getSocketClient } from "../lib/socketClient";
 import ProductEditModal from "./ProductEditModal";
 import AdminHeroCarouselManager from "./AdminHeroCarouselManager";
@@ -46,7 +47,8 @@ import {
   Landmark,
   Ban,
   Lock,
-  MessageSquare
+  MessageSquare,
+  Radio
 } from "lucide-react";
 
 import * as XLSX from "xlsx";
@@ -81,6 +83,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
   // Navigation state (matches requested /admin protected route structure)
   const [activeRoute, setActiveRoute] = useState<
     "/admin/dashboard" | 
+    "/admin/live-radar" |
     "/admin/products" | 
     "/admin/inventory" | 
     "/admin/orders" | 
@@ -103,6 +106,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
       const matched = path as any;
       const validRoutes = [
         "/admin/dashboard",
+        "/admin/live-radar",
         "/admin/products",
         "/admin/inventory",
         "/admin/orders",
@@ -1437,6 +1441,22 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
             </button>
 
             <button
+              onClick={() => navigateTo("/admin/live-radar")}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all ${
+                activeRoute === "/admin/live-radar" ? "bg-indigo-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Radio className={`w-4 h-4 ${activeRoute === "/admin/live-radar" ? "text-emerald-300" : "text-emerald-500"} animate-pulse`} />
+                <span>লাইভ ইউজার রাডার</span>
+              </div>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            </button>
+
+            <button
               onClick={() => navigateTo("/admin/products")}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all ${
                 activeRoute === "/admin/products" ? "bg-indigo-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
@@ -1619,6 +1639,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
           <div>
             <h2 className="text-xs sm:text-sm font-bold text-slate-900 tracking-wider uppercase">
               {activeRoute === "/admin/dashboard" && "OPERATIONS CONTROL CENTER"}
+              {activeRoute === "/admin/live-radar" && "LIVE USER ACTIVITY & CART RADAR"}
               {activeRoute === "/admin/products" && "MEDICINE MASTER REGISTRY"}
               {activeRoute === "/admin/inventory" && "STOCK LOGISTICS DISPATCH"}
               {activeRoute === "/admin/orders" && "B2B WHOLESALE PROCUREMENTS"}
@@ -3569,6 +3590,18 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
 
 
               
+              {/* SCREEN: LIVE USER ACTIVITY & CART RADAR */}
+              {activeRoute === "/admin/live-radar" && (
+                <Suspense fallback={
+                  <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-3">
+                    <RefreshCw className="w-6 h-6 animate-spin text-emerald-500" />
+                    <p className="text-xs font-semibold">লাইভ রাডার লোড হচ্ছে...</p>
+                  </div>
+                }>
+                  <LiveUserRadar />
+                </Suspense>
+              )}
+
               {/* SCREEN: WHATSAPP MARKETING (FREE BUSINESS WORKFLOW) */}
               {activeRoute === "/admin/whatsapp-marketing" && (
                 <div className="-m-4 sm:-m-6 lg:-m-8 h-[calc(100%+2rem)] sm:h-[calc(100%+3rem)] lg:h-[calc(100%+4rem)] min-h-[720px] flex flex-col">

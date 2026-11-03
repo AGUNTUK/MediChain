@@ -8,7 +8,7 @@ import { CartFeedbackProvider } from "./context/FlyToCartContext";
 import SafeBoundary from "./components/SafeBoundary";
 import { Product, Pharmacy, Order, Notification, User } from "./types";
 import { Home as HomeIcon, Search as SearchIcon, Package as PackageIcon, FileText as FileIcon, ClipboardList as ListIcon, User as UserIcon, Shield, Smartphone, ShoppingBag, Camera, X, Sparkles, MessageSquareText, AlertCircle } from "lucide-react";
-import { authService, productService, orderService, profileService, notificationService, getLocalCartItems } from "./services";
+import { authService, productService, orderService, profileService, notificationService, getLocalCartItems, liveActivityService } from "./services";
 import { apiFetch } from "./lib/apiFetch";
 import { isSupabaseConfigured, supabase } from "./lib/supabaseClient";
 
@@ -397,6 +397,25 @@ export default function App() {
         await orderService.updateCartItem(productId, effectiveNewQty);
       }
       await refreshCartCounter();
+
+      // Zero-egress live presence & broadcast telemetry (throttled 1.5s)
+      try {
+        const activeCart = getLocalCartItems();
+        const totalAmount = activeCart.reduce((sum: number, it: any) => sum + (Number(it.sellingPrice || it.price || 0) * Number(it.quantity || 1)), 0);
+        const totalUnits = activeCart.reduce((sum: number, it: any) => sum + Number(it.quantity || 1), 0);
+        const previews = activeCart.slice(0, 10).map((it: any) => ({
+          name: it.name || it.productName || "Medicine",
+          qty: Number(it.quantity) || 1,
+          price: Number(it.sellingPrice || it.price) || 0
+        }));
+        liveActivityService.trackCartUpdate(
+          "Cart item",
+          delta,
+          totalUnits,
+          totalAmount,
+          previews
+        );
+      } catch {}
     } catch (err) {
       console.error(err);
     }
@@ -542,6 +561,27 @@ export default function App() {
     }
   }, [phone]);
 
+  // Real-time live presence telemetry (Zero DB egress: Supabase Realtime Presence & Broadcast)
+  useEffect(() => {
+    liveActivityService.initClientTelemetry(currentUser, pharmacy);
+  }, [currentUser?.id, currentUser?.role, pharmacy?.id, (pharmacy as any)?.pharmacyName, (pharmacy as any)?.pharmacy_name]);
+
+  // Track active screen/view changes
+  useEffect(() => {
+    let viewName = "Home";
+    if (appStep === "cart") viewName = "Cart";
+    else if (appStep === "checkout") viewName = "Checkout";
+    else if (appStep === "tracking") viewName = "Tracking";
+    else if (appStep === "bulk_deals") viewName = "Bulk Deals";
+    else if (appStep === "success") viewName = "Order Placed";
+    else if (appStep === "main") {
+      if (activeTab === "search") viewName = "Search & Catalog";
+      else if (activeTab === "history" || activeTab === "account") viewName = "Account & History";
+      else viewName = "Home";
+    }
+    liveActivityService.trackViewChange(viewName);
+  }, [appStep, activeTab]);
+
   // Compute unread count
   const unreadNotificationsCount = notifications.filter(n => !n.read).length;
 
@@ -667,6 +707,26 @@ export default function App() {
 
     // 3. Refresh cart state in-memory
     await refreshCartCounter();
+
+    // 4. Broadcast live cart telemetry (throttled 1.5s, 0 DB egress)
+    try {
+      const activeCart = getLocalCartItems();
+      const totalAmount = activeCart.reduce((sum: number, it: any) => sum + (Number(it.sellingPrice || it.price || 0) * Number(it.quantity || 1)), 0);
+      const totalUnits = activeCart.reduce((sum: number, it: any) => sum + Number(it.quantity || 1), 0);
+      const previews = activeCart.slice(0, 10).map((it: any) => ({
+        name: it.name || it.productName || "Medicine",
+        qty: Number(it.quantity) || 1,
+        price: Number(it.sellingPrice || it.price) || 0
+      }));
+      liveActivityService.trackCartUpdate(
+        productObj?.name || "Medicine",
+        addQty,
+        totalUnits,
+        totalAmount,
+        previews
+      );
+    } catch {}
+
     return true;
   };
 
@@ -701,6 +761,10 @@ export default function App() {
       });
       return;
     }
+
+    // Broadcast checkout intent to admin live radar
+    const totalVal = cartData?.totalAmount || 0;
+    liveActivityService.trackCheckoutIntent(totalVal, cartCount);
 
     setAppStep("checkout");
   };
@@ -840,6 +904,8 @@ export default function App() {
             <Checkout
               onBackToCart={() => setAppStep("cart")}
               onOrderPlaced={(orderId) => {
+                const finalTotal = cartData?.totalAmount || 0;
+                liveActivityService.trackOrderPlaced(orderId, finalTotal);
                 refreshOrders();
                 refreshPharmacyProfile();
                 

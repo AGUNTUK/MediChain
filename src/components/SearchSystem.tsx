@@ -24,7 +24,7 @@ import {
   Camera
 } from "lucide-react";
 import { Product, Order } from "../types";
-import { productService } from "../services";
+import { productService, liveActivityService } from "../services";
 import { formatRefId, formatProductPriceLabel } from "../lib/utils";
 import { useCartFeedback } from "../context/FlyToCartContext";
 import ProductCardSkeleton from "./ProductCardSkeleton";
@@ -199,6 +199,11 @@ export default function SearchSystem({
         // Save successful search query
         if (debouncedSearch.trim() && response.products.length > 0) {
           saveRecentSearch(debouncedSearch.trim());
+        }
+
+        // Broadcast search query to admin radar (debounced 1.2s, 0 DB egress)
+        if (debouncedSearch.trim().length >= 2) {
+          liveActivityService.trackSearch(debouncedSearch.trim(), response.total ?? response.products.length);
         }
       } catch (err) {
         if (!isActive) return;
