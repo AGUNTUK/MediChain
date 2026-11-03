@@ -3305,6 +3305,29 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - TypeScript compilation (`tsc --noEmit`): 0 errors.
   - Applet compilation (`compile_applet`): Build succeeded.
   - Unit tests (`tests/cartOptimisticAndManualQty.test.ts`): 5/5 passed.
+
+### TASK 145: Codebase Hygiene Cleanup, Frictionless Registration Wizard, Naafco Cost Price Sync & GitHub Push
+- **SUMMARY:**
+  - **Bloat Cleaned & Git Tracking Purged**:
+    - Removed heavy repository files: `crawled_somatec_products.json`, `input_somatec.csv`, `scripts/backup_products_pre_migration_v1.json` (4.9MB), `scripts/backup_aci_opso_pre_migration.json`, and `scripts/aci_extracted_cache.json`.
+    - Removed unreferenced development artifacts from `public/assets/aistudio/` (12MB total, including screen recording mp4 and debug screenshots).
+    - Removed 4 unused ANSI font files from `public/fonts/` (`ANSI V1`, `ANSI V1 Italic`, `ANSI V2`, `ANSI V2 Italic`), keeping only the 2 official Unicode font files (`Li Alinur Banglaborno Unicode.ttf` and `Li Alinur Banglaborno Unicode Italic.ttf`), and streamlined `@font-face` rules in `src/index.css`.
+    - Updated `.gitignore` and `.vercelignore` to permanently ignore backup JSONs, caches, raw CSVs, and debug media.
+  - **Audited Keep-Alive Workflow**:
+    - Updated `.github/workflows/keep-alive.yml` schedule from every 10 minutes to once every 3 days (`cron: '0 0 */3 * *'`) targeting the zero-egress `/api/health` endpoint.
+  - **Synchronized Naafco Pharma Buying & Cost Prices**:
+    - Executed database update across all 98 `Naafco Pharma PLC` products and 98 inventory rows on `okwiohbwvvveecyhxawh`: set `buying_price = ROUND((mrp * 0.50)::numeric, 2)` and `cost_price = ROUND((mrp * 0.50)::numeric, 2)`.
+    - Verified 100% of Naafco items now possess non-zero buying/cost prices for accurate Admin Inventory Asset Valuation (`accountsService.ts`).
+  - **Frictionless Pharmacy Registration Wizard Verified**:
+    - Completely streamlined `src/components/PharmacyRegistrationWizard.tsx` into a fast, frictionless 2-step onboarding flow:
+      1. Step 1: Business Details (Pharmacy Name, Proprietor Name, Contact Phone, Email).
+      2. Step 2: Delivery Location (Division, District, Thana/Upazila, Street Address, Nearest Landmark).
+    - Removed all blocking Drug License, Trade License, and NID text inputs and file upload steps, submitting cleanly with 0 errors.
+- **VERIFICATION:**
+  - Database verification: 98 Naafco products updated with valid cost/buying prices.
+  - TypeScript compilation (`tsc --noEmit`): 0 errors.
+  - Applet compilation (`compile_applet`): Build succeeded.
+  - Unit tests (`tests/cartOptimisticAndManualQty.test.ts`): 5/5 passed.
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).

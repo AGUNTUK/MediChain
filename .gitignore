@@ -38,3 +38,10 @@ public/assets/aistudio/*.mp4
 scripts/cloneDatabase.*
 scripts/clonePostgresObjects.*
 scripts/*temp*
+scripts/backup_*.json
+scripts/*_cache.json
+crawled_*.json
+input_*.csv
+public/assets/aistudio/
+public/assets/aistudio/*
+

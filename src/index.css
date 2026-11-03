@@ -10,8 +10,7 @@
    ========================================================================== */
 @font-face {
   font-family: 'Li Alinur Banglaborno';
-  src: url('/fonts/Li Alinur Banglaborno Unicode.ttf') format('truetype'),
-       url('/fonts/Li Alinur Banglaborno ANSI V1.ttf') format('truetype');
+  src: url('/fonts/Li Alinur Banglaborno Unicode.ttf') format('truetype');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -20,89 +19,8 @@
 
 @font-face {
   font-family: 'Li Alinur Banglaborno';
-  src: url('/fonts/Li Alinur Banglaborno Unicode.ttf') format('truetype'),
-       url('/fonts/Li Alinur Banglaborno ANSI V1.ttf') format('truetype');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+0980-09FF, U+0964-0965, U+200C-200D, U+25CC;
-}
-
-@font-face {
-  font-family: 'Li Alinur Banglaborno';
-  src: url('/fonts/Li Alinur Banglaborno Unicode.ttf') format('truetype'),
-       url('/fonts/Li Alinur Banglaborno ANSI V1.ttf') format('truetype');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+0980-09FF, U+0964-0965, U+200C-200D, U+25CC;
-}
-
-@font-face {
-  font-family: 'Li Alinur Banglaborno';
-  src: url('/fonts/Li Alinur Banglaborno Unicode.ttf') format('truetype'),
-       url('/fonts/Li Alinur Banglaborno ANSI V1.ttf') format('truetype');
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+0980-09FF, U+0964-0965, U+200C-200D, U+25CC;
-}
-
-@font-face {
-  font-family: 'Li Alinur Banglaborno';
-  src: url('/fonts/Li Alinur Banglaborno Unicode.ttf') format('truetype'),
-       url('/fonts/Li Alinur Banglaborno ANSI V1.ttf') format('truetype');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+0980-09FF, U+0964-0965, U+200C-200D, U+25CC;
-}
-
-@font-face {
-  font-family: 'Li Alinur Banglaborno';
-  src: url('/fonts/Li Alinur Banglaborno Unicode.ttf') format('truetype'),
-       url('/fonts/Li Alinur Banglaborno ANSI V1.ttf') format('truetype');
-  font-weight: 800;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+0980-09FF, U+0964-0965, U+200C-200D, U+25CC;
-}
-
-@font-face {
-  font-family: 'Li Alinur Banglaborno';
-  src: url('/fonts/Li Alinur Banglaborno Unicode.ttf') format('truetype'),
-       url('/fonts/Li Alinur Banglaborno ANSI V1.ttf') format('truetype');
-  font-weight: 900;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+0980-09FF, U+0964-0965, U+200C-200D, U+25CC;
-}
-
-@font-face {
-  font-family: 'Li Alinur Banglaborno';
-  src: url('/fonts/Li Alinur Banglaborno Unicode Italic.ttf') format('truetype'),
-       url('/fonts/Li Alinur Banglaborno ANSI V1 Italic.ttf') format('truetype');
+  src: url('/fonts/Li Alinur Banglaborno Unicode Italic.ttf') format('truetype');
   font-weight: 100 900;
-  font-style: italic;
-  font-display: swap;
-  unicode-range: U+0980-09FF, U+0964-0965, U+200C-200D, U+25CC;
-}
-
-@font-face {
-  font-family: 'Li Alinur Banglaborno';
-  src: url('/fonts/Li Alinur Banglaborno Unicode Italic.ttf') format('truetype'),
-       url('/fonts/Li Alinur Banglaborno ANSI V1 Italic.ttf') format('truetype');
-  font-weight: 400;
-  font-style: italic;
-  font-display: swap;
-  unicode-range: U+0980-09FF, U+0964-0965, U+200C-200D, U+25CC;
-}
-
-@font-face {
-  font-family: 'Li Alinur Banglaborno';
-  src: url('/fonts/Li Alinur Banglaborno Unicode Italic.ttf') format('truetype'),
-       url('/fonts/Li Alinur Banglaborno ANSI V1 Italic.ttf') format('truetype');
-  font-weight: 700;
   font-style: italic;
   font-display: swap;
   unicode-range: U+0980-09FF, U+0964-0965, U+200C-200D, U+25CC;
