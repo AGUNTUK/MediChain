@@ -402,6 +402,86 @@ export const authService = {
   },
 
   /**
+   * Requests a password recovery code/link for the specified email.
+   */
+  async forgotPassword(email: string): Promise<{ success: boolean; message: string; email: string; code?: string }> {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.auth.resetPasswordForEmail(email.trim(), {
+          redirectTo: typeof window !== "undefined" ? `${window.location.origin}/#reset-password` : undefined,
+        });
+      } catch (sbErr) {
+        console.warn("Supabase client resetPasswordForEmail notice:", sbErr);
+      }
+    }
+
+    const res = await apiFetch("/api/auth/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim() }),
+    });
+
+    const parsed = await safeJsonResponse(res);
+    if (!parsed.ok || !parsed.data) {
+      throw new Error(parsed.error || "Failed to process forgot password request.");
+    }
+
+    return parsed.data;
+  },
+
+  /**
+   * Verifies the 6-digit recovery OTP code before password entry.
+   */
+  async verifyResetCode(email: string, code: string): Promise<{ success: boolean; token?: string; message: string }> {
+    const res = await apiFetch("/api/auth/verify-reset-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim(), code: code.trim() }),
+    });
+
+    const parsed = await safeJsonResponse(res);
+    if (!parsed.ok || !parsed.data) {
+      throw new Error(parsed.error || "Invalid or expired recovery code.");
+    }
+
+    return parsed.data;
+  },
+
+  /**
+   * Resets the user's password with the verified recovery code or token.
+   */
+  async resetPassword(email: string, newPassword: string, code?: string, token?: string): Promise<{ success: boolean; message: string }> {
+    if (isSupabaseConfigured) {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData?.session) {
+          await supabase.auth.updateUser({ password: newPassword });
+        }
+      } catch (e) {
+        console.warn("Supabase auth updateUser notice during reset:", e);
+      }
+    }
+
+    const res = await apiFetch("/api/auth/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: email.trim(),
+        code: code ? code.trim() : undefined,
+        token: token ? token.trim() : undefined,
+        newPassword,
+      }),
+    });
+
+    const parsed = await safeJsonResponse(res);
+    if (!parsed.ok || !parsed.data) {
+      throw new Error(parsed.error || "Failed to reset password.");
+    }
+
+    return parsed.data;
+  },
+
+  /**
    * Logs out the user from Supabase and clears the local session.
    */
   async logout(): Promise<void> {

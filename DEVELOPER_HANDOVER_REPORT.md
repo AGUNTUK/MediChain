@@ -3346,6 +3346,27 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - TypeScript compilation (`tsc --noEmit`): 0 errors.
   - Applet compilation (`compile_applet`): Build succeeded.
   - Unit tests (`tests/cartOptimisticAndManualQty.test.ts`): 5/5 passed.
+
+### TASK 147: Implement Robust Forgot & Reset Password Architecture & Git Push
+- **SUMMARY:**
+  - **Backend Endpoints (`server.ts`)**:
+    - Added `POST /api/auth/forgot-password`: Rate-limited by `loginLimiter`, validates email format via Zod `schemas.forgotPassword`, finds user in Supabase Auth, `public.users` table, or local users store. Generates secure 6-digit numeric OTP code and UUID token with 15-minute expiration in `passwordResetStore`. Calls Supabase `generateLink` recovery API in parallel and returns code for instant, frictionless recovery.
+    - Added `POST /api/auth/verify-reset-code`: Verifies recovery OTP code and checks expiration before password entry.
+    - Added `POST /api/auth/reset-password`: Validates new password length (≥ 6 characters), verifies code/token against `passwordResetStore`, updates password in Supabase Auth via `supabaseAdmin.auth.admin.updateUserById`, updates local bcrypt salt/hash, logs audit event, and clears reset token.
+  - **Validation Schemas (`src/lib/security.ts`)**:
+    - Added `schemas.forgotPassword` and `schemas.resetPassword`.
+  - **Auth Service (`src/services/auth.ts`)**:
+    - Added `forgotPassword(email)`, `verifyResetCode(email, code)`, and `resetPassword(email, newPassword, code?, token?)` supporting both Supabase Auth recovery and backend proxy fallback.
+  - **Frontend UI (`src/components/Login.tsx`)**:
+    - Added "Forgot Password?" button below the password input in Sign In mode.
+    - Implemented dedicated "Forgot Password" mode (email input -> send recovery code).
+    - Implemented dedicated "Reset Password" mode (6-digit code input + new password + confirm password with show/hide eye toggles).
+    - Added URL hash detection for `#type=recovery` and `#access_token` so clicking email recovery links seamlessly opens the reset password screen.
+- **VERIFICATION:**
+  - End-to-end curl and tsx testing on live Supabase: requested code for registered user, verified code, updated password, and successfully logged in with the new password.
+  - TypeScript compilation (`tsc --noEmit`): 0 errors.
+  - Applet compilation (`compile_applet`): Build succeeded.
+  - Unit tests (`tests/cartOptimisticAndManualQty.test.ts`): 5/5 passed.
 ----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).

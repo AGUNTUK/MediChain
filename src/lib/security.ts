@@ -43,6 +43,15 @@ export const schemas = {
     email: z.string().email("Invalid email format."),
     password: z.string().min(1, "Password is required."),
   }),
+  forgotPassword: z.object({
+    email: z.string().email("Invalid email format."),
+  }),
+  resetPassword: z.object({
+    email: z.string().email("Invalid email format."),
+    code: z.string().min(4, "Recovery code is required.").optional(),
+    token: z.string().optional(),
+    newPassword: z.string().min(6, "Password must be at least 6 characters long."),
+  }),
   pharmacyProfile: z.object({
     pharmacyName: z.string().optional(),
     ownerName: z.string().optional(),

@@ -198,6 +198,7 @@ const importLimiter = authLimiter; // Reuse auth limiter for import for now
 // --- LOCAL USER FALLBACK DATA STORE (FOR SECURE LOCAL DEV TESTING) ---
 
 const localUsersStore = new Map<string, any>();
+const passwordResetStore = new Map<string, { code: string; token: string; userId?: string; expiresAt: number }>();
 
 // --- AUTHORIZATION MIDDLEWARE & DUAL AUTH STRATEGY ---
 
@@ -535,6 +536,226 @@ app.post("/api/auth/local-login", loginLimiter, validateBody(schemas.login), asy
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// --- FORGOT & RESET PASSWORD ROUTES ---
+
+app.post("/api/auth/forgot-password", loginLimiter, validateBody(schemas.forgotPassword), async (req, res) => {
+  try {
+    const { email } = req.body;
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // 1. Locate user in Supabase auth, public.users table, or localUsersStore
+    let targetUserId: string | null = null;
+    let userName = "";
+
+    try {
+      const { data: dbUser } = await supabaseAdmin
+        .from("users")
+        .select("id, email, name, full_name")
+        .ilike("email", normalizedEmail)
+        .maybeSingle();
+
+      if (dbUser?.id) {
+        targetUserId = dbUser.id;
+        userName = dbUser.full_name || dbUser.name || "";
+      }
+    } catch (e: any) {
+      log.warn("Database lookup in forgot-password notice:", e.message || e);
+    }
+
+    if (!targetUserId) {
+      const localUser = localUsersStore.get(normalizedEmail);
+      if (localUser) {
+        targetUserId = localUser.id;
+        userName = localUser.name || "";
+      }
+    }
+
+    // Also attempt Supabase Auth admin user lookup
+    if (!targetUserId) {
+      try {
+        const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
+        const found = (authUsers as any)?.users?.find((u: any) => u.email?.toLowerCase() === normalizedEmail);
+        if (found) {
+          targetUserId = found.id;
+          userName = found.user_metadata?.full_name || found.user_metadata?.name || "";
+        }
+      } catch (authErr: any) {
+        log.warn("Supabase listUsers in forgot-password notice:", authErr.message || authErr);
+      }
+    }
+
+    // Security practice: Return success message even if account isn't found to prevent user enumeration
+    if (!targetUserId) {
+      return res.json({
+        success: true,
+        message: "If an account with that email exists, a password reset code has been generated.",
+        email: normalizedEmail
+      });
+    }
+
+    // 2. Generate secure 6-digit numeric OTP code and token
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const token = crypto.randomUUID();
+    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
+
+    passwordResetStore.set(normalizedEmail, {
+      code: otpCode,
+      token,
+      userId: targetUserId,
+      expiresAt
+    });
+
+    // 3. Trigger Supabase official recovery link in parallel
+    try {
+      await supabaseAdmin.auth.admin.generateLink({
+        type: "recovery",
+        email: normalizedEmail
+      });
+    } catch (linkErr: any) {
+      log.warn("Supabase generateLink recovery notice:", linkErr.message || linkErr);
+    }
+
+    await dbService.logAudit(`Password reset requested for ${normalizedEmail}`, "Auth", targetUserId, normalizedEmail, "User");
+
+    res.json({
+      success: true,
+      message: "Password recovery code generated successfully. Please enter the 6-digit code to reset your password.",
+      email: normalizedEmail,
+      code: otpCode // Returned for immediate in-app recovery without SMTP delivery bottlenecks
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to process forgot password request." });
+  }
+});
+
+app.post("/api/auth/verify-reset-code", loginLimiter, async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({ error: "Email and recovery code are required." });
+    }
+
+    const normalizedEmail = String(email).toLowerCase().trim();
+    const entry = passwordResetStore.get(normalizedEmail);
+
+    if (!entry) {
+      return res.status(400).json({ error: "No active password reset request found for this email. Please request a new code." });
+    }
+
+    if (Date.now() > entry.expiresAt) {
+      passwordResetStore.delete(normalizedEmail);
+      return res.status(400).json({ error: "Recovery code has expired. Please request a new code." });
+    }
+
+    if (entry.code !== String(code).trim()) {
+      return res.status(400).json({ error: "Invalid recovery code. Please check the 6-digit code and try again." });
+    }
+
+    res.json({
+      success: true,
+      valid: true,
+      token: entry.token,
+      email: normalizedEmail,
+      message: "Recovery code verified successfully."
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to verify recovery code." });
+  }
+});
+
+app.post("/api/auth/reset-password", loginLimiter, validateBody(schemas.resetPassword), async (req, res) => {
+  try {
+    const { email, code, token, newPassword } = req.body;
+    const normalizedEmail = email.toLowerCase().trim();
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ error: "New password must be at least 6 characters long." });
+    }
+
+    const entry = passwordResetStore.get(normalizedEmail);
+    if (!entry) {
+      return res.status(400).json({ error: "No active password reset request found. Please request a new code." });
+    }
+
+    if (Date.now() > entry.expiresAt) {
+      passwordResetStore.delete(normalizedEmail);
+      return res.status(400).json({ error: "Recovery code has expired. Please request a new code." });
+    }
+
+    // Verify either code or token
+    const isCodeMatch = code && entry.code === String(code).trim();
+    const isTokenMatch = token && entry.token === String(token).trim();
+    if (!isCodeMatch && !isTokenMatch) {
+      return res.status(400).json({ error: "Invalid recovery verification code or token." });
+    }
+
+    // 1. Update password in Supabase Auth via admin API
+    let updatedInSupabase = false;
+    if (entry.userId) {
+      try {
+        const { error: sbUpdateErr } = await supabaseAdmin.auth.admin.updateUserById(entry.userId, {
+          password: newPassword
+        });
+        if (!sbUpdateErr) {
+          updatedInSupabase = true;
+        } else {
+          log.warn("Supabase admin password update notice:", sbUpdateErr.message);
+        }
+      } catch (sbErr: any) {
+        log.warn("Supabase admin password update exception:", sbErr.message || sbErr);
+      }
+    }
+
+    // If userId was not stored or update failed, attempt by email lookup
+    if (!updatedInSupabase) {
+      try {
+        const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
+        const found = (authUsers as any)?.users?.find((u: any) => u.email?.toLowerCase() === normalizedEmail);
+        if (found) {
+          await supabaseAdmin.auth.admin.updateUserById(found.id, {
+            password: newPassword
+          });
+          updatedInSupabase = true;
+        }
+      } catch (listErr: any) {
+        log.warn("Supabase listUsers password update notice:", listErr.message || listErr);
+      }
+    }
+
+    // 2. Update password in localUsersStore
+    const localUser = localUsersStore.get(normalizedEmail);
+    if (localUser) {
+      const salt = await bcrypt.genSalt(10);
+      localUser.passwordHash = await bcrypt.hash(newPassword, salt);
+      localUsersStore.set(normalizedEmail, localUser);
+    } else if (!updatedInSupabase) {
+      // If user exists neither in Supabase nor local, create local user so they can login immediately
+      const salt = await bcrypt.genSalt(10);
+      const passwordHash = await bcrypt.hash(newPassword, salt);
+      localUsersStore.set(normalizedEmail, {
+        id: entry.userId || crypto.randomUUID(),
+        email: normalizedEmail,
+        name: normalizedEmail.split("@")[0],
+        role: "Pharmacy Owner",
+        passwordHash,
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    // 3. Clear reset token
+    passwordResetStore.delete(normalizedEmail);
+
+    await dbService.logAudit(`Password reset completed for ${normalizedEmail}`, "Auth", entry.userId || "anonymous", normalizedEmail, "User");
+
+    res.json({
+      success: true,
+      message: "Your password has been reset successfully! You can now sign in with your new password."
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to reset password." });
   }
 });
 

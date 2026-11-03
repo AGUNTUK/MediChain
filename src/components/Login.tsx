@@ -1,7 +1,22 @@
-import React, { useState, Suspense, lazy } from "react";
+import React, { useState, useEffect, Suspense, lazy } from "react";
 import MediChainLogo from "./MediChainLogo";
 import { motion } from "motion/react";
-import { Mail, Lock, User, RefreshCw, AlertCircle, ArrowRight, ShieldCheck, UserPlus, LogIn, Eye, EyeOff } from "lucide-react";
+import { 
+  Mail, 
+  Lock, 
+  User, 
+  RefreshCw, 
+  AlertCircle, 
+  ArrowRight, 
+  ShieldCheck, 
+  UserPlus, 
+  LogIn, 
+  Eye, 
+  EyeOff,
+  KeyRound,
+  ArrowLeft,
+  CheckCircle2
+} from "lucide-react";
 import { authService } from "../services";
 import type { LegalPolicyTab } from "./LegalPolicyModal";
 
@@ -33,18 +48,39 @@ interface LoginProps {
 }
 
 export default function Login({ onLoginSuccess }: LoginProps) {
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<"login" | "signup" | "forgot" | "reset">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [name, setName] = useState("");
+  
+  // Password Reset Specific State
+  const [resetCode, setResetCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
+  const [resetToken, setResetToken] = useState("");
+  const [generatedCodeHint, setGeneratedCodeHint] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [legalModalTab, setLegalModalTab] = useState<LegalPolicyTab | null>(null);
+
+  // Detect Supabase recovery callback from URL hash
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash;
+      if (hash && (hash.includes("type=recovery") || hash.includes("access_token"))) {
+        setMode("reset");
+        setSuccessMsg("Recovery session verified. Please enter your new password below.");
+      }
+    }
+  }, []);
 
   const handleGoogleSignIn = async () => {
     setError("");
@@ -117,6 +153,73 @@ export default function Login({ onLoginSuccess }: LoginProps) {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) {
+      setError("Please enter your registered email address.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setSuccessMsg("");
+
+    try {
+      const data = await authService.forgotPassword(email.trim());
+      setSuccessMsg(data.message || "Recovery code sent!");
+      if (data.code) {
+        setGeneratedCodeHint(data.code);
+        setResetCode(data.code); // Pre-fill for instant seamless verification
+      }
+      setMode("reset");
+    } catch (err: any) {
+      setError(err.message || "Failed to process recovery request. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetCode.trim() && !resetToken.trim()) {
+      setError("Please enter the 6-digit recovery code.");
+      return;
+    }
+    if (!newPassword) {
+      setError("Please enter a new password.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      setError("Password must be at least 6 characters long.");
+      return;
+    }
+    if (confirmNewPassword && newPassword !== confirmNewPassword) {
+      setError("Passwords do not match. Please verify both fields.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setSuccessMsg("");
+
+    try {
+      const data = await authService.resetPassword(email.trim(), newPassword, resetCode.trim(), resetToken.trim());
+      setSuccessMsg(data.message || "Password reset successfully! Please log in.");
+      setPassword("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+      setResetCode("");
+      setGeneratedCodeHint("");
+      setTimeout(() => {
+        setMode("login");
+      }, 1200);
+    } catch (err: any) {
+      setError(err.message || "Failed to reset password. Please check the code and try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="w-full h-full bg-brand-bg flex flex-col justify-between p-6 select-none relative overflow-y-auto">
       {/* Upper Logo Section */}
@@ -131,57 +234,65 @@ export default function Login({ onLoginSuccess }: LoginProps) {
         transition={{ duration: 0.5 }}
         className="my-auto py-4"
       >
+        {/* Header Texts */}
         <div className="mb-5">
           <h1 className="text-xl font-extrabold text-brand-charcoal tracking-tight">
-            {mode === "login" ? "Welcome Back" : "Create B2B Account"}
+            {mode === "login" && "Welcome Back"}
+            {mode === "signup" && "Create B2B Account"}
+            {mode === "forgot" && "Forgot Password"}
+            {mode === "reset" && "Reset Password"}
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            {mode === "login"
-              ? "Sign in with your email to access the B2B pharmacy portal."
-              : "Register trade credentials to join DGDA-certified procurement."}
+            {mode === "login" && "Sign in with your email to access the B2B pharmacy portal."}
+            {mode === "signup" && "Register trade credentials to join DGDA-certified procurement."}
+            {mode === "forgot" && "Enter your registered email address to receive a secure recovery code."}
+            {mode === "reset" && "Enter your 6-digit recovery code and set your new password."}
           </p>
         </div>
 
-        {/* Tab Selector */}
-        <div className="flex bg-slate-100 p-1 rounded-xl mb-4 border border-slate-200/50">
-          <button
-            type="button"
-            onClick={() => {
-              setMode("login");
-              setError("");
-              setSuccessMsg("");
-              setShowPassword(false);
-              setShowConfirmPassword(false);
-            }}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              mode === "login"
-                ? "bg-white text-brand-purple shadow-sm"
-                : "text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            <LogIn className="w-3.5 h-3.5" />
-            Sign In
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode("signup");
-              setError("");
-              setSuccessMsg("");
-              setShowPassword(false);
-              setShowConfirmPassword(false);
-            }}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              mode === "signup"
-                ? "bg-white text-brand-purple shadow-sm"
-                : "text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            Sign Up
-          </button>
-        </div>
+        {/* Tab Selector (Only shown for login / signup modes) */}
+        {(mode === "login" || mode === "signup") && (
+          <div className="flex bg-slate-100 p-1 rounded-xl mb-4 border border-slate-200/50">
+            <button
+              type="button"
+              onClick={() => {
+                setMode("login");
+                setError("");
+                setSuccessMsg("");
+                setShowPassword(false);
+                setShowConfirmPassword(false);
+              }}
+              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                mode === "login"
+                  ? "bg-white text-brand-purple shadow-sm"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode("signup");
+                setError("");
+                setSuccessMsg("");
+                setShowPassword(false);
+                setShowConfirmPassword(false);
+              }}
+              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                mode === "signup"
+                  ? "bg-white text-brand-purple shadow-sm"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              Sign Up
+            </button>
+          </div>
+        )}
 
+        {/* Status Alerts */}
         {error && (
           <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 text-rose-700 text-xs p-3 rounded-xl mb-4 font-semibold">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -196,142 +307,346 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           </div>
         )}
 
-        <form onSubmit={handleAuth} className="space-y-3.5">
-          {mode === "signup" && (
+        {/* === MODE: LOGIN & SIGNUP === */}
+        {(mode === "login" || mode === "signup") && (
+          <form onSubmit={handleAuth} className="space-y-3.5">
+            {mode === "signup" && (
+              <div>
+                <label className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
+                  Full Name
+                </label>
+                <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 focus-within:border-brand-purple focus-within:ring-1 focus-within:ring-brand-purple transition-all">
+                  <User className="text-slate-400 w-4 h-4 mr-2 flex-shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Zahid Hasan"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full outline-none text-slate-800 font-semibold text-xs bg-transparent"
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
-                Full Name
+                Email Address
               </label>
               <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 focus-within:border-brand-purple focus-within:ring-1 focus-within:ring-brand-purple transition-all">
-                <User className="text-slate-400 w-4 h-4 mr-2 flex-shrink-0" />
+                <Mail className="text-slate-400 w-4 h-4 mr-2 flex-shrink-0" />
                 <input
-                  type="text"
-                  placeholder="Zahid Hasan"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  type="email"
+                  placeholder="owner@medichain.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="w-full outline-none text-slate-800 font-semibold text-xs bg-transparent"
                   required
                 />
               </div>
             </div>
-          )}
 
-          <div>
-            <label className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
-              Email Address
-            </label>
-            <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 focus-within:border-brand-purple focus-within:ring-1 focus-within:ring-brand-purple transition-all">
-              <Mail className="text-slate-400 w-4 h-4 mr-2 flex-shrink-0" />
-              <input
-                type="email"
-                placeholder="owner@medichain.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full outline-none text-slate-800 font-semibold text-xs bg-transparent"
-                required
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
-              Password
-            </label>
-            <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 focus-within:border-brand-purple focus-within:ring-1 focus-within:ring-brand-purple transition-all">
-              <Lock className="text-slate-400 w-4 h-4 mr-2 flex-shrink-0" />
-              <input
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full outline-none text-slate-800 font-semibold text-xs bg-transparent"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((prev) => !prev)}
-                className="text-slate-400 hover:text-slate-600 focus:outline-none p-1 rounded transition-colors cursor-pointer"
-                aria-label={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-
-          {mode === "signup" && (
             <div>
-              <label className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
-                Confirm Password
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">
+                  Password
+                </label>
+                {mode === "login" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("forgot");
+                      setError("");
+                      setSuccessMsg("");
+                    }}
+                    className="text-[11px] text-brand-purple hover:text-brand-purple-dark font-bold hover:underline cursor-pointer"
+                  >
+                    Forgot Password?
+                  </button>
+                )}
+              </div>
               <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 focus-within:border-brand-purple focus-within:ring-1 focus-within:ring-brand-purple transition-all">
                 <Lock className="text-slate-400 w-4 h-4 mr-2 flex-shrink-0" />
                 <input
-                  type={showConfirmPassword ? "text" : "password"}
+                  type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="w-full outline-none text-slate-800 font-semibold text-xs bg-transparent"
                   required
                 />
                 <button
                   type="button"
-                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                  onClick={() => setShowPassword((prev) => !prev)}
                   className="text-slate-400 hover:text-slate-600 focus:outline-none p-1 rounded transition-colors cursor-pointer"
-                  aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
-          )}
 
-
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-brand-lime hover:bg-brand-lime-dark text-slate-900 py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-brand-lime/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mt-2"
-          >
-            {loading ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : mode === "login" ? (
-              <>
-                Sign In
-                <ArrowRight className="w-4 h-4" />
-              </>
-            ) : (
-              <>
-                Create Account
-                <ArrowRight className="w-4 h-4" />
-              </>
+            {mode === "signup" && (
+              <div>
+                <label className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
+                  Confirm Password
+                </label>
+                <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 focus-within:border-brand-purple focus-within:ring-1 focus-within:ring-brand-purple transition-all">
+                  <Lock className="text-slate-400 w-4 h-4 mr-2 flex-shrink-0" />
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full outline-none text-slate-800 font-semibold text-xs bg-transparent"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((prev) => !prev)}
+                    className="text-slate-400 hover:text-slate-600 focus:outline-none p-1 rounded transition-colors cursor-pointer"
+                    aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
             )}
-          </button>
 
-          {/* Divider */}
-          <div className="relative flex items-center justify-center my-4">
-            <div className="border-t border-slate-200 w-full" />
-            <span className="bg-brand-bg px-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest absolute">
-              OR
-            </span>
-          </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-brand-lime hover:bg-brand-lime-dark text-slate-900 py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-brand-lime/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+            >
+              {loading ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : mode === "login" ? (
+                <>
+                  Sign In
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              ) : (
+                <>
+                  Create Account
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
 
-          {/* Google Sign In Button */}
-          <button
-            type="button"
-            onClick={handleGoogleSignIn}
-            disabled={googleLoading || loading}
-            className="w-full bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300 py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {googleLoading ? (
-              <RefreshCw className="w-4 h-4 animate-spin text-slate-600" />
-            ) : (
-              <>
-                <GoogleIcon />
-                <span>Continue with Google</span>
-              </>
-            )}
-          </button>
-        </form>
+            {/* Divider */}
+            <div className="relative flex items-center justify-center my-4">
+              <div className="border-t border-slate-200 w-full" />
+              <span className="bg-brand-bg px-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest absolute">
+                OR
+              </span>
+            </div>
+
+            {/* Google Sign In Button */}
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={googleLoading || loading}
+              className="w-full bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300 py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {googleLoading ? (
+                <RefreshCw className="w-4 h-4 animate-spin text-slate-600" />
+              ) : (
+                <>
+                  <GoogleIcon />
+                  <span>Continue with Google</span>
+                </>
+              )}
+            </button>
+          </form>
+        )}
+
+        {/* === MODE: FORGOT PASSWORD (STEP 1: EMAIL REQUEST) === */}
+        {mode === "forgot" && (
+          <form onSubmit={handleForgotPassword} className="space-y-4">
+            <div>
+              <label className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
+                Registered Email Address
+              </label>
+              <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 focus-within:border-brand-purple focus-within:ring-1 focus-within:ring-brand-purple transition-all">
+                <Mail className="text-slate-400 w-4 h-4 mr-2 flex-shrink-0" />
+                <input
+                  type="email"
+                  placeholder="owner@medichain.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full outline-none text-slate-800 font-semibold text-xs bg-transparent"
+                  required
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-brand-purple hover:bg-brand-purple-dark text-white py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:shadow-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <KeyRound className="w-4 h-4" />
+                  Send Recovery Code
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMode("login");
+                setError("");
+                setSuccessMsg("");
+              }}
+              className="w-full py-2.5 text-xs text-slate-600 hover:text-slate-900 font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Back to Sign In
+            </button>
+          </form>
+        )}
+
+        {/* === MODE: RESET PASSWORD (STEP 2: CODE & NEW PASSWORD) === */}
+        {mode === "reset" && (
+          <form onSubmit={handleResetPassword} className="space-y-3.5">
+            <div>
+              <label className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
+                Account Email
+              </label>
+              <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-slate-600 text-xs font-semibold">
+                <Mail className="text-slate-400 w-4 h-4 mr-2 flex-shrink-0" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="owner@medichain.com"
+                  className="w-full bg-transparent outline-none text-slate-800 font-semibold text-xs"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block">
+                  6-Digit Recovery Code
+                </label>
+                {generatedCodeHint && (
+                  <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                    Auto-Filled: {generatedCodeHint}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 focus-within:border-brand-purple focus-within:ring-1 focus-within:ring-brand-purple transition-all">
+                <ShieldCheck className="text-slate-400 w-4 h-4 mr-2 flex-shrink-0" />
+                <input
+                  type="text"
+                  maxLength={8}
+                  placeholder="e.g. 749201"
+                  value={resetCode}
+                  onChange={(e) => setResetCode(e.target.value)}
+                  className="w-full outline-none text-slate-800 font-mono font-bold tracking-widest text-sm bg-transparent"
+                  required
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
+                New Password
+              </label>
+              <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 focus-within:border-brand-purple focus-within:ring-1 focus-within:ring-brand-purple transition-all">
+                <Lock className="text-slate-400 w-4 h-4 mr-2 flex-shrink-0" />
+                <input
+                  type={showNewPassword ? "text" : "password"}
+                  placeholder="Minimum 6 characters"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full outline-none text-slate-800 font-semibold text-xs bg-transparent"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword((prev) => !prev)}
+                  className="text-slate-400 hover:text-slate-600 focus:outline-none p-1 rounded transition-colors cursor-pointer"
+                  aria-label={showNewPassword ? "Hide password" : "Show password"}
+                >
+                  {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
+                Confirm New Password
+              </label>
+              <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 focus-within:border-brand-purple focus-within:ring-1 focus-within:ring-brand-purple transition-all">
+                <Lock className="text-slate-400 w-4 h-4 mr-2 flex-shrink-0" />
+                <input
+                  type={showConfirmNewPassword ? "text" : "password"}
+                  placeholder="Repeat new password"
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  className="w-full outline-none text-slate-800 font-semibold text-xs bg-transparent"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmNewPassword((prev) => !prev)}
+                  className="text-slate-400 hover:text-slate-600 focus:outline-none p-1 rounded transition-colors cursor-pointer"
+                  aria-label={showConfirmNewPassword ? "Hide confirm password" : "Show confirm password"}
+                >
+                  {showConfirmNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:shadow-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+            >
+              {loading ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4" />
+                  Set New Password
+                </>
+              )}
+            </button>
+
+            <div className="flex items-center justify-between pt-2 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("forgot");
+                  setError("");
+                }}
+                className="text-slate-500 hover:text-slate-800 font-semibold cursor-pointer"
+              >
+                Resend Code
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("login");
+                  setError("");
+                  setSuccessMsg("");
+                }}
+                className="text-brand-purple hover:underline font-bold cursor-pointer"
+              >
+                Back to Sign In
+              </button>
+            </div>
+          </form>
+        )}
       </motion.div>
 
       {/* Enterprise Security & Legal Policies Footer */}
