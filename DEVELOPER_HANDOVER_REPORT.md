@@ -3428,6 +3428,38 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - Vite & esbuild compilation (`npm run build`): Succeeded cleanly.
   - Test suite (`tests/cartOptimisticAndManualQty.test.ts`): 5/5 passed.
 ----------------------------------------
+### 150. Task 150: Emergency Hotfix - Startup Deadlock & Splash Screen Freeze Resolution (2026-11-04)
+- **STATUS:** Completed & Verified
+- **OBJECTIVE:** Resolve issue where mobile PWA and browsers were frozen permanently on the black MediChain logo splash screen due to startup deadlock across `Splash`, `App.tsx`, and stale Service Worker cache.
+- **ROOT CAUSE ANALYSIS:**
+  1. `Splash` component had a 2500ms multi-stage timer that could fail to resolve if network requests in `useEffect` lagged or mounted concurrently.
+  2. `isProfileLoading` was initialized to `Boolean(localStorage.getItem('medichain_user'))`, which rendered a blocking `<LoadingScreen />` in `renderMobileContent` while waiting on network fetches.
+  3. `handleLoginSuccess` set `appStep` back to `"splash"` when verifying pharmacy profile, looping the splash screen.
+  4. Service worker cache `medichain-static-v2` retained older JavaScript chunks.
+- **IMPLEMENTATION DETAILS:**
+  - **`src/App.tsx`**:
+    - Added an unconditional 1.5-second hard unblock timer:
+      ```ts
+      useEffect(() => {
+        const forceUnblock = setTimeout(() => {
+          setAppStep((prev) => (prev === 'splash' ? 'main' : prev));
+        }, 1500);
+        return () => clearTimeout(forceUnblock);
+      }, []);
+      ```
+    - Initialized `isProfileLoading` to `false` so the app shell renders immediately without waiting for network.
+    - Removed blocking `<LoadingScreen />` checks in `renderMobileContent`.
+    - Simplified `Splash.onComplete` to transition immediately to `"main"` (or `"login"` if not signed in).
+    - Removed `setAppStep('splash')` in `handleLoginSuccess`.
+  - **`src/components/Splash.tsx`**:
+    - Shortened fade timer to 800ms and total completion timer to 1100ms.
+  - **`public/sw.js`**:
+    - Bumped service worker cache name to `'medichain-static-v3'`, automatically purging stale caches.
+- **VERIFICATION:**
+  - `npx tsc --noEmit`: 0 errors.
+  - `npm run build`: Succeeded cleanly.
+  - Unit tests (`tests/cartOptimisticAndManualQty.test.ts`): 5/5 passed.
+----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).
 **Important files:** `server.ts` (all API routes & Express app), `api/index.ts` (Vercel serverless entry), `vercel.json` (routing rewrites), `src/App.tsx` (frontend router), `supabase-schema.sql` (database schema).

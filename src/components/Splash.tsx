@@ -10,15 +10,15 @@ export default function Splash({ onComplete }: SplashProps) {
   const [isFadingOut, setIsFadingOut] = useState(false);
 
   useEffect(() => {
-    // Keep active for exactly 2 seconds, then fade out
+    // Keep active for 800ms, then fade out
     const fadeTimer = setTimeout(() => {
       setIsFadingOut(true);
-    }, 2000);
+    }, 800);
 
-    // Call onComplete after the 500ms fadeout transition is done (2.5 seconds total)
+    // Call onComplete after the fadeout transition is done (1100ms total)
     const completeTimer = setTimeout(() => {
       onComplete();
-    }, 2500);
+    }, 1100);
 
     return () => {
       clearTimeout(fadeTimer);

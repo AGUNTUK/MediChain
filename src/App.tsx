@@ -130,6 +130,19 @@ export default function App() {
 
   // Mobile app navigation state
   const [appStep, setAppStep] = useState<"splash" | "login" | "setup" | "main" | "cart" | "checkout" | "success" | "tracking" | "bulk_deals">("splash");
+
+  // Unconditional 1.5-second hard timer to guarantee Splash dismissal and eliminate black-screen deadlocks
+  useEffect(() => {
+    const forceUnblock = setTimeout(() => {
+      setAppStep((prev) => {
+        if (prev === "splash") {
+          return "main";
+        }
+        return prev;
+      });
+    }, 1500);
+    return () => clearTimeout(forceUnblock);
+  }, []);
   const [activeTab, setActiveTab] = useState<"home" | "search" | "history" | "account">("home");
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
   const [activeBulkCampaignId, setActiveBulkCampaignId] = useState<string | undefined>();
@@ -187,14 +200,7 @@ export default function App() {
       return "";
     }
   });
-  const [isProfileLoading, setIsProfileLoading] = useState(() => {
-    try {
-      const stored = localStorage.getItem("medichain_user");
-      return Boolean(stored);
-    } catch {
-      return false;
-    }
-  });
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [favouriteIds, setFavouriteIds] = useState<string[]>([]);
@@ -696,34 +702,15 @@ export default function App() {
       return;
     }
 
-    if (needsSetup === null || needsSetup === true) {
-      // Server was uncertain or said setup needed — verify once more from /api/pharmacy/profile
-      // Show loading screen while we confirm, so user does not see a flash of setup wizard
-      setAppStep("splash");
-      try {
-        const freshPharmacy = await refreshPharmacyProfile();
-        const freshName = freshPharmacy?.pharmacyName || freshPharmacy?.pharmacy_name;
-        if (freshPharmacy && freshName) {
-          // Confirmed pharmacy exists — go to main
-          setAppStep("main");
-        } else if (needsSetup === true) {
-          // Definitively no pharmacy — show setup wizard
-          setAppStep("setup");
-        } else {
-          // needsSetup was null (uncertain) and refresh also returned nothing.
-          // Be conservative: go to main to avoid wrongly showing setup.
-          setAppStep("main");
-        }
-      } catch (verifyErr) {
-        console.warn("Could not verify pharmacy during login:", verifyErr);
-        // Safe fallback: go to main, user can still use the app
-        setAppStep("main");
-      }
-    } else {
-      // needsSetup === false — confirmed no setup needed
-      setAppStep("main");
-      refreshPharmacyProfile();
+    if (needsSetup === true && !hasCachedPharmacy) {
+      // Definitively new registration needed
+      setAppStep("setup");
+      return;
     }
+
+    // Default to main directly - refresh in background
+    setAppStep("main");
+    refreshPharmacyProfile();
   };
 
   const handleSetupComplete = () => {
@@ -877,28 +864,6 @@ export default function App() {
 
     if (currentUser && !isSpecialAdminOrStaff) {
       if (appStep !== "splash" && appStep !== "login" && appStep !== "setup") {
-        const hasKnownPharmacyId = Boolean((currentUser as any).pharmacy_id);
-        if (isProfileLoading && (!pharmacy || hasKnownPharmacyId)) {
-          return <LoadingScreen />;
-        }
-        let hasPharmacy = Boolean(pharmacy && (pharmacy.pharmacyName || (pharmacy as any).pharmacy_name));
-        if (!hasPharmacy) {
-          try {
-            const cached = localStorage.getItem("medichain_user_profile_cache") || localStorage.getItem("medichain_pharmacy");
-            if (cached) {
-              const parsed = JSON.parse(cached);
-              if (parsed && (parsed.pharmacyName || parsed.pharmacy_name)) {
-                hasPharmacy = true;
-              }
-            }
-          } catch {}
-        }
-
-        // Only redirect if definitely not loading and no pharmacy exists at all
-        if (!hasPharmacy && !isProfileLoading && !hasKnownPharmacyId) {
-          // If appStep was already main or other, do not violently hijack
-          // User can complete profile from Account tab
-        }
         const isSuspended = pharmacy?.verificationStatus === "Suspended" || pharmacy?.verificationStatus === "Rejected";
         if (isSuspended && pharmacy) {
           return (
@@ -919,28 +884,8 @@ export default function App() {
         return (
           <Splash
             onComplete={() => {
-              if (currentUser) {
-                const isAdminUser = ["Admin", "Depot Staff", "Delivery Staff"].includes(currentUser.role) ||
-                  currentUser.email?.toLowerCase() === "kazisohel199813@gmail.com";
-                let hasPharmacy = Boolean(pharmacy && (pharmacy.pharmacyName || (pharmacy as any).pharmacy_name));
-                if (!hasPharmacy) {
-                  try {
-                    const cached = localStorage.getItem("medichain_user_profile_cache") || localStorage.getItem("medichain_pharmacy");
-                    if (cached) {
-                      const parsed = JSON.parse(cached);
-                      if (parsed && (parsed.pharmacyName || parsed.pharmacy_name)) {
-                        hasPharmacy = true;
-                      }
-                    }
-                  } catch {}
-                }
-                const hasKnownPharmacyId = Boolean((currentUser as any).pharmacy_id);
-                if (isAdminUser || hasPharmacy || isProfileLoading || hasKnownPharmacyId) {
-                  setAppStep("main");
-                } else {
-                  // Fallback safely to main unless actively registering a fresh account
-                  setAppStep("main");
-                }
+              if (currentUser || localStorage.getItem("medichain_user")) {
+                setAppStep("main");
               } else {
                 setAppStep("login");
               }
