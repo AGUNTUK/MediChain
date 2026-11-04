@@ -231,7 +231,26 @@ export const authService = {
         console.warn("Could not load pharmacy profile during auth fallback:", pErr);
       }
 
-      const isSpecialRole = ["Admin", "Depot Staff", "Delivery Staff"].includes(role);
+      const userEmailNorm = (user.email || "").toLowerCase().trim();
+      const isAdminUser = role.toLowerCase() === "admin" || userEmailNorm === "kazisohel199813@gmail.com";
+      if (isAdminUser) {
+        role = "Admin";
+      }
+
+      // Check cached pharmacy profile if available
+      let cachedPharmacy = null;
+      try {
+        const cachedRaw = localStorage.getItem("medichain_user_profile_cache") || localStorage.getItem("medichain_pharmacy");
+        if (cachedRaw) {
+          const parsed = JSON.parse(cachedRaw);
+          if (parsed && (parsed.pharmacyName || parsed.pharmacy_name)) {
+            cachedPharmacy = parsed;
+          }
+        }
+      } catch {}
+
+      const effectivePharmacy = pharmacy || cachedPharmacy;
+      const isSpecialRole = isAdminUser || ["Depot Staff", "Delivery Staff"].includes(role);
 
       return {
         success: true,
@@ -240,10 +259,10 @@ export const authService = {
           email: user.email,
           name: name,
           role: role,
-          pharmacy_id: pharmacy ? pharmacy.id : null
+          pharmacy_id: effectivePharmacy ? effectivePharmacy.id : null
         },
-        needsSetup: isSpecialRole ? false : (pharmacy?.id ? false : null),
-        pharmacy
+        needsSetup: isSpecialRole ? false : (effectivePharmacy?.id ? false : null),
+        pharmacy: effectivePharmacy
       };
     } else {
       // Offline fallback login
@@ -377,8 +396,26 @@ export const authService = {
             };
           }
           const userName = profile?.full_name || profile?.name || name || user.email?.split("@")[0] || "User";
-          const userRole = profile?.role || user.user_metadata?.role || "Pharmacy Owner";
-          const isSpecialRole = ["Admin", "Depot Staff", "Delivery Staff"].includes(userRole);
+          let userRole = profile?.role || user.user_metadata?.role || "Pharmacy Owner";
+          const userEmailNorm = (user.email || "").toLowerCase().trim();
+          const isAdminUser = userRole.toLowerCase() === "admin" || userEmailNorm === "kazisohel199813@gmail.com";
+          if (isAdminUser) {
+            userRole = "Admin";
+          }
+
+          let cachedPharmacy = null;
+          try {
+            const cachedRaw = localStorage.getItem("medichain_user_profile_cache") || localStorage.getItem("medichain_pharmacy");
+            if (cachedRaw) {
+              const parsed = JSON.parse(cachedRaw);
+              if (parsed && (parsed.pharmacyName || parsed.pharmacy_name)) {
+                cachedPharmacy = parsed;
+              }
+            }
+          } catch {}
+
+          const effectivePharmacy = pharmacy || cachedPharmacy;
+          const isSpecialRole = isAdminUser || ["Depot Staff", "Delivery Staff"].includes(userRole);
 
           return {
             success: true,
@@ -387,10 +424,10 @@ export const authService = {
               email: user.email,
               name: userName,
               role: userRole,
-              pharmacy_id: pharmacy ? pharmacy.id : null
+              pharmacy_id: effectivePharmacy ? effectivePharmacy.id : null
             },
-            needsSetup: isSpecialRole ? false : (pharmacy?.id ? false : null),
-            pharmacy
+            needsSetup: isSpecialRole ? false : (effectivePharmacy?.id ? false : null),
+            pharmacy: effectivePharmacy
           };
         }
       } catch (sbErr) {

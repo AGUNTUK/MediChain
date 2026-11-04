@@ -614,39 +614,76 @@ export async function syncSession(id: string, email: string, name: string, phone
   let resolvedId = (id || "").trim();
   const normalizedEmail = (email || "").toLowerCase().trim();
 
-  if (!isValidUUID(resolvedId)) {
-    // Check if user already exists by email
-    const { data: userByEmail } = await supabaseAdmin
-      .from("users")
-      .select("id, email, name, role, phone")
-      .eq("email", normalizedEmail)
-      .maybeSingle();
+  let existingUser: any = null;
 
-    if (userByEmail) {
-      resolvedId = userByEmail.id;
-    } else {
-      resolvedId = generateUUID();
+  // 1. Check if user exists by resolvedId (UUID)
+  if (isValidUUID(resolvedId)) {
+    const { data: uById } = await supabaseAdmin
+      .from("users")
+      .select("id, email, name, full_name, role, phone, pharmacy_id")
+      .eq("id", resolvedId)
+      .maybeSingle();
+    if (uById) {
+      existingUser = uById;
     }
   }
 
-  // Check if user already exists
-  const { data: existingUser } = await supabaseAdmin
-    .from("users")
-    .select("id, email, name, role, phone")
-    .eq("id", resolvedId)
-    .maybeSingle();
+  // 2. Fallback: Check if user already exists by normalized email
+  if (!existingUser && normalizedEmail) {
+    const { data: uByEmail } = await supabaseAdmin
+      .from("users")
+      .select("id, email, name, full_name, role, phone, pharmacy_id")
+      .ilike("email", normalizedEmail)
+      .maybeSingle();
+    if (uByEmail) {
+      existingUser = uByEmail;
+      resolvedId = uByEmail.id;
+    }
+  }
 
+  // 3. Fallback: Check if user exists by matching phone number
+  const cleanPhone = (phone || "").replace(/[^0-9]/g, "");
+  if (!existingUser && cleanPhone && cleanPhone.length >= 10) {
+    const phoneSuffix = cleanPhone.slice(-10);
+    const { data: uByPhone } = await supabaseAdmin
+      .from("users")
+      .select("id, email, name, full_name, role, phone, pharmacy_id")
+      .ilike("phone", `%${phoneSuffix}`)
+      .maybeSingle();
+    if (uByPhone) {
+      existingUser = uByPhone;
+      resolvedId = uByPhone.id;
+    }
+  }
+
+  // If user already exists in public.users, preserve their role and profile without throwing duplicate key errors
+  if (existingUser) {
+    const updates: any = {};
+    if (!existingUser.name && name) updates.name = name;
+    if (!existingUser.phone && phone) updates.phone = phone;
+    if (normalizedEmail === "kazisohel199813@gmail.com" && existingUser.role !== "Admin") {
+      updates.role = "Admin";
+    }
+    if (Object.keys(updates).length > 0) {
+      await supabaseAdmin.from("users").update(updates).eq("id", existingUser.id);
+      existingUser = { ...existingUser, ...updates };
+    }
+    return { data: existingUser, error: null, resolvedId: existingUser.id };
+  }
+
+  // 4. Create new user if not found anywhere
+  if (!isValidUUID(resolvedId)) {
+    resolvedId = generateUUID();
+  }
+
+  const isAdmin = normalizedEmail === "kazisohel199813@gmail.com";
   const userPayload: any = {
     id: resolvedId,
     email: normalizedEmail,
-    name: name || "Pharmacy Owner",
+    name: name || (isAdmin ? "Admin" : "Pharmacy Owner"),
+    role: isAdmin ? "Admin" : "Pharmacy Owner",
     phone: phone || ""
   };
-
-  // Hardcoded security rule: new users are ALWAYS "Pharmacy Owner". Role can never be set or elevated via syncSession.
-  if (!existingUser) {
-    userPayload.role = "Pharmacy Owner";
-  }
 
   const { data, error } = await supabaseAdmin
     .from("users")
@@ -654,17 +691,29 @@ export async function syncSession(id: string, email: string, name: string, phone
     .select()
     .single();
 
-  const finalUser = data || existingUser || { id: resolvedId, email: normalizedEmail, name, role: "Pharmacy Owner", phone };
+  const finalUser = data || { id: resolvedId, email: normalizedEmail, name, role: userPayload.role, phone };
   return { data: finalUser, error, resolvedId };
 }
 
-export async function getUserById(id: string) {
-  const { data } = await supabaseAdmin
-    .from("users")
-    .select("id, email, name, full_name, role, phone, pharmacy_id, created_at")
-    .eq("id", id)
-    .maybeSingle();
-  return data;
+export async function getUserById(id: string, email?: string) {
+  let user: any = null;
+  if (id && isValidUUID(id)) {
+    const { data } = await supabaseAdmin
+      .from("users")
+      .select("id, email, name, full_name, role, phone, pharmacy_id, created_at")
+      .eq("id", id)
+      .maybeSingle();
+    user = data;
+  }
+  if (!user && email) {
+    const { data } = await supabaseAdmin
+      .from("users")
+      .select("id, email, name, full_name, role, phone, pharmacy_id, created_at")
+      .ilike("email", email.trim().toLowerCase())
+      .maybeSingle();
+    user = data;
+  }
+  return user;
 }
 
 export async function updateUserRole(id: string, role: string) {
@@ -820,47 +869,99 @@ export async function updateRiderProfile(userId: string, profileData: any) {
 // PHARMACIES & PROFILES
 // ==========================================
 
-export async function getPharmacyProfile(userId: string): Promise<Pharmacy | null> {
-  let { data: ph } = await supabaseAdmin
-    .from("pharmacies")
-    .select("id, user_id, pharmacy_name, owner_name, phone, address, city, license_information")
-    .eq("user_id", userId)
-    .maybeSingle();
+export async function getPharmacyProfile(userId: string, email?: string, phone?: string): Promise<Pharmacy | null> {
+  let ph: any = null;
 
-  // If not found by user_id, check if user has a pharmacy_id or matching phone in users table
-  if (!ph) {
-    const { data: userRow } = await supabaseAdmin
+  // 1. Direct query by user_id
+  if (userId && isValidUUID(userId)) {
+    const { data } = await supabaseAdmin
+      .from("pharmacies")
+      .select("id, user_id, pharmacy_name, owner_name, phone, address, city, license_information")
+      .eq("user_id", userId)
+      .maybeSingle();
+    ph = data;
+  }
+
+  // 2. Direct query by pharmacy ID = userId (legacy migration edge-case)
+  if (!ph && userId && isValidUUID(userId)) {
+    const { data } = await supabaseAdmin
+      .from("pharmacies")
+      .select("id, user_id, pharmacy_name, owner_name, phone, address, city, license_information")
+      .eq("id", userId)
+      .maybeSingle();
+    if (data) {
+      ph = data;
+      if (!ph.user_id && userId) {
+        await supabaseAdmin.from("pharmacies").update({ user_id: userId }).eq("id", ph.id);
+      }
+    }
+  }
+
+  // 3. User row resolution (by ID, email, or phone)
+  let userRow: any = null;
+  if (userId && isValidUUID(userId)) {
+    const { data } = await supabaseAdmin
       .from("users")
       .select("id, pharmacy_id, phone, email")
       .eq("id", userId)
       .maybeSingle();
-
-    if (userRow?.pharmacy_id) {
-      const { data: phById } = await supabaseAdmin
-        .from("pharmacies")
-        .select("id, user_id, pharmacy_name, owner_name, phone, address, city, license_information")
-        .eq("id", userRow.pharmacy_id)
+    userRow = data;
+  }
+  if (!userRow && email) {
+    const { data } = await supabaseAdmin
+      .from("users")
+      .select("id, pharmacy_id, phone, email")
+      .ilike("email", email.trim().toLowerCase())
+      .maybeSingle();
+    userRow = data;
+  }
+  if (!userRow && phone) {
+    const cleanP = phone.replace(/[^0-9]/g, "");
+    if (cleanP.length >= 10) {
+      const { data } = await supabaseAdmin
+        .from("users")
+        .select("id, pharmacy_id, phone, email")
+        .ilike("phone", `%${cleanP.slice(-10)}`)
         .maybeSingle();
-      if (phById) {
-        ph = phById;
-        // Self-heal: ensure user_id is set
-        if (!ph.user_id || ph.user_id !== userId) {
-          await supabaseAdmin.from("pharmacies").update({ user_id: userId }).eq("id", ph.id);
-        }
+      userRow = data;
+    }
+  }
+
+  // 4. If userRow has pharmacy_id, load by pharmacy ID
+  if (!ph && userRow?.pharmacy_id) {
+    const { data: phById } = await supabaseAdmin
+      .from("pharmacies")
+      .select("id, user_id, pharmacy_name, owner_name, phone, address, city, license_information")
+      .eq("id", userRow.pharmacy_id)
+      .maybeSingle();
+    if (phById) {
+      ph = phById;
+      const targetUserId = userRow.id || userId;
+      if (!ph.user_id && targetUserId) {
+        await supabaseAdmin.from("pharmacies").update({ user_id: targetUserId }).eq("id", ph.id);
       }
     }
+  }
 
-    if (!ph && userRow?.phone) {
+  // 5. Lookup by phone number (from param or userRow)
+  const candidatePhone = phone || userRow?.phone;
+  if (!ph && candidatePhone) {
+    const cleanPh = candidatePhone.replace(/[^0-9]/g, "");
+    if (cleanPh.length >= 10) {
       const { data: phByPhone } = await supabaseAdmin
         .from("pharmacies")
         .select("id, user_id, pharmacy_name, owner_name, phone, address, city, license_information")
-        .eq("phone", userRow.phone)
+        .ilike("phone", `%${cleanPh.slice(-10)}`)
         .maybeSingle();
       if (phByPhone) {
         ph = phByPhone;
-        // Self-heal link
-        await supabaseAdmin.from("pharmacies").update({ user_id: userId }).eq("id", ph.id);
-        await supabaseAdmin.from("users").update({ pharmacy_id: ph.id }).eq("id", userId);
+        const targetUserId = userRow?.id || userId;
+        if (targetUserId) {
+          await supabaseAdmin.from("pharmacies").update({ user_id: targetUserId }).eq("id", ph.id);
+        }
+        if (userRow?.id) {
+          await supabaseAdmin.from("users").update({ pharmacy_id: ph.id }).eq("id", userRow.id);
+        }
       }
     }
   }

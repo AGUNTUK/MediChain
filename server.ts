@@ -881,7 +881,7 @@ app.post("/api/auth/sync-session", loginLimiter, async (req, res) => {
     let pharmacy = null;
     let pharmacyLookupFailed = false;
     try {
-      pharmacy = await dbService.getPharmacyProfile(user.id);
+      pharmacy = await dbService.getPharmacyProfile(user.id, user.email, user.phone);
     } catch (e: any) {
       log.warn("WARNING: Failed to fetch pharmacy profile for session:", e.message || e);
       pharmacyLookupFailed = true;
@@ -894,7 +894,7 @@ app.post("/api/auth/sync-session", loginLimiter, async (req, res) => {
         let { data: pharmFallback } = await supabaseAdmin
           .from("pharmacies")
           .select("id, pharmacy_name, owner_name, phone, address, city")
-          .eq("user_id", user.id)
+          .or(`user_id.eq.${user.id},id.eq.${user.id}`)
           .maybeSingle();
 
         if (!pharmFallback && user.pharmacy_id) {
@@ -926,6 +926,14 @@ app.post("/api/auth/sync-session", loginLimiter, async (req, res) => {
     const pharmacyId = pharmacy ? pharmacy.id : null;
     user.pharmacy_id = pharmacyId;
 
+    // Critical Admin Verification Bypass: enforce Admin role for the authorized owner email
+    const normEmail = (user.email || verifiedEmail || "").toLowerCase().trim();
+    const roleLower = (user.role || "").toLowerCase().trim();
+    const isAdmin = roleLower === "admin" || normEmail === "kazisohel199813@gmail.com";
+    if (isAdmin) {
+      user.role = "Admin";
+    }
+
     req.session = {
       userId: user.id,
       email: user.email,
@@ -934,9 +942,9 @@ app.post("/api/auth/sync-session", loginLimiter, async (req, res) => {
       pharmacy_id: pharmacyId
     };
 
-    // Special roles (Admin, Depot Staff, Delivery Staff) never need pharmacy onboarding
-    const isSpecialRole = ["Admin", "Depot Staff", "Delivery Staff"].includes(user.role);
-    // Only set needsSetup=true when we are confident the pharmacy does NOT exist.
+    // Special roles (Admin, Depot Staff, Delivery Staff) NEVER need pharmacy onboarding
+    const isSpecialRole = isAdmin || ["depot staff", "delivery staff"].includes(roleLower);
+    // Only set needsSetup=true when we are confident the pharmacy does NOT exist and user is NOT an admin/staff.
     // If both DB lookups failed (cold-start outage), return needsSetup=null so
     // the client can re-verify independently without showing the setup wizard.
     const needsSetup = isSpecialRole
@@ -981,13 +989,13 @@ app.get("/api/pharmacy/profile", requireAuth, async (req, res) => {
         phone: user.phone || ""
       };
     }
-    let pharmacy = await dbService.getPharmacyProfile(req.user.id).catch(() => null);
+    let pharmacy = await dbService.getPharmacyProfile(req.user.id, user.email, user.phone).catch(() => null);
     if (!pharmacy && req.user.id) {
       try {
         let { data: pFallback } = await supabaseAdmin
           .from("pharmacies")
           .select("id, pharmacy_name, owner_name, phone, address, city")
-          .eq("user_id", req.user.id)
+          .or(`user_id.eq.${req.user.id},id.eq.${req.user.id}`)
           .maybeSingle();
         if (!pFallback && req.user.pharmacy_id) {
           const { data: pById } = await supabaseAdmin
@@ -1014,6 +1022,10 @@ app.get("/api/pharmacy/profile", requireAuth, async (req, res) => {
     }
     if (pharmacy?.phone && !user.phone) {
       user.phone = pharmacy.phone;
+    }
+    const roleLower = (user.role || "").toLowerCase().trim();
+    if (user.email?.toLowerCase() === "kazisohel199813@gmail.com" || roleLower === "admin") {
+      user.role = "Admin";
     }
     res.json({
       user,
