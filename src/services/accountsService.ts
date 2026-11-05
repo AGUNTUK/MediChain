@@ -248,6 +248,37 @@ export const accountsClient = {
     return data.invoice;
   },
 
+  async getSavedCustomInvoices(filter?: { startDate?: string; endDate?: string; status?: string }): Promise<CustomInvoiceData[]> {
+    const q = new URLSearchParams();
+    if (filter?.startDate) q.append("startDate", filter.startDate);
+    if (filter?.endDate) q.append("endDate", filter.endDate);
+    if (filter?.status) q.append("status", filter.status);
+    const queryStr = q.toString() ? `?${q.toString()}` : "";
+    const res = await apiFetch(`/api/admin/accounts/custom-invoices${queryStr}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to fetch saved custom invoices");
+    }
+    const data = await res.json();
+    return data.invoices || [];
+  },
+
+  async voidCustomInvoice(id: string, reason: string): Promise<boolean> {
+    const res = await apiFetch(`/api/admin/accounts/custom-invoices/${encodeURIComponent(id)}/void`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason })
+    });
+    return res.ok;
+  },
+
+  async deleteCustomInvoice(id: string): Promise<boolean> {
+    const res = await apiFetch(`/api/admin/accounts/custom-invoices/${encodeURIComponent(id)}`, {
+      method: "DELETE"
+    });
+    return res.ok;
+  },
+
   async getInventoryValuation(): Promise<{
     totalInventoryValue: number;
     totalItemsCount: number;

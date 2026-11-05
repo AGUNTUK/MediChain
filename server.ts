@@ -6883,6 +6883,16 @@ app.post("/api/admin/accounts/custom-invoices/:id/void", requireRole(["Admin"]),
   }
 });
 
+app.delete("/api/admin/accounts/custom-invoices/:id", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const success = await accountsService.deleteCustomInvoice(id);
+    res.json({ success });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 8. Inventory Valuation Breakdown
 app.get("/api/admin/accounts/inventory-value", requireRole(["Admin"]), async (req, res) => {
   try {

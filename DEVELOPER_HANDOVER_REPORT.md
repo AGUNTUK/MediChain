@@ -3485,6 +3485,31 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `npx tsc --noEmit`: 0 errors.
   - `npm run build`: Succeeded cleanly.
 ----------------------------------------
+### 152. Task 152: Company Name Auto-Serving & Dedicated Permanent Invoices Ledger Page (2026-11-05)
+- **STATUS:** Completed & Verified
+- **OBJECTIVE:** Ensure company name is automatically served from product details when selecting or adding items in the custom invoice maker, and provide a dedicated lifetime storage page for preserving and managing custom invoices forever.
+- **ROOT CAUSE & IMPLEMENTATION DETAILS:**
+  1. **Company Name Auto-Serving from Product Details (`src/components/CustomInvoiceGenerator.tsx`):**
+     - Previously, items created via manual entry, search name add, or order consolidation left the `company` field blank.
+     - Updated `handleAddProductFromCatalog`: if company is missing or default, it queries full product details from `productService.getProductById(prod.id)` to fetch the authoritative manufacturer name.
+     - Updated `handleAddCustomItemWithName` and `handleUpdateItem`: typing an item name performs automatic catalog lookup to auto-populate company name and attributes.
+     - Updated `handleConsolidateDeliveryGroup`: resolves company name from catalog product registry.
+     - Added distinct company autocomplete suggestions datalist (`<datalist id="company-suggestions">`) enabling instant 1-click company selection.
+     - Added auto-resolution effect on mount that backfills any missing company names from catalog products.
+  2. **Dedicated Lifetime Invoices Ledger Page (`src/components/CustomInvoicesLedger.tsx` & `src/components/AdminPanel.tsx`):**
+     - Created a standalone, dedicated admin view (`/admin/invoices-ledger`) backed permanently by PostgreSQL database table `custom_invoices_ledger`.
+     - Added dedicated sidebar navigation button with **"Lifetime"** green badge.
+     - Top metrics summary: Preserved Invoices Count, Total Invoiced Value (৳), Total Discount Provided (৳), Cash Collected (৳) vs Due (৳).
+     - Search & filters: Real-time search across Memo #, Recipient Name, Phone, and Date, plus status filters (Paid, Pending, Voided) and recipient type filters (Hospital, Clinic, Pharmacy, Institute, NGO).
+     - Action suite per invoice: View/Inspect modal, Print, Download PDFKit document, Edit/Re-open in invoice generator, and permanent Delete.
+     - Full two-way integration with `CustomInvoiceGenerator`: saved invoices immediately sync to PostgreSQL via `accountsClient.syncCustomInvoiceToLedger`, with one-click navigation between generator and lifetime ledger.
+  3. **Backend Security & Delete Endpoint (`server.ts` & `src/lib/accountsService.ts`):**
+     - Added authenticated `DELETE /api/admin/accounts/custom-invoices/:id` route guarded by `requireRole(["Admin"])`.
+     - Added `getSavedCustomInvoices`, `voidCustomInvoice`, and `deleteCustomInvoice` to `accountsClient` in `src/services/accountsService.ts`.
+- **VERIFICATION:**
+  - `npx tsc --noEmit`: 0 errors.
+  - `npm run build`: Succeeded cleanly.
+----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).
 **Important files:** `server.ts` (all API routes & Express app), `api/index.ts` (Vercel serverless entry), `vercel.json` (routing rewrites), `src/App.tsx` (frontend router), `supabase-schema.sql` (database schema).

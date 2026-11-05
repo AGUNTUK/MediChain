@@ -943,6 +943,25 @@ export async function voidCustomInvoice(id: string, reason: string): Promise<boo
   return false;
 }
 
+export async function deleteCustomInvoice(id: string): Promise<boolean> {
+  try {
+    const { error } = await supabaseAdmin
+      .from("custom_invoices_ledger")
+      .delete()
+      .eq("id", id);
+    if (!error) return true;
+  } catch (err: any) {
+    console.warn("[Accounts] Error deleting custom invoice:", err.message);
+  }
+
+  const idx = fallbackCustomInvoices.findIndex(x => x.id === id);
+  if (idx >= 0) {
+    fallbackCustomInvoices.splice(idx, 1);
+    return true;
+  }
+  return false;
+}
+
 function mapCustomInvoice(row: any): CustomInvoiceData {
   return {
     id: row.id,

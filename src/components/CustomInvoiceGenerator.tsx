@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Product, Pharmacy, Order, CustomInvoiceData, CustomInvoiceItem } from "../types";
 import { resolveItemType } from "./ModernInvoiceModal";
+import CustomInvoicesLedger from "./CustomInvoicesLedger";
 import { apiFetch } from "../lib/apiFetch";
 import { productService, orderService, accountsClient } from "../services";
 import {
@@ -49,7 +50,9 @@ interface CustomInvoiceGeneratorProps {
   products: Product[];
   pharmacies: Pharmacy[];
   orders?: Order[];
+  initialInvoice?: CustomInvoiceData | null;
   onBackToOrders?: () => void;
+  onNavigateToLedger?: () => void;
 }
 
 const STORAGE_KEY = "medichain_custom_invoices_ledger";
@@ -58,7 +61,9 @@ export default function CustomInvoiceGenerator({
   products,
   pharmacies,
   orders: initialOrders,
-  onBackToOrders
+  initialInvoice,
+  onBackToOrders,
+  onNavigateToLedger
 }: CustomInvoiceGeneratorProps) {
   // Tab state: "editor" or "history"
   const [activeTab, setActiveTab] = useState<"editor" | "history">("editor");
@@ -148,10 +153,19 @@ export default function CustomInvoiceGenerator({
       const discPct = mrp > 0 ? Math.round(((mrp - price) / mrp) * 100) : 0;
       const total = it.subtotal || price * it.quantity;
 
+      let resolvedCompany = it.company || "";
+      if (!resolvedCompany && it.productId) {
+        const matched = products.find(p => p.id === it.productId);
+        if (matched?.company && matched.company !== "MediChain Partner") {
+          resolvedCompany = matched.company;
+        }
+      }
+
       return {
         id: `item-${Date.now()}-${idx}`,
         productId: it.productId,
         name: it.name,
+        company: resolvedCompany,
         category: it.category || "Tablet",
         strength: it.strength || "",
         packSize: it.packSize || "",
@@ -207,7 +221,7 @@ export default function CustomInvoiceGenerator({
     {
       id: `item-${Date.now()}-1`,
       name: "Napa Extra Tablet (500mg+65mg)",
-      company: "Beximco Pharmaceuticals",
+      company: "Beximco Pharmaceuticals Ltd.",
       category: "Tablet",
       strength: "500mg+65mg",
       packSize: "Box of 200",
@@ -221,7 +235,7 @@ export default function CustomInvoiceGenerator({
     {
       id: `item-${Date.now()}-2`,
       name: "Seclo 20mg Capsule",
-      company: "Square Pharmaceuticals",
+      company: "Square Pharmaceuticals PLC",
       category: "Capsule",
       strength: "20mg",
       packSize: "Box of 100",
@@ -234,7 +248,57 @@ export default function CustomInvoiceGenerator({
     }
   ]);
 
-  // Product Catalog Search Box for quick adding
+  // Distinct pharmaceutical companies list for autocomplete datalist
+  const distinctCompanies = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of products) {
+      if (p.company && p.company.trim() && p.company !== "MediChain Partner") {
+        set.add(p.company.trim());
+      }
+    }
+    return Array.from(set).sort();
+  }, [products]);
+
+  // Load initial invoice if passed from outside
+  useEffect(() => {
+    if (initialInvoice) {
+      handleLoadInvoiceFromLedger(initialInvoice);
+    }
+  }, [initialInvoice]);
+
+  // Auto-resolve missing company names in items from products catalog
+  useEffect(() => {
+    if (items.length > 0 && products.length > 0) {
+      let hasChange = false;
+      const updated = items.map(it => {
+        if (!it.company || it.company === "MediChain Partner") {
+          let matchedCompany = "";
+          if (it.productId) {
+            const matched = products.find(p => p.id === it.productId);
+            if (matched && matched.company && matched.company !== "MediChain Partner") {
+              matchedCompany = matched.company;
+            }
+          }
+          if (!matchedCompany && it.name) {
+            const matched = products.find(p => p.name && p.name.toLowerCase().includes(it.name.toLowerCase()));
+            if (matched && matched.company && matched.company !== "MediChain Partner") {
+              matchedCompany = matched.company;
+            }
+          }
+          if (matchedCompany) {
+            hasChange = true;
+            return { ...it, company: matchedCompany };
+          }
+        }
+        return it;
+      });
+      if (hasChange) {
+        setItems(updated);
+      }
+    }
+  }, [products]);
+
+    // Product Catalog Search Box for quick adding
   const [catalogSearch, setCatalogSearch] = useState<string>("");
   const [catalogSearchResults, setCatalogSearchResults] = useState<Product[]>([]);
   const [showCatalogDropdown, setShowCatalogDropdown] = useState<boolean>(false);
@@ -260,8 +324,20 @@ export default function CustomInvoiceGenerator({
   const [invoiceHeight, setInvoiceHeight] = useState<number>(1080);
   const [downloadingPdf, setDownloadingPdf] = useState<boolean>(false);
 
-  // Load saved invoices from localStorage on mount
+  // Load saved invoices from Cloud Ledger (PostgreSQL) on mount, with localStorage as offline fallback
   useEffect(() => {
+    let isMounted = true;
+    accountsClient.getSavedCustomInvoices().then(cloudInvoices => {
+      if (isMounted && Array.isArray(cloudInvoices) && cloudInvoices.length > 0) {
+        setSavedInvoices(cloudInvoices);
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudInvoices));
+        } catch (e) {}
+      }
+    }).catch(err => {
+      console.warn("Failed to load cloud invoices ledger, using local cache:", err);
+    });
+
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
@@ -280,12 +356,14 @@ export default function CustomInvoiceGenerator({
               total: Number(it.total) || 0
             }))
           }));
-          setSavedInvoices(sanitized);
+          if (isMounted) setSavedInvoices(prev => prev.length > 0 ? prev : sanitized);
         }
       }
     } catch (e) {
       console.error("Failed to parse saved custom invoices", e);
     }
+
+    return () => { isMounted = false; };
   }, []);
 
   // Save invoices to localStorage
@@ -412,27 +490,55 @@ export default function CustomInvoiceGenerator({
     return () => clearTimeout(timer);
   }, [catalogSearch, products]);
 
-  // Add custom item with name from search
-  const handleAddCustomItemWithName = (name: string) => {
+  // Add custom item with name from search (auto-serves company name from product catalog)
+  const handleAddCustomItemWithName = async (name: string) => {
     const trimmed = name.trim();
+    let comp = "";
+    let strength = "";
+    let pack = "Unit";
+    let mrp = 100;
+    let rate = 85;
+
+    // Search existing catalog products to auto-fill company and strength
+    const matched = products.find(p => p.name && p.name.toLowerCase().includes(trimmed.toLowerCase()));
+    if (matched) {
+      comp = (matched.company && matched.company !== "MediChain Partner") ? matched.company : "";
+      strength = matched.strength || "";
+      pack = matched.packSize || "Unit";
+      mrp = matched.mrp || 100;
+      rate = matched.sellingPrice || Math.round(mrp * 0.85);
+    } else {
+      try {
+        const results = await productService.getProducts({ search: trimmed, limit: 1 });
+        if (results && results.length > 0) {
+          const p = results[0];
+          comp = (p.company && p.company !== "MediChain Partner") ? p.company : "";
+          strength = p.strength || "";
+          pack = p.packSize || "Unit";
+          mrp = p.mrp || 100;
+          rate = p.sellingPrice || Math.round(mrp * 0.85);
+        }
+      } catch (e) {}
+    }
+
     const newItem: CustomInvoiceItem = {
       id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
       name: trimmed || "Custom Medicine / Hospital Supply",
-      company: "",
+      company: comp,
       category: "Tablet",
-      strength: "",
-      packSize: "Unit",
-      mrp: 100,
-      rate: 85,
+      strength,
+      packSize: pack,
+      mrp,
+      rate,
       quantity: 1,
-      discountPercentage: 15,
-      netDiscount: 15,
-      total: 85
+      discountPercentage: mrp > 0 ? Math.round(((mrp - rate) / mrp) * 100) : 15,
+      netDiscount: Math.max(0, mrp - rate),
+      total: rate
     };
     setItems(prev => [...prev, newItem]);
     setCatalogSearch("");
     setShowCatalogDropdown(false);
-    showToast(`Added custom item "${trimmed}"`);
+    showToast(`Added custom item "${trimmed}" (${comp || "Custom"})`);
   };
 
   // Handle existing pharmacy selection
@@ -452,8 +558,22 @@ export default function CustomInvoiceGenerator({
     }
   };
 
-  // Add Item from Catalog
-  const handleAddProductFromCatalog = (prod: Product) => {
+  // Add Item from Catalog (serves company name from product details)
+  const handleAddProductFromCatalog = async (prod: Product) => {
+    let companyName = (prod.company && prod.company.trim() && prod.company !== "MediChain Partner")
+      ? prod.company.trim()
+      : ((prod as any).company_name || (prod as any).manufacturer || "");
+
+    // If company is still empty, look up full product details from API
+    if ((!companyName || companyName === "MediChain Partner") && prod.id) {
+      try {
+        const fullProd = await productService.getProductById(prod.id);
+        if (fullProd && fullProd.company && fullProd.company.trim() && fullProd.company !== "MediChain Partner") {
+          companyName = fullProd.company.trim();
+        }
+      } catch (e) {}
+    }
+
     const mrp = Number(prod.mrp) || 0;
     let discPct = prod.discountPercentage !== undefined && prod.discountPercentage !== null && !isNaN(Number(prod.discountPercentage))
       ? Number(prod.discountPercentage)
@@ -466,7 +586,7 @@ export default function CustomInvoiceGenerator({
       id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
       productId: prod.id,
       name: prod.name,
-      company: prod.company || "",
+      company: companyName,
       category: resolveItemType(prod),
       strength: prod.strength || "",
       packSize: prod.packSize || "",
@@ -481,7 +601,7 @@ export default function CustomInvoiceGenerator({
     setItems(prev => [...prev, newItem]);
     setCatalogSearch("");
     setShowCatalogDropdown(false);
-    showToast(`Added "${prod.name}" to invoice`);
+    showToast(`Added "${prod.name}" (${companyName || "Custom"})`);
   };
 
   // Add Manual Custom / Ad-hoc Item
@@ -517,6 +637,17 @@ export default function CustomInvoiceGenerator({
         let mrp = Number(field === "mrp" ? val : updated.mrp) || 0;
         let rate = Number(field === "rate" ? val : updated.rate) || 0;
         let discPct = Number(field === "discountPercentage" ? val : updated.discountPercentage) || 0;
+
+        // If item name changed and company is empty, auto-lookup from product details
+        if (field === "name" && (!updated.company || updated.company === "MediChain Partner")) {
+          const qName = String(val || "").trim().toLowerCase();
+          if (qName.length >= 2) {
+            const matched = products.find(p => p.name && p.name.toLowerCase().includes(qName));
+            if (matched && matched.company && matched.company !== "MediChain Partner") {
+              updated.company = matched.company;
+            }
+          }
+        }
 
         if (field === "discountPercentage") {
           // If discount % changed, adjust rate (Trade Price)
@@ -648,8 +779,8 @@ export default function CustomInvoiceGenerator({
     };
   };
 
-  // Save to persistent ledger
-  const handleSaveToLedger = () => {
+  // Save to persistent ledger (Lifetime Cloud Storage in PostgreSQL)
+  const handleSaveToLedger = async () => {
     if (!recipientName.trim()) {
       showToast("Please enter the Institute or Client name before saving.", true);
       return;
@@ -660,22 +791,37 @@ export default function CustomInvoiceGenerator({
     }
 
     const compiled = compileCurrentInvoiceData();
-    const existingIdx = savedInvoices.findIndex(inv => inv.id === compiled.id || inv.invoiceNumber === compiled.invoiceNumber);
 
-    let updatedList: CustomInvoiceData[];
-    if (existingIdx >= 0) {
-      updatedList = [...savedInvoices];
-      updatedList[existingIdx] = compiled;
-      showToast(`Updated existing invoice ${compiled.invoiceNumber} in ledger.`);
-    } else {
-      updatedList = [compiled, ...savedInvoices];
-      showToast(`Saved invoice ${compiled.invoiceNumber} to institutional ledger.`);
+    // 1. Save directly to Supabase PostgreSQL database for permanent lifetime preservation
+    try {
+      const savedDbInvoice = await accountsClient.syncCustomInvoiceToLedger(compiled);
+
+      const existingIdx = savedInvoices.findIndex(inv => inv.id === compiled.id || inv.invoiceNumber === compiled.invoiceNumber);
+      let updatedList: CustomInvoiceData[];
+      if (existingIdx >= 0) {
+        updatedList = [...savedInvoices];
+        updatedList[existingIdx] = savedDbInvoice || compiled;
+      } else {
+        updatedList = [savedDbInvoice || compiled, ...savedInvoices];
+      }
+      setSavedInvoices(updatedList);
+      persistSavedInvoices(updatedList);
+      showToast(`✓ Invoice ${compiled.invoiceNumber} permanently preserved in Lifetime Ledger!`);
+    } catch (err: any) {
+      console.warn("[CustomInvoice] Cloud sync warning:", err);
+      // Fallback save to local storage
+      const existingIdx = savedInvoices.findIndex(inv => inv.id === compiled.id || inv.invoiceNumber === compiled.invoiceNumber);
+      let updatedList: CustomInvoiceData[];
+      if (existingIdx >= 0) {
+        updatedList = [...savedInvoices];
+        updatedList[existingIdx] = compiled;
+      } else {
+        updatedList = [compiled, ...savedInvoices];
+      }
+      setSavedInvoices(updatedList);
+      persistSavedInvoices(updatedList);
+      showToast(`Saved invoice ${compiled.invoiceNumber} to local ledger.`);
     }
-
-    persistSavedInvoices(updatedList);
-    accountsClient.syncCustomInvoiceToLedger(compiled).catch(err => {
-      console.warn("[CustomInvoice] Failed to sync to accounts ledger:", err);
-    });
   };
 
   // Load from ledger
@@ -1471,6 +1617,7 @@ export default function CustomInvoiceGenerator({
                           <label className="text-[10px] text-slate-500 font-medium">Company</label>
                           <input
                             type="text"
+                            list="company-suggestions"
                             value={item.company || ""}
                             onChange={e => handleUpdateItem(item.id, "company", e.target.value)}
                             placeholder="e.g. Square"
@@ -1940,127 +2087,24 @@ export default function CustomInvoiceGenerator({
         </div>
       ) : (
         /* ========================================================= */
-        /* SAVED CUSTOM INVOICES LEDGER / HISTORY VIEW               */
+        /* PERMANENT CUSTOM INVOICES LEDGER (LIFETIME ARCHIVE)       */
         /* ========================================================= */
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50 space-y-5">
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base font-bold text-slate-900">Saved Institutional Invoices Ledger</h2>
-                <p className="text-xs text-slate-500">
-                  Track, re-open, print, or download invoices generated for clinics, hospitals, and direct institutional clients.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="relative w-64 sm:w-80">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                  <input
-                    type="text"
-                    value={historySearch}
-                    onChange={e => setHistorySearch(e.target.value)}
-                    placeholder="Search by Memo #, Institute, Phone, Date..."
-                    className="w-full text-xs pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-purple-500 outline-none"
-                  />
-                </div>
-
-                <button
-                  onClick={() => {
-                    handleResetForm();
-                    setActiveTab("editor");
-                  }}
-                  className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Create Invoice</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Table */}
-            {filteredHistory.length === 0 ? (
-              <div className="text-center py-12 border border-dashed border-slate-200 rounded-xl space-y-2">
-                <FileText className="w-10 h-10 text-slate-300 mx-auto" />
-                <p className="text-sm font-bold text-slate-700">No saved invoices found</p>
-                <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                  {historySearch ? "No records match your search criteria." : "Create and save an institutional invoice from the generator to build your ledger."}
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
-                      <th className="p-3">Invoice Memo #</th>
-                      <th className="p-3">Date</th>
-                      <th className="p-3">Institute / Client</th>
-                      <th className="p-3">Items</th>
-                      <th className="p-3 text-right">Net Payable</th>
-                      <th className="p-3 text-center">Status</th>
-                      <th className="p-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredHistory.map(inv => (
-                      <tr key={inv.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="p-3 font-mono font-bold text-purple-700">
-                          {inv.invoiceNumber}
-                        </td>
-                        <td className="p-3 text-slate-600">
-                          {inv.createdAt}
-                        </td>
-                        <td className="p-3">
-                          <div className="font-bold text-slate-900">{inv.recipientName}</div>
-                          <div className="text-[11px] text-slate-500">{inv.phone || "No phone"} • {inv.address}</div>
-                        </td>
-                        <td className="p-3 text-slate-600">
-                          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-mono font-medium">
-                            {inv.items ? inv.items.length : 0} items
-                          </span>
-                        </td>
-                        <td className="p-3 text-right font-mono font-black text-slate-900">
-                          ৳{safeFixed(inv.netPayable, 2)}
-                        </td>
-                        <td className="p-3 text-center">
-                          {inv.paymentStatus === "Paid" ? (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
-                              PAID
-                            </span>
-                          ) : (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-200">
-                              PENDING
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-3 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => handleLoadInvoiceFromLedger(inv)}
-                              className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-purple-600 hover:text-purple-800 cursor-pointer"
-                              title="Open in Editor"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteInvoiceFromLedger(inv.id, inv.invoiceNumber)}
-                              className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 cursor-pointer"
-                              title="Delete from Ledger"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+        <div className="flex-1 overflow-hidden flex flex-col">
+          <CustomInvoicesLedger
+            onEditInvoice={(inv) => handleLoadInvoiceFromLedger(inv)}
+            onNavigateToGenerator={() => setActiveTab("editor")}
+          />
         </div>
       )}
 
-      {/* Bulk Discount Modal */}
+      {/* Global Datalist for Company Autocomplete Suggestions */}
+      <datalist id="company-suggestions">
+        {distinctCompanies.map(c => (
+          <option key={c} value={c} />
+        ))}
+      </datalist>
+
+            {/* Bulk Discount Modal */}
       {showBulkDiscountModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm w-full p-5 space-y-4 animate-scale-up">

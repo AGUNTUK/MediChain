@@ -8,6 +8,7 @@ import AdminHeroCarouselManager from "./AdminHeroCarouselManager";
 import BulkDealsAdmin from "./BulkDealsAdmin";
 import { CATEGORY_GROUPS } from "../constants/categories";
 import { 
+  Archive,
   LayoutDashboard, 
   Pill, 
   Boxes, 
@@ -62,6 +63,7 @@ import AdminNotificationCenter from "./AdminNotificationCenter";
 import AuditLogPanel from "./AuditLogPanel";
 import AdminRestockRequests from "./AdminRestockRequests";
 import CustomInvoiceGenerator from "./CustomInvoiceGenerator";
+import CustomInvoicesLedger from "./CustomInvoicesLedger";
 import AccountsLedger from "./AccountsLedger";
 import WhatsAppMarketing from "./WhatsAppMarketing";
 import CapitalPartners from "./CapitalPartners";
@@ -92,12 +94,14 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
     "/admin/notifications" | 
     "/admin/settings" | "/admin/bulk-deals" | "/admin/audit-logs" | "/admin/finance" |
     "/admin/invoice-generator" |
+    "/admin/invoices-ledger" |
     "/admin/whatsapp-marketing" |
     "/admin/capital-partners" |
     "/admin/capital-partners/documents"
   >("/admin/dashboard");
 
-  const [pendingRestockCount, setPendingRestockCount] = useState(0);
+  const [selectedCustomInvoiceForEdit, setSelectedCustomInvoiceForEdit] = useState<any | null>(null);
+    const [pendingRestockCount, setPendingRestockCount] = useState(0);
 
   // Sync state with URL if user visits directly or refreshes
   useEffect(() => {
@@ -118,6 +122,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
         "/admin/audit-logs",
         "/admin/finance",
         "/admin/invoice-generator",
+        "/admin/invoices-ledger",
         "/admin/whatsapp-marketing",
         "/admin/capital-partners",
         "/admin/capital-partners/documents"
@@ -1584,6 +1589,21 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
             </button>
 
             <button
+              onClick={() => navigateTo("/admin/invoices-ledger")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all ${
+                activeRoute === "/admin/invoices-ledger" ? "bg-indigo-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <Archive className="w-4 h-4" />
+              <div className="flex items-center justify-between flex-1">
+                <span>Invoices Ledger</span>
+                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-700 border border-emerald-200">
+                  Lifetime
+                </span>
+              </div>
+            </button>
+
+            <button
               onClick={() => navigateTo("/admin/audit-logs")}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all ${
                 activeRoute === "/admin/audit-logs" ? "bg-indigo-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
@@ -1651,6 +1671,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
               {activeRoute === "/admin/settings" && "SYSTEM PLATFORM SCHEMAS"}
               {activeRoute === "/admin/bulk-deals" && "BULK DEALS MANAGER"}
               {activeRoute === "/admin/invoice-generator" && "INSTITUTIONAL INVOICE GENERATOR"}
+              {activeRoute === "/admin/invoices-ledger" && "PERMANENT CUSTOM INVOICES LEDGER (LIFETIME ARCHIVE)"}
             </h2>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-4 w-full sm:w-auto justify-between sm:justify-end">
@@ -3619,7 +3640,25 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
                     products={products}
                     pharmacies={pharmacies}
                     orders={orders}
+                    initialInvoice={selectedCustomInvoiceForEdit}
                     onBackToOrders={() => navigateTo("/admin/orders")}
+                    onNavigateToLedger={() => navigateTo("/admin/invoices-ledger")}
+                  />
+                </div>
+              )}
+
+              {/* SCREEN: PERMANENT CUSTOM INVOICES LEDGER (LIFETIME ARCHIVE) */}
+              {activeRoute === "/admin/invoices-ledger" && (
+                <div className="-m-4 sm:-m-6 lg:-m-8 h-[calc(100%+2rem)] sm:h-[calc(100%+3rem)] lg:h-[calc(100%+4rem)] min-h-[720px] flex flex-col">
+                  <CustomInvoicesLedger
+                    onEditInvoice={(inv) => {
+                      setSelectedCustomInvoiceForEdit(inv);
+                      navigateTo("/admin/invoice-generator");
+                    }}
+                    onNavigateToGenerator={() => {
+                      setSelectedCustomInvoiceForEdit(null);
+                      navigateTo("/admin/invoice-generator");
+                    }}
                   />
                 </div>
               )}
