@@ -430,6 +430,7 @@ export interface CustomInvoiceItem {
   id: string;
   productId?: string;
   name: string;
+  company?: string;
   category?: string;
   strength?: string;
   packSize?: string;

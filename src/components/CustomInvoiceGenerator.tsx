@@ -207,6 +207,7 @@ export default function CustomInvoiceGenerator({
     {
       id: `item-${Date.now()}-1`,
       name: "Napa Extra Tablet (500mg+65mg)",
+      company: "Beximco Pharmaceuticals",
       category: "Tablet",
       strength: "500mg+65mg",
       packSize: "Box of 200",
@@ -220,6 +221,7 @@ export default function CustomInvoiceGenerator({
     {
       id: `item-${Date.now()}-2`,
       name: "Seclo 20mg Capsule",
+      company: "Square Pharmaceuticals",
       category: "Capsule",
       strength: "20mg",
       packSize: "Box of 100",
@@ -416,6 +418,7 @@ export default function CustomInvoiceGenerator({
     const newItem: CustomInvoiceItem = {
       id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
       name: trimmed || "Custom Medicine / Hospital Supply",
+      company: "",
       category: "Tablet",
       strength: "",
       packSize: "Unit",
@@ -451,9 +454,11 @@ export default function CustomInvoiceGenerator({
 
   // Add Item from Catalog
   const handleAddProductFromCatalog = (prod: Product) => {
-    const rate = prod.sellingPrice || Math.round(prod.mrp * 0.85);
-    const mrp = prod.mrp || Math.round(rate * 1.18);
-    const discPct = mrp > 0 ? Math.max(0, Math.round(((mrp - rate) / mrp) * 100)) : 0;
+    const mrp = Number(prod.mrp) || 0;
+    let discPct = prod.discountPercentage !== undefined && prod.discountPercentage !== null && !isNaN(Number(prod.discountPercentage))
+      ? Number(prod.discountPercentage)
+      : (mrp > 0 && prod.sellingPrice ? Math.max(0, Math.round(((mrp - prod.sellingPrice) / mrp) * 1000) / 10) : 15);
+    const rate = prod.sellingPrice || (mrp > 0 ? Math.round(mrp * (1 - discPct / 100) * 100) / 100 : 0);
     const netDisc = Math.round(Math.max(0, mrp - rate) * 1 * 100) / 100;
     const total = Math.round(rate * 1 * 100) / 100;
 
@@ -461,6 +466,7 @@ export default function CustomInvoiceGenerator({
       id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
       productId: prod.id,
       name: prod.name,
+      company: prod.company || "",
       category: resolveItemType(prod),
       strength: prod.strength || "",
       packSize: prod.packSize || "",
@@ -483,6 +489,7 @@ export default function CustomInvoiceGenerator({
     const newItem: CustomInvoiceItem = {
       id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
       name: "Custom Medicine / Hospital Supply",
+      company: "",
       category: "Tablet",
       strength: "",
       packSize: "Box",
@@ -512,12 +519,17 @@ export default function CustomInvoiceGenerator({
         let discPct = Number(field === "discountPercentage" ? val : updated.discountPercentage) || 0;
 
         if (field === "discountPercentage") {
-          // If discount % changed, adjust rate
+          // If discount % changed, adjust rate (Trade Price)
           const discountRatio = Math.min(100, Math.max(0, discPct)) / 100;
           rate = Math.round(mrp * (1 - discountRatio) * 100) / 100;
           updated.rate = rate;
-        } else if (field === "rate" || field === "mrp") {
-          // If rate or mrp changed, recalculate discount %
+        } else if (field === "mrp") {
+          // When MRP changes, recompute Trade Price using current discount percentage
+          const discountRatio = Math.min(100, Math.max(0, discPct)) / 100;
+          rate = Math.round(mrp * (1 - discountRatio) * 100) / 100;
+          updated.rate = rate;
+        } else if (field === "rate") {
+          // When Trade Price is overridden directly, recalculate equivalent discount percentage
           if (mrp > 0 && mrp >= rate) {
             discPct = Math.round(((mrp - rate) / mrp) * 1000) / 10;
             updated.discountPercentage = discPct;
@@ -1453,8 +1465,19 @@ export default function CustomInvoiceGenerator({
                         </button>
                       </div>
 
-                      {/* Item Row Details: Strength/Pack Size, Quantity, MRP, Institutional Rate, Disc %, Total */}
-                      <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-xs pt-1 border-t border-slate-100">
+                      {/* Item Row Details: Company, Strength/Pack Size, MRP, Discount %, Trade Price (Rate), Quantity, Total */}
+                      <div className="grid grid-cols-2 sm:grid-cols-7 gap-2 text-xs pt-1 border-t border-slate-100">
+                        <div className="space-y-0.5">
+                          <label className="text-[10px] text-slate-500 font-medium">Company</label>
+                          <input
+                            type="text"
+                            value={item.company || ""}
+                            onChange={e => handleUpdateItem(item.id, "company", e.target.value)}
+                            placeholder="e.g. Square"
+                            className="w-full text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-lg p-1.5 outline-none focus:bg-white"
+                          />
+                        </div>
+
                         <div className="space-y-0.5">
                           <label className="text-[10px] text-slate-500 font-medium">Strength / Pack</label>
                           <input
@@ -1463,17 +1486,6 @@ export default function CustomInvoiceGenerator({
                             onChange={e => handleUpdateItem(item.id, "strength", e.target.value)}
                             placeholder="e.g. 500mg • Box"
                             className="w-full text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-lg p-1.5 outline-none focus:bg-white"
-                          />
-                        </div>
-
-                        <div className="space-y-0.5">
-                          <label className="text-[10px] text-slate-500 font-medium">Qty (Units)</label>
-                          <input
-                            type="number"
-                            min="1"
-                            value={item.quantity}
-                            onChange={e => handleUpdateItem(item.id, "quantity", e.target.value)}
-                            className="w-full text-xs font-mono font-bold bg-slate-50 text-slate-900 border border-slate-200 rounded-lg p-1.5 outline-none focus:bg-white text-right"
                           />
                         </div>
 
@@ -1490,7 +1502,23 @@ export default function CustomInvoiceGenerator({
                         </div>
 
                         <div className="space-y-0.5">
-                          <label className="text-[10px] font-bold text-purple-700">Inst. Rate (৳)</label>
+                          <label className="text-[10px] font-bold text-emerald-700">Disc %</label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.1"
+                              value={item.discountPercentage ?? 0}
+                              onChange={e => handleUpdateItem(item.id, "discountPercentage", e.target.value)}
+                              className="w-full text-xs font-mono text-emerald-700 font-bold bg-emerald-50/50 border border-emerald-300 rounded-lg p-1.5 outline-none focus:bg-white text-right pr-4"
+                            />
+                            <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-emerald-600 pointer-events-none">%</span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-0.5">
+                          <label className="text-[10px] font-bold text-purple-700">Trade Price (৳)</label>
                           <input
                             type="number"
                             min="0"
@@ -1502,15 +1530,13 @@ export default function CustomInvoiceGenerator({
                         </div>
 
                         <div className="space-y-0.5">
-                          <label className="text-[10px] text-slate-500 font-medium">Disc %</label>
+                          <label className="text-[10px] text-slate-500 font-medium">Qty (Units)</label>
                           <input
                             type="number"
-                            min="0"
-                            max="100"
-                            step="0.1"
-                            value={item.discountPercentage ?? 0}
-                            onChange={e => handleUpdateItem(item.id, "discountPercentage", e.target.value)}
-                            className="w-full text-xs font-mono text-emerald-700 font-bold bg-slate-50 border border-slate-200 rounded-lg p-1.5 outline-none focus:bg-white text-right"
+                            min="1"
+                            value={item.quantity}
+                            onChange={e => handleUpdateItem(item.id, "quantity", e.target.value)}
+                            className="w-full text-xs font-mono font-bold bg-slate-50 text-slate-900 border border-slate-200 rounded-lg p-1.5 outline-none focus:bg-white text-right"
                           />
                         </div>
 
@@ -1732,14 +1758,14 @@ export default function CustomInvoiceGenerator({
                       <table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="bg-[#14161B] text-[#F4F4F5] text-[10px] font-bold tracking-wider uppercase">
-                            <th className="py-2 px-2 text-center w-9">SL</th>
-                            <th className="py-2 px-2.5 text-left w-20">Type</th>
+                            <th className="py-2 px-2 text-center w-8">SL</th>
+                            <th className="py-2 px-2 text-left w-16">Type</th>
                             <th className="py-2 px-3 text-left">Item Name</th>
-                            <th className="py-2 px-2.5 text-right w-20">MRP</th>
-                            <th className="py-2 px-2.5 text-right w-20">Rate</th>
-                            <th className="py-2 px-2 text-right w-14">Qty</th>
-                            <th className="py-2 px-2.5 text-right w-22">Net Disc</th>
-                            <th className="py-2 px-3 text-right w-24">Total</th>
+                            <th className="py-2 px-2 text-right w-18">MRP</th>
+                            <th className="py-2 px-2.5 text-right w-24">ডিসকাউন্ট % (Discount)</th>
+                            <th className="py-2 px-2 text-right w-18">Unit Price</th>
+                            <th className="py-2 px-2 text-right w-12">Qty</th>
+                            <th className="py-2 px-3 text-right w-22">Total</th>
                           </tr>
                         </thead>
                         <tbody className="text-[11px] divide-y divide-slate-100">
@@ -1758,33 +1784,32 @@ export default function CustomInvoiceGenerator({
                                 <td className="py-2 px-2 text-center font-mono text-[#6B7280]">
                                   {idx + 1}
                                 </td>
-                                <td className="py-2 px-2.5 text-left font-bold text-[10px] uppercase text-[#7C3AED]">
+                                <td className="py-2 px-2 text-left font-bold text-[10px] uppercase text-[#7C3AED]">
                                   {item.category || "Tablet"}
                                 </td>
                                 <td className="py-2 px-3 text-left">
-                                  <span className="font-semibold text-[#14161B]">{item.name}</span>
-                                  {item.strength && (
-                                    <span className="text-[10px] text-[#6B7280] font-normal ml-1.5">
-                                      ({item.strength})
-                                    </span>
-                                  )}
-                                  {item.packSize && !item.name.toLowerCase().includes(item.packSize.toLowerCase()) && (
-                                    <span className="text-[10px] text-slate-400 font-normal ml-1">
-                                      • {item.packSize}
-                                    </span>
-                                  )}
+                                  <div className="font-semibold text-[#14161B]">{item.name}</div>
+                                  <div className="text-[10px] text-[#6B7280] space-x-1.5 flex flex-wrap items-center">
+                                    {item.company && (
+                                      <span className="text-purple-700 font-medium">{item.company}</span>
+                                    )}
+                                    {item.strength && <span>• {item.strength}</span>}
+                                    {item.packSize && !item.name.toLowerCase().includes(item.packSize.toLowerCase()) && (
+                                      <span>• {item.packSize}</span>
+                                    )}
+                                  </div>
                                 </td>
-                                <td className="py-2 px-2.5 text-right font-mono tabular-nums text-[#6B7280]">
+                                <td className="py-2 px-2 text-right font-mono tabular-nums text-[#6B7280]">
                                   ৳{safeFixed(item.mrp, 2)}
                                 </td>
-                                <td className="py-2 px-2.5 text-right font-mono tabular-nums font-semibold text-[#14161B]">
+                                <td className="py-2 px-2.5 text-right font-mono tabular-nums font-bold text-[#65A30D]">
+                                  {item.discountPercentage !== undefined && item.discountPercentage !== null ? `${item.discountPercentage}%` : "0%"}
+                                </td>
+                                <td className="py-2 px-2 text-right font-mono tabular-nums font-semibold text-[#14161B]">
                                   ৳{safeFixed(item.rate, 2)}
                                 </td>
                                 <td className="py-2 px-2 text-right font-mono tabular-nums text-[#14161B]">
                                   {item.quantity}
-                                </td>
-                                <td className="py-2 px-2.5 text-right font-mono tabular-nums font-bold text-[#65A30D]">
-                                  ৳{safeFixed(item.netDiscount, 2)}
                                 </td>
                                 <td className="py-2 px-3 text-right font-mono tabular-nums font-bold text-[#14161B]">
                                   ৳{safeFixed(item.total, 2)}
@@ -1801,15 +1826,15 @@ export default function CustomInvoiceGenerator({
                       <div className="w-full sm:w-[320px] space-y-2 text-[11px]">
                         {/* Subtotal */}
                         <div className="flex justify-between items-center px-1 text-[#6B7280]">
-                          <span>Subtotal (Medicines / Supplies)</span>
+                          <span>Subtotal</span>
                           <span className="font-mono tabular-nums text-slate-800 font-medium">
                             ৳{safeFixed(subtotalMedicines, 2)}
                           </span>
                         </div>
 
-                        {/* Wholesale Savings */}
+                        {/* Total Discount Given */}
                         <div className="flex justify-between items-center px-1">
-                          <span className="text-[#6B7280]">Institutional Savings</span>
+                          <span className="text-[#6B7280]">Total Discount Given</span>
                           <span className="font-mono tabular-nums font-bold text-[#65A30D]">
                             -৳{safeFixed(wholesaleSavings, 2)}
                           </span>
@@ -1833,14 +1858,14 @@ export default function CustomInvoiceGenerator({
                           </div>
                         )}
 
-                        {/* Net Payable Card */}
+                        {/* Final Payable Amount Card */}
                         <div
                           className="rounded-xl p-3 text-white flex justify-between items-center shadow-md"
                           style={{
                             background: "linear-gradient(to right, #A855F7, #7C3AED)"
                           }}
                         >
-                          <span className="font-bold text-xs uppercase tracking-wide">Net Payable</span>
+                          <span className="font-bold text-xs uppercase tracking-wide">Final Payable Amount</span>
                           <span className="font-mono tabular-nums text-base sm:text-lg font-black">
                             ৳{safeFixed(netPayable, 2)}
                           </span>

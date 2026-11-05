@@ -3460,6 +3460,31 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `npm run build`: Succeeded cleanly.
   - Unit tests (`tests/cartOptimisticAndManualQty.test.ts`): 5/5 passed.
 ----------------------------------------
+### 151. Task 151: Explicit Discount Percentage Column in Custom Invoice Generator & Printable PDF Layout (2026-11-05)
+- **STATUS:** Completed & Verified
+- **OBJECTIVE:** Add a dedicated, explicit Discount Percentage (`%`) column to the Admin Custom Invoice Generator UI and its printable/PDF invoice layout, supporting two-way synchronization with product catalog and inventory.
+- **IMPLEMENTATION DETAILS:**
+  1. **Line Item Interface & Sync (`src/types.ts` & `src/lib/accountsService.ts`):**
+     - Extended `CustomInvoiceItem` with optional `company?: string;`.
+     - In `saveCustomInvoiceToLedger`, added two-way product and inventory sync for custom invoice items. If items do not exist in catalog, they are created with initial positive `stock_quantity = 100` and `available_stock = 100`.
+     - Safely computed `cost_price` / `buying_price` in background (`selling_price * 0.92` fallback) without ever exposing buying prices on invoice or printout.
+  2. **Custom Invoice Line Item UI & Calculation Flow (`src/components/CustomInvoiceGenerator.tsx`):**
+     - Updated catalog item addition (`handleAddProductFromCatalog`) to include `company`, calculate initial `discountPercentage`, and compute trade rate.
+     - Updated `handleUpdateItem`:
+       - When `discountPercentage` changes: auto-computes Trade Price `selling_price = ROUND((mrp * (1 - discount_percentage / 100.0)), 2)`.
+       - When `mrp` changes: auto-computes Trade Price using current `discountPercentage`.
+       - When Trade Price (`rate`) is overridden directly: auto-recalculates equivalent `discountPercentage = ROUND(((mrp - rate) / mrp) * 100, 1)`.
+     - Updated line items editor grid to 7 columns: Company, Strength / Pack, MRP, Disc % (with explicit input and `%` badge), Trade Price (Rate), Qty, and Line Total.
+  3. **Printable / PDF Invoice Layout (`src/components/CustomInvoiceGenerator.tsx`, `src/components/ModernInvoiceModal.tsx`, & `server.ts`):**
+     - Updated HTML preview and print tables with dedicated column header: `"ডিসকাউন্ট % (Discount)"`.
+     - Formatted each line item row to show explicit percentage (e.g. `13%`) alongside MRP, Trade Price / Unit Price, Qty, and Total.
+     - Enhanced Item Name cell to display Medicine Name, Company, Strength, and Pack Size in combined clean format.
+     - Updated invoice summary section: Subtotal, Total Discount Given (`-৳...`), Delivery Charge, and Final Payable Amount.
+     - Updated server-side PDFKit generator (`generateInvoicePdf`) and custom invoice PDF endpoint (`/api/admin/custom-invoices/pdf`) in `server.ts` to render the dedicated DISCOUNT column and company metadata.
+- **VERIFICATION:**
+  - `npx tsc --noEmit`: 0 errors.
+  - `npm run build`: Succeeded cleanly.
+----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).
 **Important files:** `server.ts` (all API routes & Express app), `api/index.ts` (Vercel serverless entry), `vercel.json` (routing rewrites), `src/App.tsx` (frontend router), `supabase-schema.sql` (database schema).

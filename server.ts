@@ -3516,14 +3516,14 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
   const drawTableHeader = (y: number) => {
     doc.roundedRect(30, y, tableWidth, 20, 4).fill("#14161B");
     doc.font("Helvetica-Bold").fontSize(7).fillColor("#F4F4F5");
-    doc.text("SL", 32, y + 6, { width: 22, align: "center" });
-    doc.text("TYPE", 58, y + 6, { width: 46 });
-    doc.text("ITEM NAME", 108, y + 6, { width: 170 });
-    doc.text("MRP", 284, y + 6, { width: 44, align: "right" });
-    doc.text("RATE", 332, y + 6, { width: 44, align: "right" });
-    doc.text("QTY", 380, y + 6, { width: 24, align: "right" });
-    doc.text("NET DISC", 408, y + 6, { width: 54, align: "right" });
-    doc.text("TOTAL", 466, y + 6, { width: 68, align: "right" });
+    doc.text("SL", 32, y + 6, { width: 20, align: "center" });
+    doc.text("TYPE", 54, y + 6, { width: 42 });
+    doc.text("ITEM NAME", 98, y + 6, { width: 165 });
+    doc.text("MRP", 265, y + 6, { width: 44, align: "right" });
+    doc.text("DISCOUNT", 312, y + 6, { width: 48, align: "right" });
+    doc.text("UNIT PRICE", 362, y + 6, { width: 48, align: "right" });
+    doc.text("QTY", 412, y + 6, { width: 28, align: "right" });
+    doc.text("TOTAL", 442, y + 6, { width: 90, align: "right" });
   };
 
   drawTableHeader(tableTop);
@@ -3547,10 +3547,13 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
 
     const type = resolvePdfItemType(item);
     const qty = item.quantity || 1;
-    const rate = item.sellingPrice || (item.subtotal ? item.subtotal / qty : 0);
-    const mrp = item.mrp && item.mrp >= rate ? item.mrp : Math.round(rate * 1.22 * 100) / 100;
-    const unitDiscount = Math.max(0, mrp - rate);
-    const netDiscount = Math.round(unitDiscount * qty * 100) / 100;
+    const rate = Number(item.sellingPrice || item.rate) || (item.subtotal ? item.subtotal / qty : 0);
+    const mrp = Number(item.mrp) && item.mrp >= rate ? Number(item.mrp) : Math.round(rate * 1.22 * 100) / 100;
+    
+    let discPct = item.discountPercentage !== undefined && item.discountPercentage !== null && !isNaN(Number(item.discountPercentage))
+      ? Number(item.discountPercentage)
+      : (mrp > 0 && mrp > rate ? Math.round(((mrp - rate) / mrp) * 1000) / 10 : 0);
+    const discLabel = discPct > 0 ? `${discPct.toFixed(discPct % 1 === 0 ? 0 : 1)}%` : "0%";
     const itemTotal = Math.round(rate * qty * 100) / 100;
 
     subtotalMedicines += itemTotal;
@@ -3562,15 +3565,16 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
 
     let displayName = item.name || "Medicine Item";
     if (item.strength) displayName = `${displayName} (${item.strength})`;
+    if (item.company) displayName = `${displayName} - ${item.company}`;
 
-    doc.font("Helvetica").fontSize(7).fillColor("#6B7280").text((idx + 1).toString(), 32, position + 5, { width: 22, align: "center" });
-    doc.font("Helvetica-Bold").fontSize(6.5).fillColor("#7C3AED").text(type.toUpperCase(), 58, position + 5, { width: 46 });
-    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#14161B").text(displayName, 108, position + 5, { width: 170, lineBreak: false });
-    doc.font("Helvetica").fontSize(7.5).fillColor("#6B7280").text(`Tk ${mrp.toFixed(2)}`, 284, position + 5, { width: 44, align: "right" });
-    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#14161B").text(`Tk ${rate.toFixed(2)}`, 332, position + 5, { width: 44, align: "right" });
-    doc.font("Helvetica").fontSize(7.5).fillColor("#14161B").text(qty.toString(), 380, position + 5, { width: 24, align: "right" });
-    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#65A30D").text(`Tk ${netDiscount.toFixed(2)}`, 408, position + 5, { width: 54, align: "right" });
-    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#14161B").text(`Tk ${itemTotal.toFixed(2)}`, 466, position + 5, { width: 68, align: "right" });
+    doc.font("Helvetica").fontSize(7).fillColor("#6B7280").text((idx + 1).toString(), 32, position + 5, { width: 20, align: "center" });
+    doc.font("Helvetica-Bold").fontSize(6.5).fillColor("#7C3AED").text(type.toUpperCase(), 54, position + 5, { width: 42 });
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#14161B").text(displayName, 98, position + 5, { width: 165, lineBreak: false });
+    doc.font("Helvetica").fontSize(7.5).fillColor("#6B7280").text(`Tk ${mrp.toFixed(2)}`, 265, position + 5, { width: 44, align: "right" });
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#65A30D").text(discLabel, 312, position + 5, { width: 48, align: "right" });
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#14161B").text(`Tk ${rate.toFixed(2)}`, 362, position + 5, { width: 48, align: "right" });
+    doc.font("Helvetica").fontSize(7.5).fillColor("#14161B").text(qty.toString(), 412, position + 5, { width: 28, align: "right" });
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#14161B").text(`Tk ${itemTotal.toFixed(2)}`, 442, position + 5, { width: 90, align: "right" });
 
     position += 18;
   });
@@ -3597,7 +3601,7 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
   doc.font("Helvetica-Bold").fontSize(8).fillColor("#14161B").text(`Tk ${subtotalMedicines.toFixed(2)}`, summaryX, sY, { width: summaryWidth, align: "right" });
 
   // Row 2: Wholesale Savings
-  doc.font("Helvetica").fontSize(8).fillColor("#6B7280").text("Wholesale Savings", summaryX, sY + 14);
+  doc.font("Helvetica").fontSize(8).fillColor("#6B7280").text("Total Discount Given", summaryX, sY + 14);
   doc.font("Helvetica-Bold").fontSize(8).fillColor("#65A30D").text(`-Tk ${wholesaleSavings.toFixed(2)}`, summaryX, sY + 14, { width: summaryWidth, align: "right" });
 
   // Row 3: Delivery Charge (Fixed Tk 40)
@@ -3608,7 +3612,7 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
   const netGrad = doc.linearGradient(summaryX, sY + 44, summaryX + summaryWidth, sY + 44);
   netGrad.stop(0, "#A855F7").stop(1, "#7C3AED");
   doc.roundedRect(summaryX, sY + 44, summaryWidth, 24, 6).fill(netGrad);
-  doc.font("Helvetica-Bold").fontSize(8.5).fillColor("#FFFFFF").text("NET PAYABLE", summaryX + 8, sY + 51);
+  doc.font("Helvetica-Bold").fontSize(8.5).fillColor("#FFFFFF").text("FINAL PAYABLE", summaryX + 8, sY + 51);
   doc.font("Helvetica-Bold").fontSize(11).fillColor("#FFFFFF").text(`Tk ${netPayable.toFixed(2)}`, summaryX, sY + 49.5, { width: summaryWidth - 8, align: "right" });
 
   // Row 5: Amount Due (Light grey background card with border)
@@ -5294,11 +5298,14 @@ app.post("/api/admin/custom-invoices/pdf", requireRole(["Admin"]), async (req, r
       createdAt: customData.createdAt || new Date().toISOString(),
       items: customData.items.map((it: any) => ({
         name: it.name,
+        company: it.company || "",
         category: it.category || "Tablet",
         strength: it.strength || "",
         packSize: it.packSize || "",
         quantity: Number(it.quantity) || 1,
         mrp: Number(it.mrp) || 0,
+        rate: Number(it.rate) || 0,
+        discountPercentage: it.discountPercentage !== undefined && it.discountPercentage !== null ? Number(it.discountPercentage) : undefined,
         sellingPrice: Number(it.rate) || 0,
         subtotal: (Number(it.rate) || 0) * (Number(it.quantity) || 1)
       }))

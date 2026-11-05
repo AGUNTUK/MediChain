@@ -172,8 +172,12 @@ export default function ModernInvoiceModal({ order, pharmacy, onClose }: ModernI
   const processedItems = activeItems.map((item, index) => {
     const type = resolveItemType(item);
     const qty = item.quantity || 1;
-    const rate = item.sellingPrice || (item.subtotal ? item.subtotal / qty : 0);
-    const mrp = item.mrp && item.mrp >= rate ? item.mrp : Math.round(rate * 1.22 * 100) / 100;
+    const rate = Number(item.sellingPrice || (item as any).rate) || (item.subtotal ? item.subtotal / qty : 0);
+    const mrp = item.mrp && item.mrp >= rate ? Number(item.mrp) : Math.round(rate * 1.22 * 100) / 100;
+    
+    let discPct = (item as any).discountPercentage !== undefined && (item as any).discountPercentage !== null && !isNaN(Number((item as any).discountPercentage))
+      ? Number((item as any).discountPercentage)
+      : (mrp > 0 && mrp > rate ? Math.round(((mrp - rate) / mrp) * 1000) / 10 : 0);
     
     const unitDiscount = Math.max(0, mrp - rate);
     const netDiscount = Math.round(unitDiscount * qty * 100) / 100;
@@ -186,11 +190,13 @@ export default function ModernInvoiceModal({ order, pharmacy, onClose }: ModernI
       sl: index + 1,
       type,
       name: item.name,
+      company: (item as any).company || "",
       strength: item.strength || "",
       packSize: item.packSize || "",
       mrp,
       rate,
       qty,
+      discountPercentage: discPct,
       netDiscount,
       total: itemTotal
     };
@@ -474,14 +480,14 @@ export default function ModernInvoiceModal({ order, pharmacy, onClose }: ModernI
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-[#14161B] text-[#F4F4F5] text-[10px] font-bold tracking-wider uppercase">
-                        <th className="py-2 px-2 text-center w-9">SL</th>
-                        <th className="py-2 px-2.5 text-left w-20">Type</th>
+                        <th className="py-2 px-2 text-center w-8">SL</th>
+                        <th className="py-2 px-2 text-left w-16">Type</th>
                         <th className="py-2 px-3 text-left">Item Name</th>
-                        <th className="py-2 px-2.5 text-right w-20">MRP</th>
-                        <th className="py-2 px-2.5 text-right w-20">Rate</th>
-                        <th className="py-2 px-2 text-right w-14">Qty</th>
-                        <th className="py-2 px-2.5 text-right w-22">Net Disc</th>
-                        <th className="py-2 px-3 text-right w-24">Total</th>
+                        <th className="py-2 px-2 text-right w-18">MRP</th>
+                        <th className="py-2 px-2.5 text-right w-24">ডিসকাউন্ট % (Discount)</th>
+                        <th className="py-2 px-2 text-right w-18">Unit Price</th>
+                        <th className="py-2 px-2 text-right w-12">Qty</th>
+                        <th className="py-2 px-3 text-right w-22">Total</th>
                       </tr>
                     </thead>
                     <tbody className="text-[11px] divide-y divide-slate-100">
@@ -493,33 +499,34 @@ export default function ModernInvoiceModal({ order, pharmacy, onClose }: ModernI
                           <td className="py-2 px-2 text-center font-mono text-[#6B7280]">
                             {item.sl}
                           </td>
-                          <td className="py-2 px-2.5 text-left font-bold text-[10px] uppercase text-[#7C3AED]">
+                          <td className="py-2 px-2 text-left font-bold text-[10px] uppercase text-[#7C3AED]">
                             {item.type}
                           </td>
                           <td className="py-2 px-3 text-left">
-                            <span className="font-semibold text-[#14161B]">{item.name}</span>
-                            {item.strength && (
-                              <span className="text-[10px] text-[#6B7280] font-normal ml-1.5">
-                                ({item.strength})
-                              </span>
-                            )}
-                            {item.packSize && !item.name.toLowerCase().includes(item.packSize.toLowerCase()) && (
-                              <span className="text-[10px] text-slate-400 font-normal ml-1">
-                                • {item.packSize}
-                              </span>
-                            )}
+                            <div className="font-semibold text-[#14161B]">{item.name}</div>
+                            <div className="text-[10px] text-[#6B7280] space-x-1.5 flex flex-wrap items-center">
+                              {item.company && (
+                                <span className="text-purple-700 font-medium">{item.company}</span>
+                              )}
+                              {item.strength && <span>• {item.strength}</span>}
+                              {item.packSize && !item.name.toLowerCase().includes(item.packSize.toLowerCase()) && (
+                                <span className="text-[10px] text-slate-400 font-normal ml-1">
+                                  • {item.packSize}
+                                </span>
+                              )}
+                            </div>
                           </td>
-                          <td className="py-2 px-2.5 text-right font-mono tabular-nums text-[#6B7280]">
+                          <td className="py-2 px-2 text-right font-mono tabular-nums text-[#6B7280]">
                             ৳{safeFixed(item.mrp, 2)}
                           </td>
-                          <td className="py-2 px-2.5 text-right font-mono tabular-nums font-semibold text-[#14161B]">
+                          <td className="py-2 px-2.5 text-right font-mono tabular-nums font-bold text-[#65A30D]">
+                            {item.discountPercentage > 0 ? `${item.discountPercentage}%` : "0%"}
+                          </td>
+                          <td className="py-2 px-2 text-right font-mono tabular-nums font-semibold text-[#14161B]">
                             ৳{safeFixed(item.rate, 2)}
                           </td>
                           <td className="py-2 px-2 text-right font-mono tabular-nums text-[#14161B]">
                             {item.qty}
-                          </td>
-                          <td className="py-2 px-2.5 text-right font-mono tabular-nums font-bold text-[#65A30D]">
-                            ৳{safeFixed(item.netDiscount, 2)}
                           </td>
                           <td className="py-2 px-3 text-right font-mono tabular-nums font-bold text-[#14161B]">
                             ৳{safeFixed(item.total, 2)}
@@ -535,15 +542,15 @@ export default function ModernInvoiceModal({ order, pharmacy, onClose }: ModernI
                   <div className="w-full sm:w-[320px] space-y-2 text-[11px]">
                     {/* Row 1: Subtotal (Medicines) */}
                     <div className="flex justify-between items-center px-1 text-[#6B7280]">
-                      <span>Subtotal (Medicines)</span>
+                      <span>Subtotal</span>
                       <span className="font-mono tabular-nums text-slate-800 font-medium">
                         ৳{safeFixed(subtotalMedicines, 2)}
                       </span>
                     </div>
 
-                    {/* Row 2: Wholesale Savings */}
+                    {/* Row 2: Total Discount Given */}
                     <div className="flex justify-between items-center px-1">
-                      <span className="text-[#6B7280]">Wholesale Savings</span>
+                      <span className="text-[#6B7280]">Total Discount Given</span>
                       <span className="font-mono tabular-nums font-bold text-[#65A30D]">
                         -৳{safeFixed(wholesaleSavings, 2)}
                       </span>
@@ -557,14 +564,14 @@ export default function ModernInvoiceModal({ order, pharmacy, onClose }: ModernI
                       </span>
                     </div>
 
-                    {/* Row 4: Net Payable (Filled rounded card, purple gradient #A855F7 to #7C3AED) */}
+                    {/* Row 4: Final Payable Amount */}
                     <div 
                       className="rounded-xl p-3 text-white flex justify-between items-center shadow-md"
                       style={{
                         background: "linear-gradient(to right, #A855F7, #7C3AED)"
                       }}
                     >
-                      <span className="font-bold text-xs uppercase tracking-wide">Net Payable</span>
+                      <span className="font-bold text-xs uppercase tracking-wide">Final Payable Amount</span>
                       <span className="font-mono tabular-nums text-base sm:text-lg font-black">
                         ৳{safeFixed(netPayable, 2)}
                       </span>
