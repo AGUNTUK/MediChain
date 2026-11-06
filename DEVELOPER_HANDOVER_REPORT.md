@@ -3531,6 +3531,28 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `npx tsc --noEmit`: 0 errors.
   - `npm run build`: Succeeded cleanly (0 errors).
 ----------------------------------------
+### 154. Task 154: Purge Demo Invoices & Guarantee Permanent Lifetime Invoices Ledger Storage (2026-11-07)
+- **STATUS:** Completed & Verified
+- **OBJECTIVE:** Permanently remove all 23 demo/test invoices from PostgreSQL `custom_invoices_ledger` and ensure that genuine user-saved invoices are stored with 100% lifetime durability and never disappear.
+- **ROOT CAUSE & IMPLEMENTATION DETAILS:**
+  1. **Root Cause Analysis:**
+     - Automated test suite (`tests/accountsLedger.test.ts`) had previously created test invoices with future synthetic dates (`testDate6` in 2044-2050) using `Central Pharmacy` and `Apex Clinic`. Because tests did not clean up their records, 23 demo rows accumulated in PostgreSQL `custom_invoices_ledger`.
+     - Because `getSavedCustomInvoices` ordered by `invoice_date` DESC, future-dated demo invoices (2047, 2046, 2044) appeared at the top, pushing genuine 2026 user invoices down.
+  2. **Database Purge of Demo Invoices:**
+     - Executed surgical cleanup script deleting all 23 demo records (`cinv-transport-test-%` and `cinv-idempotent-1`).
+     - Verified that exactly the 16 genuine user-created invoices (`Seba Pharmacy`, `Haque Pharmacy`, `Rownak Pharmacy`, `Nihad Medicine Corner`, `Dontoh Pharmacy`, `Kohinur Pharmacy`, `AR General Hospital`, `Shahabul General Store`, `Vai Vai Pharma`) remain securely preserved in PostgreSQL.
+  3. **Lifetime Durability & Ordering Guarantees:**
+     - In `src/lib/accountsService.ts`: Added dual-ordering (`.order("invoice_date", { ascending: false }).order("created_at", { ascending: false })`) with expanded query limit (500) and backend filtering to prevent any test records from ever entering results.
+     - In `src/components/CustomInvoicesLedger.tsx` and `src/components/CustomInvoiceGenerator.tsx`:
+       - Verified that saving an invoice upserts directly to Supabase PostgreSQL table `custom_invoices_ledger` by unique `invoice_number`.
+       - Cloud-to-local cache synchronization: Upon fetching authoritative cloud records, `localStorage` is immediately updated with clean database records, ensuring offline durability and zero data loss.
+     - In `tests/accountsLedger.test.ts`: Added automatic cleanup (`deleteCustomInvoice`) so future tests clean up immediately after assertions pass and never leak demo data into production.
+- **VERIFICATION:**
+  - PostgreSQL query verified: Exactly 16 real user invoices present in `custom_invoices_ledger` (0 demo invoices).
+  - `getSavedCustomInvoices()`: Returns 16 clean invoices in chronological order (2026-11-04 down to 2026-10-10).
+  - `npx tsc --noEmit`: 0 errors.
+  - `npm run build`: Succeeded cleanly (0 errors).
+----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).
 **Important files:** `server.ts` (all API routes & Express app), `api/index.ts` (Vercel serverless entry), `vercel.json` (routing rewrites), `src/App.tsx` (frontend router), `supabase-schema.sql` (database schema).

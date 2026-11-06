@@ -11,6 +11,7 @@ import {
   createExpense,
   createCapitalTransaction,
   saveCustomInvoiceToLedger,
+  deleteCustomInvoice,
   getInventoryValuation,
   generateReconciliationReport
 } from "../src/lib/accountsService";
@@ -243,8 +244,9 @@ async function runAccountsLedgerTests() {
   });
 
   // 2. Create custom invoice with delivery charge ৳120
+  const testTransportInvId = `cinv-transport-test-${Date.now()}`;
   await saveCustomInvoiceToLedger({
-    id: `cinv-transport-test-${Date.now()}`,
+    id: testTransportInvId,
     invoiceNumber: `INV-DELV-${Date.now()}`,
     recipientName: "Central Pharmacy",
     phone: "01711000000",
@@ -280,6 +282,11 @@ async function runAccountsLedgerTests() {
   assert.strictEqual(ledger6.transportExpenses, 1500, "Wholesaler transport expenses recorded as ৳1,500");
   // Net Profit = Gross Profit (1620) - Wholesaler Transport (1500) = 120
   assert.strictEqual(ledger6.netProfit, 120, "Net profit must deduct wholesaler transport expenses (-)");
+
+  // Clean up test custom invoice to keep production ledger 100% clean
+  await deleteCustomInvoice(testTransportInvId);
+  await deleteCustomInvoice("cinv-test-1");
+  await deleteCustomInvoice("cinv-idempotent-1");
 
   // TEST 7: Supabase Persistence, Reload Survival, Non-Destruction & Reset to Automatic
   console.log("\nTest 7: Daily Ledger Manual Override authoritative Supabase persistence & survival...");

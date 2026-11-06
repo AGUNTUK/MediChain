@@ -63,16 +63,64 @@ export default function CustomInvoicesLedger({
     setTimeout(() => setToastMsg(null), 3500);
   };
 
-  // Fetch all lifetime invoices from Supabase Database
+  // Fetch all lifetime invoices from Supabase Database with Auto-Recovery of Unsynced Local Invoices
   const fetchLifetimeInvoices = async (showRefreshIndicator = false) => {
     if (showRefreshIndicator) setIsRefreshing(true);
     else setIsLoading(true);
 
     try {
+      // 1. Read existing local invoices from browser storage
+      let localInvoices: CustomInvoiceData[] = [];
+      try {
+        const cached = localStorage.getItem("medichain_custom_invoices_ledger");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) {
+            localInvoices = parsed.filter((inv: any) =>
+              !inv.id?.startsWith("cinv-") &&
+              inv.recipientName !== "Central Pharmacy" &&
+              inv.recipientName !== "Apex Clinic"
+            );
+          }
+        }
+      } catch (e) {}
+
+      // 2. Fetch authoritative cloud invoices from PostgreSQL
       const data = await accountsClient.getSavedCustomInvoices();
+      let cleanData: CustomInvoiceData[] = [];
       if (Array.isArray(data)) {
-        setInvoices(data);
+        cleanData = data.filter(inv =>
+          !inv.id?.startsWith("cinv-") &&
+          inv.recipientName !== "Central Pharmacy" &&
+          inv.recipientName !== "Apex Clinic"
+        );
       }
+
+      // 3. Detect and recover any unsynced local invoices that were saved in browser
+      const cloudNumbers = new Set(cleanData.map(c => c.invoiceNumber));
+      const unsyncedLocals = localInvoices.filter(loc => !cloudNumbers.has(loc.invoiceNumber));
+
+      if (unsyncedLocals.length > 0) {
+        let syncedCount = 0;
+        for (const locInv of unsyncedLocals) {
+          try {
+            const savedCloud = await accountsClient.syncCustomInvoiceToLedger(locInv);
+            cleanData.unshift(savedCloud || locInv);
+            cloudNumbers.add(locInv.invoiceNumber);
+            syncedCount++;
+          } catch (syncErr) {
+            cleanData.push(locInv);
+          }
+        }
+        if (syncedCount > 0) {
+          showToast(`✓ Auto-recovered and permanently saved ${syncedCount} invoice(s) to Lifetime Cloud Ledger!`);
+        }
+      }
+
+      setInvoices(cleanData);
+      try {
+        localStorage.setItem("medichain_custom_invoices_ledger", JSON.stringify(cleanData));
+      } catch (e) {}
     } catch (err: any) {
       console.error("Failed to fetch custom invoices from cloud ledger:", err);
       // Fallback to localStorage cache if network fails
@@ -80,7 +128,14 @@ export default function CustomInvoicesLedger({
         const cached = localStorage.getItem("medichain_custom_invoices_ledger");
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed)) setInvoices(parsed);
+          if (Array.isArray(parsed)) {
+            const cleanCached = parsed.filter((inv: any) =>
+              !inv.id?.startsWith("cinv-") &&
+              inv.recipientName !== "Central Pharmacy" &&
+              inv.recipientName !== "Apex Clinic"
+            );
+            setInvoices(cleanCached);
+          }
         }
       } catch (e) {}
       showToast("Could not sync with cloud ledger, using local cache.", true);

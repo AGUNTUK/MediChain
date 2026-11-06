@@ -324,26 +324,23 @@ export default function CustomInvoiceGenerator({
   const [invoiceHeight, setInvoiceHeight] = useState<number>(1080);
   const [downloadingPdf, setDownloadingPdf] = useState<boolean>(false);
 
-  // Load saved invoices from Cloud Ledger (PostgreSQL) on mount, with localStorage as offline fallback
+  // Load saved invoices from Cloud Ledger (PostgreSQL) on mount with auto-recovery of local invoices
   useEffect(() => {
     let isMounted = true;
-    accountsClient.getSavedCustomInvoices().then(cloudInvoices => {
-      if (isMounted && Array.isArray(cloudInvoices) && cloudInvoices.length > 0) {
-        setSavedInvoices(cloudInvoices);
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudInvoices));
-        } catch (e) {}
-      }
-    }).catch(err => {
-      console.warn("Failed to load cloud invoices ledger, using local cache:", err);
-    });
 
+    // 1. Immediately read existing local invoices from browser storage
+    let localList: CustomInvoiceData[] = [];
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
-          const sanitized = parsed.map((inv: any) => ({
+          const cleanParsed = parsed.filter((inv: any) =>
+            !inv.id?.startsWith("cinv-") &&
+            inv.recipientName !== "Central Pharmacy" &&
+            inv.recipientName !== "Apex Clinic"
+          );
+          localList = cleanParsed.map((inv: any) => ({
             ...inv,
             netPayable: Number(inv.netPayable) || 0,
             items: (inv.items || []).map((it: any) => ({
@@ -356,12 +353,49 @@ export default function CustomInvoiceGenerator({
               total: Number(it.total) || 0
             }))
           }));
-          if (isMounted) setSavedInvoices(prev => prev.length > 0 ? prev : sanitized);
+          if (isMounted && localList.length > 0) {
+            setSavedInvoices(localList);
+          }
         }
       }
     } catch (e) {
       console.error("Failed to parse saved custom invoices", e);
     }
+
+    // 2. Fetch authoritative cloud invoices from PostgreSQL and auto-sync any unsynced local invoices
+    accountsClient.getSavedCustomInvoices().then(async cloudInvoices => {
+      if (!isMounted || !Array.isArray(cloudInvoices)) return;
+
+      const cleanCloud = cloudInvoices.filter(inv =>
+        !inv.id?.startsWith("cinv-") &&
+        inv.recipientName !== "Central Pharmacy" &&
+        inv.recipientName !== "Apex Clinic"
+      );
+
+      const cloudMemoSet = new Set(cleanCloud.map(x => x.invoiceNumber));
+      const unsyncedLocals = localList.filter(loc => !cloudMemoSet.has(loc.invoiceNumber));
+
+      if (unsyncedLocals.length > 0) {
+        for (const unsynced of unsyncedLocals) {
+          try {
+            const saved = await accountsClient.syncCustomInvoiceToLedger(unsynced);
+            cleanCloud.unshift(saved || unsynced);
+            cloudMemoSet.add(unsynced.invoiceNumber);
+          } catch (syncErr) {
+            cleanCloud.push(unsynced);
+          }
+        }
+      }
+
+      if (isMounted) {
+        setSavedInvoices(cleanCloud);
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(cleanCloud));
+        } catch (e) {}
+      }
+    }).catch(err => {
+      console.warn("Failed to load cloud invoices ledger, using local cache:", err);
+    });
 
     return () => { isMounted = false; };
   }, []);

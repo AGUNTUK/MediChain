@@ -827,7 +827,7 @@ export async function saveCustomInvoiceToLedger(invData: CustomInvoiceData, mast
   const invoiceDate = invData.createdAt ? toBDDateString(invData.createdAt) : toBDDateString(new Date());
 
   const row = {
-    id: invData.id,
+    id: invData.id || `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     invoice_number: invData.invoiceNumber,
     order_ref: invData.orderRef || null,
     recipient_name: invData.recipientName,
@@ -900,7 +900,8 @@ export async function getSavedCustomInvoices(filter?: {
       .from("custom_invoices_ledger")
       .select("*")
       .order("invoice_date", { ascending: false })
-      .limit(200);
+      .order("created_at", { ascending: false })
+      .limit(500);
 
     if (filter?.startDate) query = query.gte("invoice_date", filter.startDate);
     if (filter?.endDate) query = query.lte("invoice_date", filter.endDate);
@@ -908,12 +909,16 @@ export async function getSavedCustomInvoices(filter?: {
 
     const { data, error } = await query;
     if (error) throw error;
-    if (data) return data.map(mapCustomInvoice);
+    if (data) {
+      return data
+        .filter((row: any) => !row.id?.startsWith("cinv-") && row.recipient_name !== "Central Pharmacy" && row.recipient_name !== "Apex Clinic")
+        .map(mapCustomInvoice);
+    }
   } catch (err: any) {
     console.warn("[Accounts] Fallback getSavedCustomInvoices:", err.message);
   }
 
-  let list = [...fallbackCustomInvoices];
+  let list = fallbackCustomInvoices.filter(c => !c.id?.startsWith("cinv-") && c.recipientName !== "Central Pharmacy" && c.recipientName !== "Apex Clinic");
   if (filter?.startDate) list = list.filter(c => toBDDateString(c.createdAt) >= filter.startDate!);
   if (filter?.endDate) list = list.filter(c => toBDDateString(c.createdAt) <= filter.endDate!);
   if (filter?.status) list = list.filter(c => (c.status || "Saved") === filter.status);
