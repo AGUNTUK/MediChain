@@ -171,6 +171,11 @@ async function runAccountsLedgerTests() {
   assert.strictEqual(ledgerAfterCap.cashIn, 145000, "Cash in increases by 100,000 to 145,000");
   assert.strictEqual(ledgerAfterCap.netCashFlow, 74100, "Net cash flow is 145,000 - 70,900 = 74,100");
   await supabaseAdmin.from("capital_transactions").delete().eq("id", cap.id);
+  // Clean up Test 2 & 3 artifacts immediately
+  await deleteCustomInvoice("cinv-test-1");
+  await supabaseAdmin.from("purchases").delete().eq("id", pur.id);
+  await supabaseAdmin.from("customer_collections").delete().eq("id", col.id);
+  await supabaseAdmin.from("business_expenses").delete().in("id", [expDelivery.id, expOther.id]);
   console.log("  Passed: Capital increases cash and equity with ZERO change to revenue or profit.");
 
   // TEST 4: Custom Invoice Idempotency & Profit (Section 57)
@@ -220,6 +225,9 @@ async function runAccountsLedgerTests() {
   assert.strictEqual(save2.totalCogs, 9400);
   assert.strictEqual(save2.grossProfit, 300);
   console.log("  Passed: Custom invoice calculated Revenue = ৳9,700, COGS = ৳9,400, Gross Profit = ৳300 with 100% idempotency.");
+
+  // Clean up Test 4 artifacts immediately
+  await deleteCustomInvoice("cinv-idempotent-1");
 
   // TEST 5: Automated Reconciliation Audit
   console.log("\nTest 5: Automated Reconciliation audit engine...");
@@ -283,10 +291,9 @@ async function runAccountsLedgerTests() {
   // Net Profit = Gross Profit (1620) - Wholesaler Transport (1500) = 120
   assert.strictEqual(ledger6.netProfit, 120, "Net profit must deduct wholesaler transport expenses (-)");
 
-  // Clean up test custom invoice to keep production ledger 100% clean
+  // Clean up test custom invoice & expense to keep production ledger 100% clean
   await deleteCustomInvoice(testTransportInvId);
-  await deleteCustomInvoice("cinv-test-1");
-  await deleteCustomInvoice("cinv-idempotent-1");
+  await supabaseAdmin.from("business_expenses").delete().eq("description", "Wholesaler procurement cargo transit from Mitford market");
 
   // TEST 7: Supabase Persistence, Reload Survival, Non-Destruction & Reset to Automatic
   console.log("\nTest 7: Daily Ledger Manual Override authoritative Supabase persistence & survival...");

@@ -3553,6 +3553,30 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `npx tsc --noEmit`: 0 errors.
   - `npm run build`: Succeeded cleanly (0 errors).
 ----------------------------------------
+### 155. Task 155: Full Restoration of Downloaded Hospital Invoice (INV-INST-261106-6050) & PDF Line Item Text Clipping Fix (2026-11-07)
+- **STATUS:** Completed & Verified
+- **OBJECTIVE:** 
+  1. Restore invoice `INV-INST-261106-6050` (Billed to AR General Hospital, 63 line items, Net Payable ৳20,174.79) with 100% fidelity directly into Supabase PostgreSQL `custom_invoices_ledger` so it appears at the top of Permanent Invoices Ledger and can be loaded/edited in Custom Invoice Maker.
+  2. Fix vertical text clipping in the server PDF generator (`generateInvoicePdf` in `server.ts`) where long medicine names and company details overflowed/got cut off in table rows.
+  3. Ensure all tests in `tests/accountsLedger.test.ts` pass with automatic cleanup so no test artifacts pollute production.
+- **ROOT CAUSE & IMPLEMENTATION DETAILS:**
+  1. **Invoice Parsing & Database Restoration:**
+     - Extracted all 63 items, quantities, MRPs, rates, totals, and recipient details directly from the user's PDF `INV-INST-261106-6050.pdf`.
+     - Executed surgical insertion into Supabase PostgreSQL table `public.custom_invoices_ledger`.
+     - Verified with exact database query: Row #1 is `INV-INST-261106-6050` with 63 items, Subtotal ৳23,086.00, Discount ৳2,911.21, Net Payable ৳20,174.79.
+  2. **PDF Text Overlap & Clipping Fix in `server.ts`:**
+     - Widened `ITEM NAME` column in `drawTableHeader` and row cells from 165pt to 190pt.
+     - Replaced static `rowHeight = 18` with dynamic measurement: `nameHeight = doc.heightOfString(displayName, { width: 190 }); rowHeight = Math.max(20, Math.ceil(nameHeight) + 8)`.
+     - Moved page boundary check before row rendering so rows never split or clip across page boundaries.
+  3. **Test Suite Hygiene & Invariant Protection:**
+     - Updated `src/lib/accountsService.ts` to return clean mapped invoices.
+     - Added immediate test record cleanup in `tests/accountsLedger.test.ts` across Test 2, Test 3, Test 4, and Test 6 so no synthetic records persist in Supabase.
+- **VERIFICATION:**
+  - `tests/accountsLedger.test.ts`: All 7 tests passed successfully (100%).
+  - `custom_invoices_ledger`: Exactly 17 real invoices verified in Supabase with `INV-INST-261106-6050` as newest.
+  - `npx tsc --noEmit`: 0 errors.
+  - `npm run build`: Succeeded cleanly (0 errors).
+----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).
 **Important files:** `server.ts` (all API routes & Express app), `api/index.ts` (Vercel serverless entry), `vercel.json` (routing rewrites), `src/App.tsx` (frontend router), `supabase-schema.sql` (database schema).

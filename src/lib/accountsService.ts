@@ -719,6 +719,8 @@ export async function saveCustomInvoiceToLedger(invData: CustomInvoiceData, mast
               mrp: mrpVal,
               selling_price: sellingVal,
               discount_percentage: discPct,
+              stock_quantity: 100,
+              status: "active",
               ...(itm.company ? { company: itm.company } : {})
             })
             .eq("id", itm.productId);
@@ -745,36 +747,81 @@ export async function saveCustomInvoiceToLedger(invData: CustomInvoiceData, mast
             });
           }
         } else if (itm.name && itm.name.trim()) {
-          const { data: newProd } = await supabaseAdmin
+          // Check if product with this exact name already exists in catalog
+          const { data: existingProd } = await supabaseAdmin
             .from("products")
-            .insert({
-              name: itm.name.trim(),
-              generic_name: itm.name.trim(),
-              company: itm.company || "MediChain Partner",
-              category_name_fallback: itm.category || "Tablet",
-              strength: itm.strength || "",
-              pack_size: itm.packSize || "Box",
-              mrp: mrpVal,
-              selling_price: sellingVal,
-              discount_percentage: discPct,
-              stock_quantity: 100,
-              buying_price: unitBuyingPrice,
-              cost_price: unitBuyingPrice
-            })
-            .select()
-            .single();
+            .select("id")
+            .ilike("name", itm.name.trim())
+            .maybeSingle();
 
-          if (newProd && newProd.id) {
-            itm.productId = newProd.id;
-            await supabaseAdmin.from("inventory").insert({
-              product_id: newProd.id,
-              available_stock: 100,
-              reserved_stock: 0,
-              sold_stock: 0,
-              batch_number: `B-${Math.floor(10000 + Math.random() * 90000)}`,
-              expiry_date: "2027-12-31",
-              buying_price: unitBuyingPrice
-            });
+          if (existingProd && existingProd.id) {
+            itm.productId = existingProd.id;
+            await supabaseAdmin
+              .from("products")
+              .update({
+                mrp: mrpVal,
+                selling_price: sellingVal,
+                discount_percentage: discPct,
+                stock_quantity: 100,
+                status: "active",
+                ...(itm.company ? { company: itm.company } : {})
+              })
+              .eq("id", existingProd.id);
+
+            const { data: invRow } = await supabaseAdmin
+              .from("inventory")
+              .select("id, available_stock")
+              .eq("product_id", existingProd.id)
+              .maybeSingle();
+
+            if (invRow) {
+              if ((invRow.available_stock || 0) <= 0) {
+                await supabaseAdmin.from("inventory").update({ available_stock: 100 }).eq("id", invRow.id);
+              }
+            } else {
+              await supabaseAdmin.from("inventory").insert({
+                product_id: existingProd.id,
+                available_stock: 100,
+                reserved_stock: 0,
+                sold_stock: 0,
+                batch_number: `B-${Math.floor(10000 + Math.random() * 90000)}`,
+                expiry_date: "2027-12-31",
+                buying_price: unitBuyingPrice
+              });
+            }
+          } else {
+            const { data: newProd } = await supabaseAdmin
+              .from("products")
+              .insert({
+                name: itm.name.trim(),
+                generic_name: itm.name.trim(),
+                company: itm.company || "MediChain Partner",
+                category_name_fallback: itm.category || "Tablet",
+                strength: itm.strength || "",
+                pack_size: itm.packSize || "Box",
+                mrp: mrpVal,
+                selling_price: sellingVal,
+                discount_percentage: discPct,
+                stock_quantity: 100,
+                status: "active",
+                buying_price: unitBuyingPrice,
+                cost_price: unitBuyingPrice
+              })
+              .select()
+              .single();
+
+            if (newProd && newProd.id) {
+              itm.productId = newProd.id;
+              await supabaseAdmin.from("inventory").insert({
+                product_id: newProd.id,
+                available_stock: 100,
+                reserved_stock: 0,
+                sold_stock: 0,
+                batch_number: `B-${Math.floor(10000 + Math.random() * 90000)}`,
+                expiry_date: "2027-12-31",
+                buying_price: unitBuyingPrice
+              });
+            }
           }
         }
       } catch (syncErr) {
@@ -910,15 +957,13 @@ export async function getSavedCustomInvoices(filter?: {
     const { data, error } = await query;
     if (error) throw error;
     if (data) {
-      return data
-        .filter((row: any) => !row.id?.startsWith("cinv-") && row.recipient_name !== "Central Pharmacy" && row.recipient_name !== "Apex Clinic")
-        .map(mapCustomInvoice);
+      return data.map(mapCustomInvoice);
     }
   } catch (err: any) {
     console.warn("[Accounts] Fallback getSavedCustomInvoices:", err.message);
   }
 
-  let list = fallbackCustomInvoices.filter(c => !c.id?.startsWith("cinv-") && c.recipientName !== "Central Pharmacy" && c.recipientName !== "Apex Clinic");
+  let list = [...fallbackCustomInvoices];
   if (filter?.startDate) list = list.filter(c => toBDDateString(c.createdAt) >= filter.startDate!);
   if (filter?.endDate) list = list.filter(c => toBDDateString(c.createdAt) <= filter.endDate!);
   if (filter?.status) list = list.filter(c => (c.status || "Saved") === filter.status);

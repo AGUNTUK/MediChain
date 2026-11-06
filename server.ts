@@ -3516,14 +3516,14 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
   const drawTableHeader = (y: number) => {
     doc.roundedRect(30, y, tableWidth, 20, 4).fill("#14161B");
     doc.font("Helvetica-Bold").fontSize(7).fillColor("#F4F4F5");
-    doc.text("SL", 32, y + 6, { width: 20, align: "center" });
-    doc.text("TYPE", 54, y + 6, { width: 42 });
-    doc.text("ITEM NAME", 98, y + 6, { width: 165 });
-    doc.text("MRP", 265, y + 6, { width: 44, align: "right" });
-    doc.text("DISCOUNT", 312, y + 6, { width: 48, align: "right" });
-    doc.text("UNIT PRICE", 362, y + 6, { width: 48, align: "right" });
-    doc.text("QTY", 412, y + 6, { width: 28, align: "right" });
-    doc.text("TOTAL", 442, y + 6, { width: 90, align: "right" });
+    doc.text("SL", 32, y + 6, { width: 18, align: "center" });
+    doc.text("TYPE", 52, y + 6, { width: 42 });
+    doc.text("ITEM NAME", 96, y + 6, { width: 190 });
+    doc.text("MRP", 290, y + 6, { width: 46, align: "right" });
+    doc.text("DISCOUNT", 340, y + 6, { width: 42, align: "right" });
+    doc.text("UNIT PRICE", 386, y + 6, { width: 48, align: "right" });
+    doc.text("QTY", 438, y + 6, { width: 24, align: "right" });
+    doc.text("TOTAL", 466, y + 6, { width: 68, align: "right" });
   };
 
   drawTableHeader(tableTop);
@@ -3536,15 +3536,6 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
   const activeItems = (order.items || []).filter((it: any) => !it.unavailable && !it.isUnavailable);
 
   activeItems.forEach((item: any, idx: number) => {
-    // Check if new page needed
-    if (position > doc.page.height - 190) {
-      doc.addPage();
-      renderWatermark();
-      position = 40;
-      drawTableHeader(position);
-      position += 20;
-    }
-
     const type = resolvePdfItemType(item);
     const qty = item.quantity || 1;
     const rate = Number(item.sellingPrice || item.rate) || (item.subtotal ? item.subtotal / qty : 0);
@@ -3559,24 +3550,40 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
     subtotalMedicines += itemTotal;
     totalMrpSum += mrp * qty;
 
-    const isEven = idx % 2 === 1;
-    doc.rect(30, position, tableWidth, 18).fill(isEven ? "#FAFAFB" : "#ffffff");
-    doc.moveTo(30, position + 18).lineTo(30 + tableWidth, position + 18).strokeColor("#F1F5F9").lineWidth(0.5).stroke();
-
     let displayName = item.name || "Medicine Item";
     if (item.strength) displayName = `${displayName} (${item.strength})`;
     if (item.company) displayName = `${displayName} - ${item.company}`;
 
-    doc.font("Helvetica").fontSize(7).fillColor("#6B7280").text((idx + 1).toString(), 32, position + 5, { width: 20, align: "center" });
-    doc.font("Helvetica-Bold").fontSize(6.5).fillColor("#7C3AED").text(type.toUpperCase(), 54, position + 5, { width: 42 });
-    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#14161B").text(displayName, 98, position + 5, { width: 165, lineBreak: false });
-    doc.font("Helvetica").fontSize(7.5).fillColor("#6B7280").text(`Tk ${mrp.toFixed(2)}`, 265, position + 5, { width: 44, align: "right" });
-    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#65A30D").text(discLabel, 312, position + 5, { width: 48, align: "right" });
-    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#14161B").text(`Tk ${rate.toFixed(2)}`, 362, position + 5, { width: 48, align: "right" });
-    doc.font("Helvetica").fontSize(7.5).fillColor("#14161B").text(qty.toString(), 412, position + 5, { width: 28, align: "right" });
-    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#14161B").text(`Tk ${itemTotal.toFixed(2)}`, 442, position + 5, { width: 90, align: "right" });
+    // Calculate dynamic row height to strictly prevent text clipping/overlapping
+    doc.font("Helvetica-Bold").fontSize(7.5);
+    const nameHeight = doc.heightOfString(displayName, { width: 190 });
+    const rowHeight = Math.max(20, Math.ceil(nameHeight) + 8);
 
-    position += 18;
+    // Check if new page needed before rendering the row
+    if (position + rowHeight > doc.page.height - 190) {
+      doc.addPage();
+      renderWatermark();
+      position = 40;
+      drawTableHeader(position);
+      position += 20;
+    }
+
+    const isEven = idx % 2 === 1;
+    doc.rect(30, position, tableWidth, rowHeight).fill(isEven ? "#FAFAFB" : "#ffffff");
+    doc.moveTo(30, position + rowHeight).lineTo(30 + tableWidth, position + rowHeight).strokeColor("#F1F5F9").lineWidth(0.5).stroke();
+
+    const textY = position + 4;
+
+    doc.font("Helvetica").fontSize(7).fillColor("#6B7280").text((idx + 1).toString(), 32, textY + 1, { width: 18, align: "center" });
+    doc.font("Helvetica-Bold").fontSize(6.5).fillColor("#7C3AED").text(type.toUpperCase(), 52, textY + 1, { width: 42 });
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#14161B").text(displayName, 96, textY, { width: 190 });
+    doc.font("Helvetica").fontSize(7.5).fillColor("#6B7280").text(`Tk ${mrp.toFixed(2)}`, 290, textY + 1, { width: 46, align: "right" });
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#65A30D").text(discLabel, 340, textY + 1, { width: 42, align: "right" });
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#14161B").text(`Tk ${rate.toFixed(2)}`, 386, textY + 1, { width: 48, align: "right" });
+    doc.font("Helvetica").fontSize(7.5).fillColor("#14161B").text(qty.toString(), 438, textY + 1, { width: 24, align: "right" });
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#14161B").text(`Tk ${itemTotal.toFixed(2)}`, 466, textY + 1, { width: 68, align: "right" });
+
+    position += rowHeight;
   });
 
   // Check if summary box and signatures fit on current page
