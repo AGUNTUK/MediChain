@@ -24,7 +24,9 @@ import {
   CreditCard,
   Phone,
   MapPin,
-  Maximize2
+  Maximize2,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 
 interface CustomInvoicesLedgerProps {
@@ -45,6 +47,10 @@ export default function CustomInvoicesLedger({
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+
+  // Pagination State (Default 50 so all 40 invoices fit and scroll smoothly, while supporting larger sets)
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(50);
 
   // Inspect Modal
   const [inspectingInvoice, setInspectingInvoice] = useState<CustomInvoiceData | null>(null);
@@ -163,6 +169,21 @@ export default function CustomInvoicesLedger({
     });
   }, [invoices, searchQuery, statusFilter, typeFilter]);
 
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, typeFilter]);
+
+  const totalFiltered = filteredInvoices.length;
+  const totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(totalFiltered / pageSize));
+  const validCurrentPage = Math.min(currentPage, totalPages);
+
+  const displayedInvoices = useMemo(() => {
+    if (pageSize === 0) return filteredInvoices;
+    const start = (validCurrentPage - 1) * pageSize;
+    return filteredInvoices.slice(start, start + pageSize);
+  }, [filteredInvoices, validCurrentPage, pageSize]);
+
   // Download PDF from server
   const handleDownloadPdf = async (inv: CustomInvoiceData) => {
     setDownloadingPdfId(inv.id);
@@ -275,7 +296,7 @@ export default function CustomInvoicesLedger({
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-slate-100 overflow-y-auto font-sans p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="space-y-6 font-sans">
       {/* Toast Feedback HUD */}
       {toastMsg && (
         <div
@@ -534,7 +555,8 @@ export default function CustomInvoicesLedger({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-[11.5px]">
-                {filteredInvoices.map((inv, idx) => {
+                {displayedInvoices.map((inv, idx) => {
+                  const globalIdx = pageSize === 0 ? idx : (validCurrentPage - 1) * pageSize + idx;
                   const mrpSum = (inv.items || []).reduce((acc, it) => acc + (Number(it.mrp) || 0) * (Number(it.quantity) || 1), 0);
                   const subtotal = Number(inv.subtotal) || 0;
                   const discountGiven = Math.max(0, mrpSum - subtotal);
@@ -549,7 +571,7 @@ export default function CustomInvoicesLedger({
                     <tr key={inv.id || idx} className="hover:bg-purple-50/40 transition-colors">
                       {/* SL */}
                       <td className="py-3 px-3.5 text-center font-mono text-slate-400">
-                        {idx + 1}
+                        {globalIdx + 1}
                       </td>
 
                       {/* Memo # */}
@@ -694,6 +716,60 @@ export default function CustomInvoicesLedger({
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination Controls Bar */}
+        {!isLoading && totalFiltered > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 bg-slate-50 border-t border-slate-200">
+            <div className="text-xs text-slate-600 font-medium">
+              Showing <span className="font-bold text-slate-900">{totalFiltered === 0 ? 0 : (validCurrentPage - 1) * (pageSize || totalFiltered) + 1}</span> to{" "}
+              <span className="font-bold text-slate-900">{pageSize === 0 ? totalFiltered : Math.min(validCurrentPage * pageSize, totalFiltered)}</span> of{" "}
+              <span className="font-bold text-slate-900">{totalFiltered}</span> lifetime invoices
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                <span>Per page:</span>
+                <select
+                  value={pageSize}
+                  onChange={e => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 outline-none cursor-pointer"
+                >
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={0}>All</option>
+                </select>
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={validCurrentPage <= 1}
+                    className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
+                    title="Previous Page"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="text-xs font-bold text-slate-800 px-2">
+                    {validCurrentPage} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={validCurrentPage >= totalPages}
+                    className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
+                    title="Next Page"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

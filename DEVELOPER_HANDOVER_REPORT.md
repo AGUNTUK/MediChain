@@ -3510,6 +3510,27 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `npx tsc --noEmit`: 0 errors.
   - `npm run build`: Succeeded cleanly.
 ----------------------------------------
+### 153. Task 153: Fix Scroll Lock in Permanent Custom Invoices Ledger (`/admin/invoices-ledger`) (2026-11-07)
+- **STATUS:** Completed & Verified
+- **OBJECTIVE:** Resolve the scrolling lock issue on `/admin/invoices-ledger` where only the top 4 invoices were visible and the list could not be scrolled down to see the remaining 36 invoices.
+- **ROOT CAUSE & IMPLEMENTATION DETAILS:**
+  1. **Root Cause Analysis:**
+     - In `src/components/AdminPanel.tsx`, the `/admin/invoices-ledger` route wrapper had `-m-4 sm:-m-6 lg:-m-8 h-[calc(100%+2rem)] sm:h-[calc(100%+3rem)] lg:h-[calc(100%+4rem)] min-h-[720px] flex flex-col`.
+     - In `src/components/CustomInvoicesLedger.tsx`, the root container was set to `flex flex-col h-full w-full bg-slate-100 overflow-y-auto font-sans p-4 sm:p-6 lg:p-8 space-y-6`.
+     - Because the parent content router container had `p-4 sm:p-6 lg:p-8 flex-1 overflow-y-auto min-h-0`, the negative margins caused its `scrollHeight` to equal `clientHeight`, preventing the outer container from triggering vertical scroll.
+     - Meanwhile, the inner flex container with default `min-height: auto` expanded past the viewport and was clipped by the ancestor `<main className="... overflow-hidden">`, trapping mousewheel events and locking the table at row 4.
+  2. **Container & Layout Stream Fix (`src/components/AdminPanel.tsx` & `src/components/CustomInvoicesLedger.tsx`):**
+     - Updated `AdminPanel.tsx` to render `CustomInvoicesLedger` in `<div className="space-y-6 animate-fade-in pb-16">`, matching standard smooth-scrolling views (`/admin/orders`, `/admin/products`, `/admin/pharmacies`).
+     - Refactored `CustomInvoicesLedger.tsx` root container to `<div className="space-y-6 font-sans">`, removing redundant background wrappers and nested overflow locks.
+     - Updated embedded ledger tab in `src/components/CustomInvoiceGenerator.tsx` to `flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 pb-16`.
+  3. **High-Performance Pagination & Range Controls:**
+     - Added pagination controls in `CustomInvoicesLedger.tsx` defaulting to 50 items per page (allowing all 40 current invoices to render and scroll smoothly on page 1).
+     - Added page size selector (25, 50, 100, All) and Previous/Next page navigation with "Showing X to Y of Z lifetime invoices" indicator.
+     - Dynamic SL index computation (`(validCurrentPage - 1) * pageSize + idx + 1`) ensures serial numbers are always accurate across pages.
+- **VERIFICATION:**
+  - `npx tsc --noEmit`: 0 errors.
+  - `npm run build`: Succeeded cleanly (0 errors).
+----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).
 **Important files:** `server.ts` (all API routes & Express app), `api/index.ts` (Vercel serverless entry), `vercel.json` (routing rewrites), `src/App.tsx` (frontend router), `supabase-schema.sql` (database schema).

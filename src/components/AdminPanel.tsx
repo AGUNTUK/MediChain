@@ -3649,7 +3649,7 @@ export default function AdminPanel({ currentUser, onLogout }: AdminPanelProps) {
 
               {/* SCREEN: PERMANENT CUSTOM INVOICES LEDGER (LIFETIME ARCHIVE) */}
               {activeRoute === "/admin/invoices-ledger" && (
-                <div className="-m-4 sm:-m-6 lg:-m-8 h-[calc(100%+2rem)] sm:h-[calc(100%+3rem)] lg:h-[calc(100%+4rem)] min-h-[720px] flex flex-col">
+                <div className="space-y-6 animate-fade-in pb-16">
                   <CustomInvoicesLedger
                     onEditInvoice={(inv) => {
                       setSelectedCustomInvoiceForEdit(inv);

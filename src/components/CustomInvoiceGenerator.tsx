@@ -2089,7 +2089,7 @@ export default function CustomInvoiceGenerator({
         /* ========================================================= */
         /* PERMANENT CUSTOM INVOICES LEDGER (LIFETIME ARCHIVE)       */
         /* ========================================================= */
-        <div className="flex-1 overflow-hidden flex flex-col">
+        <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 pb-16">
           <CustomInvoicesLedger
             onEditInvoice={(inv) => handleLoadInvoiceFromLedger(inv)}
             onNavigateToGenerator={() => setActiveTab("editor")}
