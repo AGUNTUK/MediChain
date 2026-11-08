@@ -174,7 +174,11 @@ export default function SearchSystem({
         const sortedList = [...response.products].sort((a, b) => {
           const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
           const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
-          return bInStock - aInStock;
+          if (aInStock !== bInStock) return bInStock - aInStock;
+          const timeA = (a.createdAt || (a as any).created_at) ? new Date(a.createdAt || (a as any).created_at).getTime() : 0;
+          const timeB = (b.createdAt || (b as any).created_at) ? new Date(b.createdAt || (b as any).created_at).getTime() : 0;
+          if (timeA !== timeB) return timeB - timeA;
+          return (a.name || "").localeCompare(b.name || "", "en", { sensitivity: "base" });
         });
 
         if (page === 1) {
@@ -187,7 +191,11 @@ export default function SearchSystem({
             return [...merged].sort((a, b) => {
               const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
               const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
-              return bInStock - aInStock;
+              if (aInStock !== bInStock) return bInStock - aInStock;
+              const timeA = (a.createdAt || (a as any).created_at) ? new Date(a.createdAt || (a as any).created_at).getTime() : 0;
+              const timeB = (b.createdAt || (b as any).created_at) ? new Date(b.createdAt || (b as any).created_at).getTime() : 0;
+              if (timeA !== timeB) return timeB - timeA;
+              return (a.name || "").localeCompare(b.name || "", "en", { sensitivity: "base" });
             });
           });
         }

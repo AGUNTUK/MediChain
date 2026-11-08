@@ -1463,6 +1463,7 @@ let inFlightAllProductsPromise: Promise<any[]> | null = null;
 
 export function clearProductCache() {
   productLRUCache.clear();
+  apiProductsCacheMap.clear();
   cachedAllProducts = null;
   lastAllProductsFetch = 0;
   inFlightAllProductsPromise = null;
@@ -1507,24 +1508,24 @@ async function getAllProductsMaster(): Promise<any[]> {
 
   inFlightAllProductsPromise = (async () => {
     try {
-    const selectWithCost = "id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, buying_price, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date, buying_price)";
-    const selectWithoutCost = "id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date)";
+    const selectWithCost = "id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, buying_price, created_at, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date, buying_price)";
+    const selectWithoutCost = "id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, created_at, inventory(available_stock, reserved_stock, sold_stock, batch_number, expiry_date)";
 
-    // Fetch products in 1000-row chunks in parallel to cover full catalog (2,338+ items)
+    // Fetch products in 1000-row chunks in parallel to cover full catalog (2,338+ items), ordered newest first
     let [c1, c2, c3, c4]: any[] = await Promise.all([
-      supabaseAdmin.from("products").select(selectWithCost).range(0, 999),
-      supabaseAdmin.from("products").select(selectWithCost).range(1000, 1999),
-      supabaseAdmin.from("products").select(selectWithCost).range(2000, 2999),
-      supabaseAdmin.from("products").select(selectWithCost).range(3000, 3999),
+      supabaseAdmin.from("products").select(selectWithCost).order("created_at", { ascending: false }).range(0, 999),
+      supabaseAdmin.from("products").select(selectWithCost).order("created_at", { ascending: false }).range(1000, 1999),
+      supabaseAdmin.from("products").select(selectWithCost).order("created_at", { ascending: false }).range(2000, 2999),
+      supabaseAdmin.from("products").select(selectWithCost).order("created_at", { ascending: false }).range(3000, 3999),
     ]);
 
     // Resilient fallback if remote Supabase schema has not run migration 14 yet
     if (c1.error && (c1.error.code === "42703" || c1.error.message?.includes("buying_price"))) {
       [c1, c2, c3, c4] = await Promise.all([
-        supabaseAdmin.from("products").select(selectWithoutCost).range(0, 999),
-        supabaseAdmin.from("products").select(selectWithoutCost).range(1000, 1999),
-        supabaseAdmin.from("products").select(selectWithoutCost).range(2000, 2999),
-        supabaseAdmin.from("products").select(selectWithoutCost).range(3000, 3999),
+        supabaseAdmin.from("products").select(selectWithoutCost).order("created_at", { ascending: false }).range(0, 999),
+        supabaseAdmin.from("products").select(selectWithoutCost).order("created_at", { ascending: false }).range(1000, 1999),
+        supabaseAdmin.from("products").select(selectWithoutCost).order("created_at", { ascending: false }).range(2000, 2999),
+        supabaseAdmin.from("products").select(selectWithoutCost).order("created_at", { ascending: false }).range(3000, 3999),
       ]);
     }
 
@@ -1595,8 +1596,17 @@ async function getAllProductsMaster(): Promise<any[]> {
         batchNumber: p.batch_number || (inv ? (inv.batch_number || "") : "") || "B-MCH2026",
         expiryDate: p.expiry_date || (inv ? (inv.expiry_date || "") : "") || "2027-12-31",
         imageUrl: optimizedImg,
-        image_url: optimizedImg
+        image_url: optimizedImg,
+        createdAt: p.created_at || null,
+        created_at: p.created_at || null
       };
+    });
+
+    // Sort full master catalog by adding date descending (newest additions at top)
+    mappedProducts.sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return timeB - timeA;
     });
 
     try {
@@ -1649,7 +1659,7 @@ app.get("/api/products", publicLimiter, async (req, res) => {
       return res.json(cachedEntry.data);
     }
 
-    const lightweightCols = "id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, image_url";
+    const lightweightCols = "id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, stock_quantity, discount_percentage, image_url, created_at";
 
     // 2. High-speed On-Demand Search (never download entire catalog into memory!)
     if (hasSearch) {
@@ -1660,6 +1670,7 @@ app.get("/api/products", publicLimiter, async (req, res) => {
         .from("products")
         .select(lightweightCols)
         .or(`name.ilike.%${cleanQ}%,generic_name.ilike.%${cleanQ}%,company.ilike.%${cleanQ}%`)
+        .order("created_at", { ascending: false })
         .limit(searchLimit);
 
       if (category && category !== "All") {
@@ -1688,7 +1699,9 @@ app.get("/api/products", publicLimiter, async (req, res) => {
           discountPercentage: p.discount_percentage ? parseFloat(p.discount_percentage) : (mrpVal > 0 ? Math.round(((mrpVal - sellingVal) / mrpVal) * 100) : 0),
           availableStock: p.stock_quantity ? parseInt(p.stock_quantity, 10) : 100,
           imageUrl: safeImg,
-          image_url: safeImg
+          image_url: safeImg,
+          createdAt: p.created_at || null,
+          created_at: p.created_at || null
         };
       });
 
@@ -1720,6 +1733,13 @@ app.get("/api/products", publicLimiter, async (req, res) => {
         filtered = [...filtered].sort((a, b) => (b.discountPercentage ?? 0) - (a.discountPercentage ?? 0));
       } else if (filter === "frequent") {
         filtered = [...filtered].sort((a, b) => (b.soldStock ?? 0) - (a.soldStock ?? 0));
+      } else {
+        // Default sort: newest added products first (adding date descending)
+        filtered = [...filtered].sort((a, b) => {
+          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return timeB - timeA;
+        });
       }
 
       const total = filtered.length;
@@ -1758,7 +1778,8 @@ app.get("/api/products", publicLimiter, async (req, res) => {
       } else if (filter === "frequent") {
         query = query.order("stock_quantity", { ascending: false });
       } else {
-        query = query.order("name", { ascending: true });
+        // Default sort: newest added products first (adding date descending)
+        query = query.order("created_at", { ascending: false });
       }
 
       const { data: rawItems, count, error: pageErr } = await query.range(from, to);
@@ -1783,7 +1804,9 @@ app.get("/api/products", publicLimiter, async (req, res) => {
           discountPercentage: p.discount_percentage ? parseFloat(p.discount_percentage) : (mrpVal > 0 ? Math.round(((mrpVal - sellingVal) / mrpVal) * 100) : 0),
           availableStock: p.stock_quantity ? parseInt(p.stock_quantity, 10) : 100,
           imageUrl: safeImg,
-          image_url: safeImg
+          image_url: safeImg,
+          createdAt: p.created_at || null,
+          created_at: p.created_at || null
         };
       });
 

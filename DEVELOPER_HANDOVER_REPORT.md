@@ -3577,6 +3577,44 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `npx tsc --noEmit`: 0 errors.
   - `npm run build`: Succeeded cleanly (0 errors).
 ----------------------------------------
+### 156. Task 156: Product Catalog Chronological Sorting by Adding Date (`created_at` Descending) (2026-11-08)
+- **STATUS:** Completed & Verified
+- **OBJECTIVE:** Ensure all products in the catalog are sorted chronologically by their adding date (`created_at` descending) so that when a new product is added to the catalog, it immediately appears at the very top of the list across both frontend catalog browsing and administrative registries.
+- **ROOT CAUSE & IMPLEMENTATION DETAILS:**
+  1. **Root Cause Analysis:**
+     - In `server.ts`, chunked catalog queries in `getAllProducts` and fallback queries had no `ORDER BY created_at DESC`, defaulting to arbitrary database insertion ordering.
+     - On-demand queries in `GET /api/products` ordered by `name ASC` by default (`query = query.order("name", { ascending: true })`), placing newly added products alphabetically rather than chronologically.
+     - In frontend components (`Home.tsx` and `SearchSystem.tsx`), in-stock prioritization sorted items alphabetically by medicine name (`a.name.localeCompare(b.name)`), overriding adding dates.
+  2. **TypeScript Types & Database Mapping:**
+     - Extended `Product` interface in `src/types.ts` with `createdAt?: string | null; created_at?: string | null;`.
+     - In `src/lib/dbService.ts`:
+       - Updated `mapProduct` to map `createdAt` and `created_at` from database records.
+       - Updated `getProductsRaw` to select `created_at` and order by `created_at DESC`.
+  3. **Backend API & Master Cache Ordering (`server.ts`):**
+     - Updated `clearProductCache()` to also clear `apiProductsCacheMap` on edits/adds.
+     - In `getAllProducts()`, included `created_at` in chunk queries, ordered all chunks with `.order("created_at", { ascending: false })`, mapped `createdAt`, and sorted `mappedProducts` by `createdAt` descending.
+     - In `GET /api/products`:
+       - Fast-path cached slice orders by `createdAt` descending by default (retaining `discountPercentage` for deals and `soldStock` for frequent).
+       - On-demand queries order by `created_at DESC` by default.
+       - Search queries order by `created_at DESC`.
+  4. **Frontend Homepage Catalog & SWR Cache Synchronization (`src/lib/apiCache.ts`, `src/services/product.ts`, `src/components/Home.tsx`, & `src/components/SearchSystem.tsx`):**
+     - In `apiCache.ts`:
+       - Bumped storage key prefix to `medichain_catalog_cache_v5_` and added automatic cleanup on mount to purge all obsolete localStorage catalog entries from previous versions.
+       - Added stale threshold guards in `getFromStorage` (discards items older than 10 minutes).
+       - Added `bypassCache?: boolean` parameter and dispatched `api-cache-updated` event upon successful background network revalidation.
+     - In `productService.ts`:
+       - Extended `getProductsPaginated` to accept `bypassCache`.
+       - Updated `getCachedProductsPaginated` to validate that cached entries possess active `createdAt` timestamps before returning, eliminating legacy un-dated cache traps.
+     - In `Home.tsx`:
+       - Updated `initialHomeCatalog` to validate and sort by `createdAt` descending.
+       - Updated `fetchCatalogProducts` to pass `bypassCache: isNewQuery`, ensuring the live homepage catalog always receives fresh chronological products from the API.
+       - Added listener for `api-cache-updated` event to seamlessly update the homepage catalog state whenever background revalidation succeeds.
+     - In `public/sw.js`:
+       - Bumped service worker cache name to `medichain-static-v4`.
+- **VERIFICATION:**
+  - TypeScript compilation (`npx tsc --noEmit`): 0 errors.
+  - Applet compilation (`compile_applet`): Build succeeded cleanly.
+----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).
 **Important files:** `server.ts` (all API routes & Express app), `api/index.ts` (Vercel serverless entry), `vercel.json` (routing rewrites), `src/App.tsx` (frontend router), `supabase-schema.sql` (database schema).

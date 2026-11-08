@@ -3,14 +3,32 @@ interface CacheEntry<T> {
   timestamp: number;
 }
 
-const STORAGE_PREFIX = "medichain_catalog_cache_v1_";
+const STORAGE_PREFIX = "medichain_catalog_cache_v5_";
+
+// One-time cleanup of obsolete catalog caches from previous versions
+if (typeof window !== "undefined" && window.localStorage) {
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("medichain_catalog_cache_") && !k.startsWith(STORAGE_PREFIX)) {
+        localStorage.removeItem(k);
+      }
+    }
+  } catch {}
+}
 
 function getFromStorage<T>(key: string): CacheEntry<T> | null {
   if (typeof window === "undefined" || !window.localStorage) return null;
   try {
     const raw = localStorage.getItem(STORAGE_PREFIX + key);
     if (!raw) return null;
-    return JSON.parse(raw);
+    const entry = JSON.parse(raw);
+    // Discard entries older than 10 minutes to guarantee fresh chronological catalogs
+    if (entry && entry.timestamp && Date.now() > entry.timestamp + 600000) {
+      localStorage.removeItem(STORAGE_PREFIX + key);
+      return null;
+    }
+    return entry;
   } catch {
     return null;
   }
@@ -160,11 +178,12 @@ class APICache {
   async swr<T>(
     key: string,
     fetcher: () => Promise<T>,
-    ttl: number = this.defaultTTL
+    ttl: number = this.defaultTTL,
+    bypassCache: boolean = false
   ): Promise<T> {
     // 1. Check in-memory or storage cache
-    let entry = this.cache.get(key);
-    if (!entry) {
+    let entry = bypassCache ? null : this.cache.get(key);
+    if (!entry && !bypassCache) {
       const stored = getFromStorage<T>(key);
       if (stored) {
         entry = stored;
@@ -172,16 +191,19 @@ class APICache {
       }
     }
 
-    const isStale = !entry || Date.now() > entry.timestamp;
+    const isStale = !entry || Date.now() > entry.timestamp || bypassCache;
 
     if (isStale) {
       // In-flight request deduplication
       let fetchPromise = this.inFlight.get(key) as Promise<T> | undefined;
 
-      if (!fetchPromise) {
+      if (!fetchPromise || bypassCache) {
         fetchPromise = fetcher()
           .then((data) => {
             this.set(key, data, ttl);
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new CustomEvent("api-cache-updated", { detail: { key, data } }));
+            }
             return data;
           })
           .catch((err) => {
@@ -196,8 +218,8 @@ class APICache {
         this.inFlight.set(key, fetchPromise);
       }
 
-      // If we don't have any cached data at all, we MUST wait for the fetch
-      if (!entry) {
+      // If we don't have any cached data at all or bypass is requested, we MUST wait for the fetch
+      if (!entry || bypassCache) {
         return fetchPromise;
       }
     }

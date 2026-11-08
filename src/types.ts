@@ -27,6 +27,8 @@ export interface Product {
   buyingPrice?: number | null; // Confidential internal cost (Admin only, null = unknown)
   unitGrossProfit?: number | null; // Admin only: sellingPrice - buyingPrice
   grossMarginPercent?: number | null; // Admin only: unit gross margin %
+  createdAt?: string | null;
+  created_at?: string | null;
 }
 
 export interface CartItem {

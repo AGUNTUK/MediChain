@@ -111,7 +111,22 @@ export default function Home({
   const [selectedManufacturer, setSelectedManufacturer] = useState<string | null>(null);
 
   const initialHomeCatalog = React.useMemo(() => {
-    return productService.getCachedProductsPaginated({ page: 1, limit: 24 });
+    const cached = productService.getCachedProductsPaginated({ page: 1, limit: 24 });
+    if (cached && Array.isArray(cached.products) && cached.products.length > 0) {
+      return {
+        ...cached,
+        products: [...cached.products].sort((a, b) => {
+          const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
+          const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
+          if (aInStock !== bInStock) return bInStock - aInStock;
+          const timeA = (a.createdAt || (a as any).created_at) ? new Date(a.createdAt || (a as any).created_at).getTime() : 0;
+          const timeB = (b.createdAt || (b as any).created_at) ? new Date(b.createdAt || (b as any).created_at).getTime() : 0;
+          if (timeA !== timeB) return timeB - timeA;
+          return (a.name || "").localeCompare(b.name || "", "en", { sensitivity: "base" });
+        })
+      };
+    }
+    return null;
   }, []);
 
   const [catalogProducts, setCatalogProducts] = useState<Product[]>(() => initialHomeCatalog?.products || []);
@@ -124,12 +139,15 @@ export default function Home({
 
   const DEFAULT_CATEGORIES = ALL_CATEGORY_VALUES;
 
-  // Helper to ensure in-stock products always appear first, and alphabetically
+  // Helper to ensure in-stock products always appear first, sorted by adding date (newest first)
   const prioritizeInStock = (products: Product[]): Product[] => {
     return [...products].sort((a, b) => {
       const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
       const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
       if (aInStock !== bInStock) return bInStock - aInStock;
+      const timeA = (a.createdAt || (a as any).created_at) ? new Date(a.createdAt || (a as any).created_at).getTime() : 0;
+      const timeB = (b.createdAt || (b as any).created_at) ? new Date(b.createdAt || (b as any).created_at).getTime() : 0;
+      if (timeA !== timeB) return timeB - timeA;
       return (a.name || "").localeCompare(b.name || "", "en", { sensitivity: "base" });
     });
   };
@@ -229,7 +247,8 @@ export default function Home({
         category: selectedCategory !== "All" ? selectedCategory : undefined,
         filter: selectedFilter !== "all" ? selectedFilter : undefined,
         page: currentPage,
-        limit: 24
+        limit: 24,
+        bypassCache: isNewQuery
       });
 
       const prioritizedList = prioritizeInStock(response.products);
@@ -259,6 +278,22 @@ export default function Home({
   useEffect(() => {
     fetchCatalogProducts(true);
   }, [debouncedSearch, selectedCategory, selectedFilter, selectedManufacturer]);
+
+  // Synchronize homepage catalog whenever fresh catalog data is revalidated in cache
+  useEffect(() => {
+    const handleCacheUpdate = (e: any) => {
+      const detail = e.detail;
+      if (detail && detail.key && detail.key.includes("products_paginated_")) {
+        if (detail.data && Array.isArray(detail.data.products) && catalogPage === 1 && !debouncedSearch && selectedCategory === "All" && selectedFilter === "all") {
+          setCatalogProducts(prioritizeInStock(detail.data.products));
+          setCatalogTotalProducts(detail.data.total || detail.data.products.length);
+          setCatalogTotalPages(detail.data.pages || 1);
+        }
+      }
+    };
+    window.addEventListener("api-cache-updated", handleCacheUpdate);
+    return () => window.removeEventListener("api-cache-updated", handleCacheUpdate);
+  }, [catalogPage, debouncedSearch, selectedCategory, selectedFilter]);
 
   // Load more pagination on page change
   useEffect(() => {

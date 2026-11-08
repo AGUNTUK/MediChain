@@ -96,6 +96,7 @@ export const productService = {
     filter?: "deals" | "frequent" | "low_stock";
     page?: number;
     limit?: number;
+    bypassCache?: boolean;
   }): Promise<{
     products: Product[];
     total: number;
@@ -117,31 +118,36 @@ export const productService = {
     const queryStr = q.toString();
     const cacheKey = `products_paginated_${queryStr}`;
 
-    return apiCache.swr(cacheKey, async () => {
-      try {
-        const res = await apiFetch(`/api/products?${queryStr}`);
-        const parsed = await safeJsonResponse<any>(res);
-        if (parsed.ok && parsed.data && Array.isArray(parsed.data.products)) {
-          return {
-            ...parsed.data,
-            products: parsed.data.products.map(sanitizeProductImage)
-          };
+    return apiCache.swr(
+      cacheKey,
+      async () => {
+        try {
+          const res = await apiFetch(`/api/products?${queryStr}`);
+          const parsed = await safeJsonResponse<any>(res);
+          if (parsed.ok && parsed.data && Array.isArray(parsed.data.products)) {
+            return {
+              ...parsed.data,
+              products: parsed.data.products.map(sanitizeProductImage)
+            };
+          }
+        } catch (err) {
+          console.warn("[Products] /api/products fetch error, returning fallback catalog:", err);
         }
-      } catch (err) {
-        console.warn("[Products] /api/products fetch error, returning fallback catalog:", err);
-      }
 
-      return {
-        products: [],
-        total: 0,
-        page: params.page || 1,
-        pageSize: params.limit || 24,
-        pages: 1,
-        suggestions: [],
-        originalQuery: params.search || "",
-        correctedQuery: undefined
-      };
-    });
+        return {
+          products: [],
+          total: 0,
+          page: params.page || 1,
+          pageSize: params.limit || 24,
+          pages: 1,
+          suggestions: [],
+          originalQuery: params.search || "",
+          correctedQuery: undefined
+        };
+      },
+      undefined,
+      Boolean(params.bypassCache)
+    );
   },
 
   /**
@@ -173,7 +179,14 @@ export const productService = {
 
     const queryStr = q.toString();
     const cacheKey = `products_paginated_${queryStr}`;
-    return apiCache.get(cacheKey, true);
+    const cached = apiCache.get<any>(cacheKey, true);
+    if (cached && Array.isArray(cached.products) && cached.products.length > 0) {
+      // Ensure cached products have valid created dates; otherwise ignore stale legacy cache
+      const hasDate = cached.products.some((p: any) => Boolean(p.createdAt || p.created_at));
+      if (!hasDate) return null;
+      return cached;
+    }
+    return null;
   },
 
   /**

@@ -1288,7 +1288,9 @@ const mapProduct = (p: any): Product => {
     expiryDate: p.expiry_date || (inv ? (inv.expiry_date || "") : "") || "2027-12-31",
     imageUrl: imgUrl,
     image_url: imgUrl,
-    barcode: p.barcode || undefined
+    barcode: p.barcode || undefined,
+    createdAt: p.created_at || p.createdAt || undefined,
+    created_at: p.created_at || p.createdAt || undefined
   };
 };
 
@@ -1317,6 +1319,7 @@ export async function getProductsRaw(limit = 100): Promise<Product[]> {
         requires_prescription,
         tax_rate,
         status,
+        created_at,
         inventory (
           available_stock,
           reserved_stock,
@@ -1325,13 +1328,15 @@ export async function getProductsRaw(limit = 100): Promise<Product[]> {
           expiry_date
         )
       `)
+      .order("created_at", { ascending: false })
       .limit(safeLimit);
 
     if (error || !data) {
       console.warn("Products query with inventory join failed, falling back to products table:", error?.message);
       const fallback = await supabaseAdmin
         .from("products")
-        .select("id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, cost_price, buying_price, discount_percentage, stock_quantity, barcode, is_antibiotic, requires_prescription, tax_rate, status")
+        .select("id, name, generic_name, company, category_name_fallback, category_id, strength, pack_size, mrp, selling_price, cost_price, buying_price, discount_percentage, stock_quantity, barcode, is_antibiotic, requires_prescription, tax_rate, status, created_at")
+        .order("created_at", { ascending: false })
         .limit(safeLimit);
       if (fallback.error || !fallback.data) {
         console.error("Products fallback query failed:", fallback.error?.message);
@@ -1344,7 +1349,11 @@ export async function getProductsRaw(limit = 100): Promise<Product[]> {
     return mapped.sort((a, b) => {
       const aInStock = (a.availableStock ?? 0) > 0 ? 1 : 0;
       const bInStock = (b.availableStock ?? 0) > 0 ? 1 : 0;
-      return bInStock - aInStock;
+      if (aInStock !== bInStock) return bInStock - aInStock;
+      const timeA = (a.createdAt || (a as any).created_at) ? new Date(a.createdAt || (a as any).created_at).getTime() : 0;
+      const timeB = (b.createdAt || (b as any).created_at) ? new Date(b.createdAt || (b as any).created_at).getTime() : 0;
+      if (timeA !== timeB) return timeB - timeA;
+      return (a.name || "").localeCompare(b.name || "", "en", { sensitivity: "base" });
     });
   } catch (err: any) {
     console.error("Exception in getProductsRaw:", err.message || err);

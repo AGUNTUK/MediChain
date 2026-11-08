@@ -1,4 +1,4 @@
-const CACHE_NAME = 'medichain-static-v3';
+const CACHE_NAME = 'medichain-static-v4';
 
 const STATIC_ASSETS = [
   '/',
