@@ -3642,6 +3642,24 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - `compile_applet` & `lint_applet`: Verified 0 TypeScript / build errors.
   - Zero weakening of auth middlewares, cache headers, or Supabase query limits.
 ----------------------------------------
+### 158. Task 158: Remove Live Official Invoice Preview & Fix Missing Logo in Downloaded PDF Invoices (2026-11-20)
+- **STATUS:** Completed & Verified
+- **OBJECTIVE:**
+  1. Remove the right-hand "Live Official Invoice Preview" panel from `CustomInvoiceGenerator.tsx` so the invoice form/editor uses the full workspace width while keeping `Print Invoice` fully functional.
+  2. Fix the missing MediChain logo in downloaded PDF invoices on Vercel (`medichainbd.vercel.app`) and local environments.
+- **ROOT CAUSE & IMPLEMENTATION DETAILS:**
+  1. **PDF Logo Resolution Fix (`server.ts`):**
+     - Root cause: `vercel.json` bundles `dist/**` (not `public/**`) into `api/index.ts`, whereas `generateInvoicePdf` and `generateCombinedInvoicePdf` only checked `public/logo.png` via `fs.existsSync`, which evaluated to `false` on Vercel serverless functions.
+     - Added cached `getInvoiceLogoBuffer()` helper checking `dist/logo.png`, `public/logo.png`, parent-relative fallbacks, and remote fallback (`${APP_URL}/logo.png` / GitHub raw `public/logo.png`) with PNG header validation and in-memory buffer caching.
+     - Updated `generateInvoicePdf` (header logo + watermark) and `generateCombinedInvoicePdf` (header logo) to pass the resolved PNG `Buffer` directly into `doc.image(...)`.
+  2. **Remove On-Screen Live Preview (`src/components/CustomInvoiceGenerator.tsx`):**
+     - Removed the right-hand `"Live Official Invoice Preview"` panel and zoom toolbar from the screen layout and expanded the Invoice Editor container to full width (`max-w-5xl mx-auto`).
+     - Retained the printable `#medichain-printable-invoice` markup inside `hidden print:block` with logo fallback `onError` handling so native browser printing (`Print Invoice`) continues to work cleanly with the logo.
+- **MODIFIED FILES:**
+  - `server.ts`
+  - `src/components/CustomInvoiceGenerator.tsx`
+  - `DEVELOPER_HANDOVER_REPORT.md`
+----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).
 **Important files:** `server.ts` (all API routes & Express app), `api/index.ts` (Vercel serverless entry), `vercel.json` (routing rewrites), `src/App.tsx` (frontend router), `supabase-schema.sql` (database schema).

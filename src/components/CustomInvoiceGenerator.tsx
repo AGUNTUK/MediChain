@@ -1298,11 +1298,12 @@ export default function CustomInvoiceGenerator({
 
       {/* Main Workspace Body */}
       {activeTab === "editor" ? (
-        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden">
           {/* ========================================================= */}
-          {/* LEFT SIDE: FORM BUILDER & PRICING CONFIGURATOR             */}
+          {/* FULL-WIDTH FORM BUILDER & PRICING CONFIGURATOR            */}
           {/* ========================================================= */}
-          <div className="no-print w-full lg:w-[50%] xl:w-[48%] h-full overflow-y-auto p-4 sm:p-5 border-r border-slate-200 bg-white space-y-6">
+          <div className="no-print w-full h-full overflow-y-auto p-4 sm:p-6 bg-white">
+            <div className="max-w-5xl mx-auto space-y-6">
             {/* AI Quick Invoice Builder (Text & Picture) */}
             <div className="bg-gradient-to-br from-purple-50 via-white to-emerald-50/60 border border-purple-200/90 rounded-2xl p-4 sm:p-5 space-y-3.5 shadow-xs">
               <div className="flex items-start justify-between gap-2">
@@ -2142,92 +2143,23 @@ export default function CustomInvoiceGenerator({
                 className="w-full text-xs bg-white text-slate-800 border border-slate-300 rounded-xl p-2.5 focus:border-purple-500 outline-none resize-none"
               />
             </div>
+            </div>
           </div>
 
           {/* ========================================================= */}
-          {/* RIGHT SIDE: LIVE DYNAMIC OFFICIAL MEDICHAIN INVOICE CANVAS  */}
+          {/* PRINT-ONLY OFFICIAL MEDICHAIN INVOICE (HIDDEN ON SCREEN)  */}
           {/* ========================================================= */}
-          <div className="w-full lg:w-[50%] xl:w-[52%] h-full flex flex-col bg-slate-200/90 overflow-hidden">
-            {/* Live Canvas Toolbar */}
-            <div className="no-print bg-slate-800 text-white px-4 py-2.5 flex items-center justify-between gap-2 shrink-0 border-b border-slate-700">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-xs font-bold tracking-wide text-slate-200">
-                  Live Official Invoice Preview
-                </span>
-              </div>
-
-              {/* Zoom controls */}
-              <div className="flex items-center gap-1 text-xs">
-                <button
-                  onClick={() => setZoomMode("fit")}
-                  className={`px-2 py-1 rounded text-[11px] font-bold cursor-pointer transition-colors ${
-                    zoomMode === "fit" ? "bg-purple-600 text-white" : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  Fit
-                </button>
-                <button
-                  onClick={() => setZoomMode("100%")}
-                  className={`px-2 py-1 rounded text-[11px] font-bold cursor-pointer transition-colors ${
-                    zoomMode === "100%" ? "bg-purple-600 text-white" : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  100%
-                </button>
-                <button
-                  onClick={() => {
-                    setZoomMode("custom");
-                    setCustomZoom(prev => Math.max(0.4, prev - 0.1));
-                  }}
-                  className="p-1 text-slate-400 hover:text-white cursor-pointer"
-                  title="Zoom Out"
-                >
-                  <ZoomOut className="w-3.5 h-3.5" />
-                </button>
-                <span className="font-mono text-[10px] text-slate-300 px-1">
-                  {Math.round(scale * 100)}%
-                </span>
-                <button
-                  onClick={() => {
-                    setZoomMode("custom");
-                    setCustomZoom(prev => Math.min(1.4, prev + 0.1));
-                  }}
-                  className="p-1 text-slate-400 hover:text-white cursor-pointer"
-                  title="Zoom In"
-                >
-                  <ZoomIn className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Document Canvas Scroll Container */}
-            <div
-              ref={previewCanvasRef}
-              className="flex-1 overflow-auto p-3 sm:p-6 flex justify-center items-start"
-            >
-              {/* Scaled Responsive Document Wrapper */}
+          <div className="hidden print:block">
+            <div id="medichain-printable-invoice-wrapper">
               <div
-                id="medichain-printable-invoice-wrapper"
+                ref={previewInvoiceRef}
+                id="medichain-printable-invoice"
+                className="bg-white text-slate-900 rounded-none font-sans text-[11px] relative overflow-hidden"
                 style={{
-                  width: `${BASE_INVOICE_WIDTH * scale}px`,
-                  height: invoiceHeight ? `${invoiceHeight * scale}px` : "auto",
-                  position: "relative",
-                  flexShrink: 0,
-                  transition: "width 0.1s ease-out, height 0.1s ease-out"
+                  width: `${BASE_INVOICE_WIDTH}px`,
+                  fontFamily: "'Li Alinur Banglaborno', 'Lora', 'Merriweather', 'Georgia', 'Cambria', 'Times New Roman', Times, serif"
                 }}
               >
-                <div
-                  ref={previewInvoiceRef}
-                  id="medichain-printable-invoice"
-                  className="bg-white text-slate-900 shadow-2xl rounded-none font-sans border border-slate-300 text-[11px] relative overflow-hidden"
-                  style={{
-                    width: `${BASE_INVOICE_WIDTH}px`,
-                    transform: `scale(${scale})`,
-                    transformOrigin: "top left",
-                    fontFamily: "'Li Alinur Banglaborno', 'Lora', 'Merriweather', 'Georgia', 'Cambria', 'Times New Roman', Times, serif"
-                  }}
-                >
                   {/* ==================== WATERMARK ==================== */}
                   <div
                     className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden z-0"
@@ -2235,6 +2167,13 @@ export default function CustomInvoiceGenerator({
                   >
                     <img
                       src="/logo.png"
+                      onError={(e) => {
+                        const img = e.currentTarget;
+                        if (!img.dataset.fallbackTried) {
+                          img.dataset.fallbackTried = "1";
+                          img.src = "https://raw.githubusercontent.com/AGUNTUK/MediChain/main/public/logo.png";
+                        }
+                      }}
                       alt=""
                       className="w-[620px] h-[620px] max-w-none object-contain opacity-[0.045] -rotate-[8deg]"
                     />
@@ -2247,6 +2186,13 @@ export default function CustomInvoiceGenerator({
                       <div className="flex items-center gap-3.5">
                         <img
                           src="/logo.png"
+                          onError={(e) => {
+                            const img = e.currentTarget;
+                            if (!img.dataset.fallbackTried) {
+                              img.dataset.fallbackTried = "1";
+                              img.src = "https://raw.githubusercontent.com/AGUNTUK/MediChain/main/public/logo.png";
+                            }
+                          }}
                           alt="MediChain"
                           className="w-[52px] h-[52px] object-contain rounded-xl shrink-0 p-0.5"
                         />
@@ -2513,7 +2459,6 @@ export default function CustomInvoiceGenerator({
                   </div>
                 </div>
               </div>
-            </div>
           </div>
         </div>
       ) : (

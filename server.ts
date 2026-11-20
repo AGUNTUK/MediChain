@@ -3428,7 +3428,76 @@ function resolvePdfItemType(item: any): string {
   return "Tablet";
 }
 
-function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, invoiceNumber: string, customFilename?: string) {
+let cachedInvoiceLogoBuffer: Buffer | null = null;
+
+function isValidPngBuffer(buf: Buffer | null | undefined): buf is Buffer {
+  return (
+    !!buf &&
+    buf.length > 16 &&
+    buf[0] === 0x89 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x4e &&
+    buf[3] === 0x47
+  );
+}
+
+async function getInvoiceLogoBuffer(): Promise<Buffer | null> {
+  if (isValidPngBuffer(cachedInvoiceLogoBuffer)) {
+    return cachedInvoiceLogoBuffer;
+  }
+
+  // Check local filesystem paths (dist/logo.png is bundled in Vercel includeFiles, public/logo.png is used in local dev)
+  const candidatePaths = [
+    path.join(process.cwd(), "dist", "logo.png"),
+    path.join(process.cwd(), "public", "logo.png"),
+    path.resolve(process.cwd(), "..", "dist", "logo.png"),
+    path.resolve(process.cwd(), "..", "public", "logo.png"),
+  ];
+
+  for (const candidate of candidatePaths) {
+    try {
+      if (fs.existsSync(candidate)) {
+        const buf = fs.readFileSync(candidate);
+        if (isValidPngBuffer(buf)) {
+          cachedInvoiceLogoBuffer = buf;
+          return buf;
+        }
+      }
+    } catch {
+      // Try next path
+    }
+  }
+
+  // Fallback for serverless cold starts where public/ is excluded: fetch official logo once and cache in memory
+  const remoteUrls = [
+    process.env.APP_URL ? `${process.env.APP_URL.replace(/\/$/, "")}/logo.png` : "",
+    "https://raw.githubusercontent.com/AGUNTUK/MediChain/main/public/logo.png",
+  ].filter(Boolean);
+
+  for (const url of remoteUrls) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 4000);
+      const resp = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      if (resp.ok) {
+        const buf = Buffer.from(await resp.arrayBuffer());
+        if (isValidPngBuffer(buf)) {
+          cachedInvoiceLogoBuffer = buf;
+          return buf;
+        }
+      }
+    } catch {
+      // Try next URL
+    }
+  }
+
+  return null;
+}
+
+async function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, invoiceNumber: string, customFilename?: string) {
+  const logoBuffer = await getInvoiceLogoBuffer();
+
   const safeFilename = customFilename || (invoiceNumber ? `${invoiceNumber.replace(/[^a-zA-Z0-9-_]/g, "_")}.pdf` : `invoice-${order.id || "order"}.pdf`);
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}"`);
@@ -3436,17 +3505,19 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
   const doc = new PDFDocument({ margin: 0, size: "A4" });
   doc.pipe(res);
 
-  const logoPath = path.join(process.cwd(), "public", "logo.png");
-
   // Watermark renderer: Centered, rotated -8deg, 4.5% opacity
   const renderWatermark = () => {
-    if (fs.existsSync(logoPath)) {
-      doc.save();
-      doc.opacity(0.045);
-      doc.rotate(-8, { origin: [doc.page.width / 2, doc.page.height / 2] });
-      const wmSize = 420;
-      doc.image(logoPath, (doc.page.width - wmSize) / 2, (doc.page.height - wmSize) / 2, { width: wmSize });
-      doc.restore();
+    if (logoBuffer) {
+      try {
+        doc.save();
+        doc.opacity(0.045);
+        doc.rotate(-8, { origin: [doc.page.width / 2, doc.page.height / 2] });
+        const wmSize = 420;
+        doc.image(logoBuffer, (doc.page.width - wmSize) / 2, (doc.page.height - wmSize) / 2, { width: wmSize });
+        doc.restore();
+      } catch {
+        // Ignore watermark error
+      }
     }
   };
 
@@ -3459,8 +3530,12 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
   doc.moveTo(30, 95).lineTo(doc.page.width - 30, 95).strokeColor("#E2E8F0").lineWidth(1).stroke();
 
   // Header Content - Left: Logo, MediChain, Tagline, Contact Info
-  if (fs.existsSync(logoPath)) {
-    doc.image(logoPath, 30, 22, { width: 52 });
+  if (logoBuffer) {
+    try {
+      doc.image(logoBuffer, 30, 22, { width: 52 });
+    } catch {
+      // Ignore image error
+    }
   }
   doc.font("Helvetica-Bold").fontSize(18).fillColor("#0F172A").text("MediChain", 92, 22);
   doc.font("Helvetica-Bold").fontSize(7).fillColor("#0D9488").text("SMART PARTNER FOR PHARMACIES", 92, 44, { characterSpacing: 1.5 });
@@ -3690,7 +3765,9 @@ function generateInvoicePdf(res: express.Response, order: any, pharmacy: any, in
 /**
  * Generates a high-precision Consolidated Delivery Schedule Invoice PDF combining multiple orders.
  */
-function generateCombinedInvoicePdf(res: any, group: ConsolidatedInvoiceGroup, pharmacy: any) {
+async function generateCombinedInvoicePdf(res: any, group: ConsolidatedInvoiceGroup, pharmacy: any) {
+  const logoBuffer = await getInvoiceLogoBuffer();
+
   const doc = new PDFDocument({
     margin: 30,
     size: "A4",
@@ -3709,8 +3786,6 @@ function generateCombinedInvoicePdf(res: any, group: ConsolidatedInvoiceGroup, p
   );
 
   doc.pipe(res);
-
-  const logoPath = path.resolve("./public/logo.png");
 
   const renderWatermark = () => {
     try {
@@ -3734,8 +3809,12 @@ function generateCombinedInvoicePdf(res: any, group: ConsolidatedInvoiceGroup, p
   doc.moveTo(30, 105).lineTo(doc.page.width - 30, 105).strokeColor("#E2E8F0").lineWidth(1).stroke();
 
   // Header Content - Left
-  if (fs.existsSync(logoPath)) {
-    doc.image(logoPath, 30, 22, { width: 52 });
+  if (logoBuffer) {
+    try {
+      doc.image(logoBuffer, 30, 22, { width: 52 });
+    } catch {
+      // Ignore image error
+    }
   }
   doc.font("Helvetica-Bold").fontSize(18).fillColor("#0F172A").text("MediChain", 92, 22);
   doc.font("Helvetica-Bold").fontSize(7).fillColor("#0D9488").text("SMART PARTNER FOR PHARMACIES • WHOLESALE DELIVERY", 92, 44, { characterSpacing: 1.2 });
@@ -3925,7 +4004,7 @@ app.get("/api/orders/:id/invoice", requireAuth, async (req, res) => {
       // Fall back to default invoiceNumber
     }
 
-    generateInvoicePdf(res, order, pharmacy, invoiceNumber);
+    await generateInvoicePdf(res, order, pharmacy, invoiceNumber);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -3988,7 +4067,7 @@ app.get("/api/invoices/consolidated/:windowKey/:pharmacyId/pdf", requireAuth, as
     }
 
     const pharmacy = await dbService.getPharmacyById(pharmacyId);
-    generateCombinedInvoicePdf(res, target, pharmacy);
+    await generateCombinedInvoicePdf(res, target, pharmacy);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -5301,7 +5380,7 @@ app.post("/api/admin/invoices/:id/download", requireRole(["Admin"]), async (req,
       // Fall back to default invoiceNumber
     }
 
-    generateInvoicePdf(res, order, pharmacy, invoiceNumber);
+    await generateInvoicePdf(res, order, pharmacy, invoiceNumber);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -5353,7 +5432,7 @@ app.post("/api/admin/custom-invoices/pdf", requireRole(["Admin"]), async (req, r
     const invoiceNumber = customData.invoiceNumber || `INV-INST-${Date.now().toString().slice(-6)}`;
     const filename = `${invoiceNumber.replace(/[^a-zA-Z0-9-_]/g, "_")}.pdf`;
 
-    generateInvoicePdf(res, orderPayload, pharmacyPayload, invoiceNumber, filename);
+    await generateInvoicePdf(res, orderPayload, pharmacyPayload, invoiceNumber, filename);
   } catch (err: any) {
     console.error("[Custom Invoice PDF Error]:", err);
     res.status(500).json({ error: err.message || "Failed to generate custom invoice PDF" });
