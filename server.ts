@@ -45,7 +45,7 @@ import { LRUCache } from "./src/lib/lruCache.js";
 import { DEFAULT_CATEGORY_OPTIONS } from "./src/constants/categories.js";
 import { fuzzySearchProducts } from "./src/lib/fuzzySearch.js";
 import { processPharmacyCopilot } from "./src/lib/geminiCopilotService.js";
-import { parseCustomInvoiceWithAI } from "./src/lib/aiCustomInvoiceService.js";
+import { parseCustomInvoiceWithAI, formatGeminiErrorMessage } from "./src/lib/aiCustomInvoiceService.js";
 import { sendOrderAlert, logTelegramConfigStatus, sendPhysiciansProductRequest } from "./src/lib/telegramService.js";
 import cron from "node-cron";
 import multer from "multer";
@@ -5391,16 +5391,8 @@ app.post("/api/admin/custom-invoices/ai-parse", requireRole(["Admin"]), async (r
     });
   } catch (err: any) {
     console.error("[AI Custom Invoice Parse Error]:", err);
-    const msg = String(err?.message || "AI invoice parsing failed.");
-    const status =
-      err?.status === 429 || msg.includes("RESOURCE_EXHAUSTED")
-        ? 429
-        : err?.status === 403 || msg.includes("PERMISSION_DENIED")
-          ? 403
-          : err?.status === 400 || msg.includes("API_KEY_INVALID")
-            ? 400
-            : 500;
-    return res.status(status).json({ error: msg });
+    const formatted = formatGeminiErrorMessage(err);
+    return res.status(formatted.status).json({ error: formatted.message });
   }
 });
 

@@ -90,13 +90,51 @@ function normalizeCategory(raw?: string): string {
   return "Other";
 }
 
-function getGeminiClient(): GoogleGenAI {
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-  if (!apiKey || apiKey === "your_google_gemini_api_key_here") {
-    throw new Error(
-      "Gemini API key is not configured on the server. Please check GEMINI_API_KEY in Settings > Secrets."
-    );
+const PLACEHOLDER_KEYS = new Set([
+  "your_google_gemini_api_key_here",
+  "my_gemini_api_key",
+  "your_api_key_here",
+  "placeholder",
+  "changeme",
+  "undefined",
+  "null",
+]);
+
+function sanitizeApiKey(raw?: string): string {
+  if (!raw) return "";
+  // Strip whitespace, newlines, and accidental surrounding quotes from .env / Vercel paste
+  const cleaned = raw
+    .replace(/[\r\n]+/g, "")
+    .trim()
+    .replace(/^["'`]+|["'`]+$/g, "")
+    .trim();
+  if (!cleaned || PLACEHOLDER_KEYS.has(cleaned.toLowerCase())) {
+    return "";
   }
+  return cleaned;
+}
+
+function getCandidateGeminiApiKeys(): { envName: string; key: string }[] {
+  const candidates: [string, string | undefined][] = [
+    ["GEMINI_API_KEY", process.env.GEMINI_API_KEY],
+    ["GOOGLE_API_KEY", process.env.GOOGLE_API_KEY],
+    ["GOOGLE_GENAI_API_KEY", process.env.GOOGLE_GENAI_API_KEY],
+    ["VITE_GEMINI_API_KEY", process.env.VITE_GEMINI_API_KEY],
+  ];
+
+  const seen = new Set<string>();
+  const valid: { envName: string; key: string }[] = [];
+  for (const [envName, raw] of candidates) {
+    const key = sanitizeApiKey(raw);
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      valid.push({ envName, key });
+    }
+  }
+  return valid;
+}
+
+function createGeminiClient(apiKey: string): GoogleGenAI {
   return new GoogleGenAI({
     apiKey,
     httpOptions: {
@@ -105,6 +143,75 @@ function getGeminiClient(): GoogleGenAI {
       },
     },
   });
+}
+
+function isInvalidApiKeyError(err: any): boolean {
+  const msg = String(err?.message || "");
+  return (
+    msg.includes("API_KEY_INVALID") ||
+    msg.includes("API key not valid") ||
+    msg.includes("API key expired") ||
+    msg.includes("API_KEY_EXPIRED")
+  );
+}
+
+function isModelNotFoundError(err: any): boolean {
+  const status = err?.status || err?.code || 0;
+  const msg = String(err?.message || "");
+  return status === 404 || msg.includes("NOT_FOUND") || msg.includes("is not found for API version");
+}
+
+export function formatGeminiErrorMessage(err: any): { status: number; message: string } {
+  let rawMsg = String(err?.message || "AI invoice parsing failed.");
+  let parsedCode = Number(err?.status || err?.code || 0);
+
+  // Unwrap nested JSON error returned by @google/genai SDK
+  try {
+    const jsonStart = rawMsg.indexOf("{");
+    if (jsonStart >= 0) {
+      const parsed = JSON.parse(rawMsg.slice(jsonStart));
+      if (parsed?.error?.message) {
+        rawMsg = String(parsed.error.message);
+      }
+      if (parsed?.error?.code && !parsedCode) {
+        parsedCode = Number(parsed.error.code);
+      }
+    }
+  } catch {
+    // Keep rawMsg if not JSON
+  }
+
+  if (
+    rawMsg.includes("API_KEY_INVALID") ||
+    rawMsg.includes("API key not valid") ||
+    rawMsg.includes("API key expired") ||
+    rawMsg.includes("not configured on the server")
+  ) {
+    return {
+      status: 400,
+      message:
+        "সার্ভারের GEMINI_API_KEY সঠিক নয় বা মেয়াদোত্তীর্ণ। অনুগ্রহ করে Vercel Dashboard → Settings → Environment Variables-এ বৈধ GEMINI_API_KEY (কোনো কোটেশন ছাড়া) সেট করে Redeploy করুন। (Server Gemini API key is invalid or expired.)",
+    };
+  }
+
+  if (parsedCode === 429 || rawMsg.includes("RESOURCE_EXHAUSTED") || rawMsg.includes("quota")) {
+    return {
+      status: 429,
+      message:
+        "Gemini AI-এর ফ্রি কোটা সাময়িকভাবে পূর্ণ হয়েছে। কয়েক সেকেন্ড পরে আবার চেষ্টা করুন। (AI rate limit exceeded.)",
+    };
+  }
+
+  if (parsedCode === 403 || rawMsg.includes("PERMISSION_DENIED")) {
+    return {
+      status: 403,
+      message:
+        "Gemini API Key-এর এই মডেলের অনুমতি নেই। অনুগ্রহ করে API Key-এর পারমিশন ও রিজিওন/রেস্ট্রিকশন চেক করুন। (API key permission denied.)",
+    };
+  }
+
+  const status = parsedCode >= 400 && parsedCode < 600 ? parsedCode : 500;
+  return { status, message: rawMsg };
 }
 
 async function generateWithRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
@@ -122,9 +229,9 @@ async function generateWithRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Prom
         status === 401 ||
         status === 403 ||
         status === 404 ||
-        msg.includes("API_KEY_INVALID") ||
-        msg.includes("PERMISSION_DENIED") ||
-        msg.includes("NOT_FOUND")
+        isInvalidApiKeyError(err) ||
+        isModelNotFoundError(err) ||
+        msg.includes("PERMISSION_DENIED")
       ) {
         throw err;
       }
@@ -261,8 +368,10 @@ Critical Rules:
 4. NEVER invent or guess prices! If MRP or Rate is NOT explicitly written in the text or image, return 0 for mrp and 0 for rate, and -1 for discountPercentage. Our server will automatically look up authentic catalog pricing from the database.
 5. If a single overall discount is mentioned for the whole bill (e.g. "সবগুলোতে ১৫% ছাড়" or "15% flat discount"), set uniformDiscountPercentage to that number (e.g. 15).
 6. If delivery charge is mentioned (e.g. "delivery 40 tk" or "ডেলিভারি চার্জ ৪০"), set deliveryCharge to that number; otherwise set -1.
-7. Recognize Bangladeshi pharma dosage abbreviations: Tab = Tablet, Cap = Capsule, Syp = Syrup, Susp = Suspension, Inj = Injection, Oint = Ointment, Drop/Drops = Drop, Inhaler = Inhaler.
-8. Keep brand names clean and accurately spelled (e.g. Napa, Seclo, Sergel, Maxpro, Monas, Finix, Napa Extra, Losectil, Ace, Pantonix, Tufnil, Azith, Zimax, Bizoran, Osartil, Bizoran, Fix-A, Cef-3, etc.).`;
+7. Recognize Bangladeshi pharma dosage abbreviations: Tab = Tablet, Cap = Capsule, Syp = Syrup, Susp = Suspension, Inj = Injection, Oint = Ointment, Drop/Drops/আইড্রপ = Drop, Inhaler = Inhaler.
+8. Transliterate Bengali phonetic/voice-dictated Bangladeshi medicine names cleanly into standard English brand spelling (e.g. "প্রিগাবা ফিফটি একটা" -> name: "Pregaba", strength: "50mg", quantity: 1; "লিভোক্স আইড্রপ দুইটা" -> name: "Levox", category: "Drop", quantity: 2; "রিসেট পাঁচশো দুইটা" -> name: "Reset", strength: "500mg", quantity: 2; "ডক্সিবা টু হান্ড্রেড একটা" -> name: "Doxiva", strength: "200mg", quantity: 1; "ফ্লেক্সিব্যাক টেন একটা" -> name: "Flexibac", strength: "10mg", quantity: 1; "সেফাক্ল্যাপ পাঁচশো দুইটা" -> name: "Cefaclav", strength: "500mg", quantity: 2; "ফ্লুক্স পাঁচশো দুইটা" -> name: "Fluclox", strength: "500mg", quantity: 2).
+9. Accurately interpret Bengali spoken words for strengths and quantities: একটা/একটি=1, দুইটা/দুইটি=2, তিনটা=3, চারটা=4, পাঁচটা=5, দশটা=10; টেন=10mg, টুয়েন্টি=20mg, ফিফটি=50mg, হান্ড্রেড=100mg, টু হান্ড্রেড=200mg, আড়াইশো=250mg, পাঁচশো=500mg.
+10. Keep brand names clean and accurately spelled (e.g. Napa, Seclo, Sergel, Maxpro, Monas, Finix, Napa Extra, Losectil, Ace, Pantonix, Tufnil, Azith, Zimax, Bizoran, Osartil, Fix-A, Cef-3, Pregaba, Reset, Doxiva, Flexibac, Fluclox, Levox, Ubicare, etc.).`;
 
 interface CatalogMatchCandidate {
   id: string;
@@ -419,7 +528,12 @@ export async function parseCustomInvoiceWithAI(
     throw new Error("Please provide invoice details in text or upload an image.");
   }
 
-  const ai = getGeminiClient();
+  const candidateKeys = getCandidateGeminiApiKeys();
+  if (candidateKeys.length === 0) {
+    throw new Error(
+      "Gemini API key is not configured on the server. Please check GEMINI_API_KEY in Settings > Secrets."
+    );
+  }
 
   const parts: any[] = [];
 
@@ -447,17 +561,48 @@ export async function parseCustomInvoiceWithAI(
 
   parts.push({ text: userPrompt });
 
-  const response = await generateWithRetry(() =>
-    ai.models.generateContent({
-      model: "gemini-4-hydrogen",
-      contents: { parts },
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
-        responseMimeType: "application/json",
-        responseSchema: INVOICE_RESPONSE_SCHEMA,
-      },
-    })
-  );
+  const modelCandidates = ["gemini-4-hydrogen", "gemini-3.1-flash-lite", "gemini-2.5-flash"];
+  let response: any = null;
+  let lastError: any = null;
+
+  keyLoop: for (const candidate of candidateKeys) {
+    const ai = createGeminiClient(candidate.key);
+    for (const modelName of modelCandidates) {
+      try {
+        response = await generateWithRetry(() =>
+          ai.models.generateContent({
+            model: modelName,
+            contents: { parts },
+            config: {
+              systemInstruction: SYSTEM_INSTRUCTION,
+              responseMimeType: "application/json",
+              responseSchema: INVOICE_RESPONSE_SCHEMA,
+            },
+          })
+        );
+        break keyLoop;
+      } catch (err: any) {
+        lastError = err;
+        if (isInvalidApiKeyError(err)) {
+          console.warn(
+            `[AI Custom Invoice] Env key ${candidate.envName} rejected as invalid; trying next configured key if available.`
+          );
+          break; // Try next candidate key
+        }
+        if (isModelNotFoundError(err)) {
+          console.warn(
+            `[AI Custom Invoice] Model ${modelName} not available for ${candidate.envName}; trying fallback model.`
+          );
+          continue; // Try next model with same key
+        }
+        throw err;
+      }
+    }
+  }
+
+  if (!response) {
+    throw lastError || new Error("Gemini AI request failed.");
+  }
 
   const rawText = (response.text || "").trim();
   if (!rawText) {
