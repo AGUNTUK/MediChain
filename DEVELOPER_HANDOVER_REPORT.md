@@ -3615,6 +3615,32 @@ Orders (1:1) Invoices (1:M) Payments. Orders (1:1) Depot Dispatches.
   - TypeScript compilation (`npx tsc --noEmit`): 0 errors.
   - Applet compilation (`compile_applet`): Build succeeded cleanly.
 ----------------------------------------
+### 157. Task 157: AI Quick Invoice Builder (Text & Image) in Admin Custom Invoice Generator (2026-11-19)
+- **STATUS:** Completed & Verified
+- **OBJECTIVE:** Integrate Gemini AI directly into the Admin Panel's Custom Invoice Generator (`CustomInvoiceGenerator.tsx`) so administrators can paste or type invoice instructions in Bengali, Banglish, or English—and/or attach/capture/paste a photo (handwritten order slip, WhatsApp screenshot, printed invoice/list)—to automatically populate recipient details, invoice terms, and catalog-matched line items with accurate MRP, Discount %, and Trade Price calculations.
+- **IMPLEMENTATION DETAILS:**
+  1. **Server-Side AI Invoice Parser (`src/lib/aiCustomInvoiceService.ts`):**
+     - Uses `@google/genai` SDK (`gemini-4-hydrogen`) exclusively on the backend (`process.env.GEMINI_API_KEY`, zero client-side key exposure) with structured JSON output (`responseMimeType: "application/json"`, strict `responseSchema`).
+     - Supports multimodal input (text prompt, image base64, or both simultaneously) with exponential backoff retry on transient errors.
+     - Enforces zero-egress Supabase queries: matches extracted medicine items against `public.products` using explicit lightweight columns and `.limit(5)` per item (batched 5 at a time), and matches recipient pharmacy against `public.pharmacies` with `.limit(1)`/`.limit(3)`.
+     - Respects explicitly provided MRP/rate/discount values while auto-backfilling missing MRP, trade price, discount %, company, category, strength, and pack size from matched catalog records. Strictly excludes `buying_price`/`cost_price`.
+  2. **Protected Admin API Endpoint (`server.ts`):**
+     - Added `POST /api/admin/custom-invoices/ai-parse` guarded by `requireRole(["Admin"])`.
+     - Validates text/image input presence and payload bounds (<= 9MB base64), never stores base64 images in PostgreSQL, and propagates authentic HTTP error codes (`400`, `403`, `429`, `500`).
+  3. **Admin Custom Invoice Generator UI (`src/components/CustomInvoiceGenerator.tsx`):**
+     - Added collapsible **AI Quick Invoice Builder (Text / Photo)** panel at the top of the editor.
+     - Supports natural-language text input, clipboard image paste (`Ctrl+V`), gallery file upload, and mobile rear-camera capture (`capture="environment"`), with client-side canvas JPEG compression (`max 1600px`, quality `0.85`).
+     - Supports **Replace** vs **Append** line-item modes, auto-fills recipient metadata/payment status/due date/delivery note, auto-computes two-way MRP / Discount % / Trade Price totals, and flags unmatched medicines as new catalog items (`autoAddToCatalog: true`).
+- **MODIFIED / CREATED FILES:**
+  - `package.json` (`@google/genai` upgraded to latest)
+  - `src/lib/aiCustomInvoiceService.ts` (new)
+  - `server.ts` (`POST /api/admin/custom-invoices/ai-parse`)
+  - `src/components/CustomInvoiceGenerator.tsx` (AI Quick Invoice Builder UI)
+  - `DEVELOPER_HANDOVER_REPORT.md` (Task 157)
+- **VERIFICATION:**
+  - `compile_applet` & `lint_applet`: Verified 0 TypeScript / build errors.
+  - Zero weakening of auth middlewares, cache headers, or Supabase query limits.
+----------------------------------------
 This project is an advanced, production-ready B2B Pharmacy application.
 **Architecture:** React SPA + Express.js backend (unified deployment via Vercel Serverless Functions on `/api/*` and Vite SPA static fallback, with local dev server in `server.ts`).
 **Important files:** `server.ts` (all API routes & Express app), `api/index.ts` (Vercel serverless entry), `vercel.json` (routing rewrites), `src/App.tsx` (frontend router), `supabase-schema.sql` (database schema).

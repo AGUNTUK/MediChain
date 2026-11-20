@@ -45,6 +45,7 @@ import { LRUCache } from "./src/lib/lruCache.js";
 import { DEFAULT_CATEGORY_OPTIONS } from "./src/constants/categories.js";
 import { fuzzySearchProducts } from "./src/lib/fuzzySearch.js";
 import { processPharmacyCopilot } from "./src/lib/geminiCopilotService.js";
+import { parseCustomInvoiceWithAI } from "./src/lib/aiCustomInvoiceService.js";
 import { sendOrderAlert, logTelegramConfigStatus, sendPhysiciansProductRequest } from "./src/lib/telegramService.js";
 import cron from "node-cron";
 import multer from "multer";
@@ -5356,6 +5357,50 @@ app.post("/api/admin/custom-invoices/pdf", requireRole(["Admin"]), async (req, r
   } catch (err: any) {
     console.error("[Custom Invoice PDF Error]:", err);
     res.status(500).json({ error: err.message || "Failed to generate custom invoice PDF" });
+  }
+});
+
+app.post("/api/admin/custom-invoices/ai-parse", requireRole(["Admin"]), async (req, res) => {
+  try {
+    const { promptText, imageBase64, mimeType } = req.body || {};
+
+    const hasText = typeof promptText === "string" && promptText.trim().length > 0;
+    const hasImage = typeof imageBase64 === "string" && imageBase64.trim().length > 0;
+
+    if (!hasText && !hasImage) {
+      return res.status(400).json({
+        error: "অনুগ্রহ করে টেক্সট লিখুন অথবা ইনভয়েস/লিস্টের ছবি আপলোড করুন। (Please provide text or an image.)"
+      });
+    }
+
+    if (hasImage && imageBase64.length > 9 * 1024 * 1024) {
+      return res.status(400).json({
+        error: "ছবির সাইজ অনেক বড়। অনুগ্রহ করে ছোট বা পরিষ্কার ছবি আপলোড করুন।"
+      });
+    }
+
+    const parsed = await parseCustomInvoiceWithAI({
+      promptText: hasText ? promptText.trim() : undefined,
+      imageBase64: hasImage ? imageBase64.trim() : undefined,
+      mimeType: typeof mimeType === "string" ? mimeType : undefined
+    });
+
+    return res.json({
+      success: true,
+      invoice: parsed
+    });
+  } catch (err: any) {
+    console.error("[AI Custom Invoice Parse Error]:", err);
+    const msg = String(err?.message || "AI invoice parsing failed.");
+    const status =
+      err?.status === 429 || msg.includes("RESOURCE_EXHAUSTED")
+        ? 429
+        : err?.status === 403 || msg.includes("PERMISSION_DENIED")
+          ? 403
+          : err?.status === 400 || msg.includes("API_KEY_INVALID")
+            ? 400
+            : 500;
+    return res.status(status).json({ error: msg });
   }
 });
 
